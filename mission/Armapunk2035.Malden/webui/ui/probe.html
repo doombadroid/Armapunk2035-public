@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>bridge probe</title>
+<style>
+/* Background is deliberately TRANSPARENT. When this page is shown through an
+   RscTitles layer rather than a dialog, whether the game world shows through is
+   itself one of the things being probed. */
+/* overflow:auto, not hidden. This page's whole output is #log, and with the
+   body clipped anything past the control's height -- which is most of a
+   diagnostic run -- was unreachable with no scrollbar to reveal it. The
+   transparent background is what matters for a HUD overlay; the clipping was
+   not load-bearing. */
+html,body{margin:0;height:100%;background:transparent;overflow:auto;
+  font:12px/1.5 ui-monospace,Consolas,monospace;color:#c9e21a}
+.box{margin:1rem;padding:.7rem .9rem;max-width:52rem;border-radius:.5rem;
+  background:rgba(5,11,9,.82);border:1px solid rgba(201,226,26,.35)}
+h1{margin:0 0 .4rem;font-size:13px;letter-spacing:.2em;color:#33ffbb}
+.k{color:#7f938a}
+#log{white-space:pre-wrap;max-height:60vh;overflow:auto}
+.swatch{display:inline-block;width:1.2rem;height:1.2rem;vertical-align:middle;
+  border:1px solid #000;background:#ff3d81}
+</style>
+</head>
+<script>
+/* self-boot, same as the other pages */
+window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+  A3API.RequestFile("ui\\html\\webui.js").then(function (src) { (0, eval)(src); })
+    .catch(function (e) { console.error("self-load failed", e); });
+}
+</script>
+<body>
+<div class="box">
+  <h1>BRIDGE PROBE</h1>
+  <div><span class="k">idc:</span> <span id="idc">?</span>
+       <span class="k">· viewport:</span> <span id="vp">?</span>
+       <span class="k">· opaque swatch:</span> <span class="swatch"></span></div>
+  <div style="margin:.5rem 0"><button id="playbtn" style="font:inherit;padding:.4rem .9rem;
+       background:#0e1a15;color:#c9e21a;border:1px solid rgba(201,226,26,.5);
+       border-radius:.35rem;cursor:pointer">▶ PLAY TONE (click me — audio needs a user gesture)</button></div>
+  <div id="vol" style="margin:.6rem 0;padding:.6rem .7rem;border:1px solid rgba(51,255,187,.35);border-radius:.4rem">
+    <div style="color:#33ffbb;letter-spacing:.15em;margin-bottom:.4rem">VOLUME SLAVING DEMO</div>
+    <div><button id="tonebtn" style="font:inherit;padding:.3rem .7rem;background:#0e1a15;color:#33ffbb;
+         border:1px solid rgba(51,255,187,.5);border-radius:.3rem;cursor:pointer">start continuous tone</button></div>
+    <div style="margin-top:.5rem">
+      in-page volume
+      <input id="uvol" type="range" min="0" max="100" value="70" style="vertical-align:middle;width:14rem">
+      <span id="uvolv">70%</span>
+    </div>
+    <div style="margin-top:.5rem;color:#7f938a">
+      can't reach Options while a dialog is open (Esc closes it), so set the game's
+      music level from here — the value still round-trips through SQF:
+      <span id="mvbtns"></span>
+    </div>
+    <div style="margin-top:.35rem;color:#7f938a">arma music <span id="amus">?</span>
+      · sound <span id="asnd">?</span> · distance <span id="adist">?</span>
+      · <b style="color:#c9e21a">effective gain <span id="egain">?</span></b></div>
+  </div>
+  <div id="log">waiting for bridge…</div>
+</div>
+
+<script>
+"use strict";
+function el(i){ return document.getElementById(i); }
+function say(m){ var l = el('log'); if (l.textContent === "waiting for bridge…") l.textContent = "";
+                 l.textContent += m + "\n"; l.scrollTop = l.scrollHeight; }
+
+/* ---- 1. ExecJS payload ceiling -----------------------------------------
+   SQF pushes progressively larger strings on the "bulk" channel. Whatever
+   arrives is recorded; SQF then asks what we actually got. A payload that is
+   too large for ExecJS is expected to be dropped silently, so a MISSING value
+   is the signal, not an error. */
+var lastBulk = { asked: 0, got: -1, ok: false };
+
+/* ---- 2. audio ------------------------------------------------------------
+   Two independent routes, because they can fail separately: Web Audio (a
+   generated tone, needing no file at all) and an <audio> element fed a data
+   URI. Whether either is AUDIBLE, and whether Arma's volume slider moves it,
+   only a human can answer -- this reports what the page can see. */
+/* RETURNS A PROMISE. It used to return `out` synchronously while htmlAudio and
+   ctxState were assigned only inside .then() callbacks -- and both call sites
+   JSON.stringify the result immediately, ahead of any media task. So the
+   <audio>/data-URI route, one of the "two independent routes, because they can
+   fail separately" promised above, could NEVER report anything but "?", in the
+   on-screen log and in the RPT alike. FINDINGS 7's NotAllowedError claim cannot
+   have come from this probe's own output. */
+function audioProbe(){
+  var out = { webAudio:"?", ctxState:"?", sampleRate:0, htmlAudio:"?", err:"" };
+  var waits = [];
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) { out.webAudio = "no AudioContext constructor"; }
+    else {
+      var ctx = new AC();
+      out.ctxState = ctx.state; out.sampleRate = ctx.sampleRate;
+      var osc = ctx.createOscillator(), g = ctx.createGain();
+      g.gain.value = 0.25; osc.frequency.value = 440;
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(); setTimeout(function(){ try { osc.stop(); } catch(e){} }, 2000);
+      out.webAudio = "started 440Hz 2s, state=" + ctx.state;
+      if (ctx.resume) {
+        waits.push(ctx.resume().then(
+          function(){ out.ctxState = ctx.state; },
+          function(e){ out.ctxState = "resume rejected: " + (e && e.name); }));
+      }
+    }
+  } catch (e) { out.webAudio = "threw"; out.err += String(e && e.message || e); }
+
+  try {
+    /* 0.4s of 8-bit PCM square wave, built here so no file access is involved */
+    var sr = 8000, n = sr * 0.4, hdr = 44, buf = new Uint8Array(hdr + n), v = new DataView(buf.buffer);
+    function s(o,t){ for (var i=0;i<t.length;i++) buf[o+i] = t.charCodeAt(i); }
+    s(0,"RIFF"); v.setUint32(4, 36+n, true); s(8,"WAVEfmt ");
+    v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+    v.setUint32(24,sr,true); v.setUint32(28,sr,true); v.setUint16(32,1,true); v.setUint16(34,8,true);
+    s(36,"data"); v.setUint32(40,n,true);
+    for (var i=0;i<n;i++) buf[hdr+i] = (Math.floor(i/(sr/880)) % 2) ? 200 : 56;
+    var b64 = ""; for (var j=0;j<buf.length;j++) b64 += String.fromCharCode(buf[j]);
+    var a = new Audio("data:audio/wav;base64," + btoa(b64));
+    a.volume = 0.4;
+    var p = a.play();
+    if (p && p.then) {
+      waits.push(p.then(function(){ out.htmlAudio = "play() resolved"; },
+                        function(e){ out.htmlAudio = "play() rejected: " + (e && e.name); }));
+    } else { out.htmlAudio = "play() returned no promise"; }
+  } catch (e) { out.htmlAudio = "threw"; out.err += " | " + String(e && e.message || e); }
+
+  /* Bounded: a play() promise that never settles must not hang the caller --
+     the SQF side is waiting on this through WEBUI.handle("audio"). */
+  return Promise.race([
+    Promise.all(waits),
+    new Promise(function (r) { setTimeout(r, 1500); })
+  ]).then(function () { return out; });
+}
+
+/* The viewport readout needs nothing from SQF, so it must not wait for SQF.
+   This whole page used to live inside WEBUIReady with no fallback at all: when
+   the page's path was missing from the whitelist -- documented failure #1, and
+   silent -- probe.html rendered, sat on "waiting for bridge…" forever, left
+   idc/viewport on "?", and the PLAY TONE button did nothing because its
+   listener had never been attached. The operator could not tell "no bridge"
+   from "page dead" on the page whose job is to tell them apart. */
+el('vp').textContent = window.innerWidth + "x" + window.innerHeight + " dpr" + window.devicePixelRatio;
+
+/* The audio probe needs NOTHING from SQF, so its button must not wait for the
+   bridge. It used to live inside WEBUIReady.then, so in the one documented
+   silent failure -- this page's path missing from allowedHTMLLoadURIs -- the
+   button was inert and the operator could not tell "no bridge" from "page
+   dead", on the page whose entire job is telling them apart. */
+el('playbtn').addEventListener('click', function () {
+  audioProbe().then(function (r) {
+    say("audio(after click): " + JSON.stringify(r));
+    if (window.WEBUI) {
+      window.WEBUI.call("log", ["AUDIO AFTER USER GESTURE: " + JSON.stringify(r)])["catch"](function(){});
+    } else {
+      say("(no bridge, so this result was not sent to the RPT)");
+    }
+  });
+});
+
+var bridgeUp = false;
+setTimeout(function () {
+  if (bridgeUp) return;
+  say("NO BRIDGE after 12s — the page is alive and running JS, but window.WEBUI never appeared.");
+  say("Most likely this page's path is not in CfgCommands::allowedHTMLLoadURIs, or webui_fnc_init was never called on the control.");
+  el('idc').textContent = "no bridge";
+}, 12000);
+
+window.WEBUIReady.then(function (WEBUI) {
+  bridgeUp = true;
+  say("bridge up");
+
+  WEBUI.on("bulk", function (v) {
+    lastBulk.got = (typeof v === "string") ? v.length : -1;
+    lastBulk.ok  = true;
+    say("bulk received: " + lastBulk.got + " chars");
+  });
+
+  /* SQF asks what actually arrived, after each push */
+  WEBUI.handle("bulkGot", function () { return lastBulk; });
+  WEBUI.handle("bulkArm", function (asked) { lastBulk = { asked: asked, got: -1, ok: false }; return true; });
+
+  /* Deflate path: SQF sends a compressed blob, we inflate here */
+  WEBUI.handle("inflateTest", function (b64) {
+    try {
+      var bin = atob(b64), bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      if (typeof DecompressionStream === "undefined") return { ok:false, why:"no DecompressionStream" };
+      return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate")))
+        .text().then(function (t) { return { ok:true, len:t.length, head:t.slice(0,16) }; },
+                     function (e) { return { ok:false, why:String(e && e.message || e) }; });
+    } catch (e) { return { ok:false, why:String(e && e.message || e) }; }
+  });
+
+  WEBUI.handle("audio", function () {
+    return audioProbe().then(function (r) {
+      say("audio(no gesture): " + JSON.stringify(r));
+      return r;                       // handle() may return a Promise
+    });
+  });
+
+  /* Chromium blocks audio until a real user gesture. The SQF-driven probe has
+     no gesture, so it reported NotAllowedError / AudioContext suspended -- that
+     is the autoplay policy, not "audio does not work". A click is a gesture. */
+
+  /* ---- volume slaving --------------------------------------------------
+     Arma's own volume sliders do NOT reach CEF — measured: moving any of them
+     changes nothing. But SQF can READ them and push the values here, so the page
+     can obey them voluntarily.
+
+     NOT via musicVolume / soundVolume / radioVolume: those return the SCRIPTED
+     fade coefficient (set by fadeMusic and friends), not the player's sliders,
+     and sit at 1 wherever the sliders are — a version of this that read them
+     never worked. The sliders come from getAudioOptionVolumes; what the player
+     hears is that times the scripted fade, and the product is what arrives here.
+
+     Effective gain is the product of:
+
+         in-page slider  x  arma's music slider  x  distance falloff
+
+     That is what makes page audio shippable. Without it a muted player still
+     hears the radio, which is the fastest way to get an applet uninstalled. */
+  var VOL = { user: 0.70, arma: 1, dist: 1 };
+  var actx = null, osc = null, gainNode = null;
+
+  function applyGain(){
+    var g = VOL.user * VOL.arma * VOL.dist;
+    el('egain').textContent = (g * 100).toFixed(0) + "%";
+    if (gainNode) gainNode.gain.value = g;
+  }
+
+  el('tonebtn').addEventListener('click', function () {
+    if (osc) { try { osc.stop(); } catch(e){} osc = null; this.textContent = "start continuous tone"; applyGain(); return; }
+    var AC = window.AudioContext || window.webkitAudioContext;
+    actx = actx || new AC();
+    if (actx.state === "suspended") actx.resume();      // the click IS the gesture
+    osc = actx.createOscillator(); gainNode = actx.createGain();
+    osc.frequency.value = 330; osc.type = "sine";
+    osc.connect(gainNode); gainNode.connect(actx.destination);
+    applyGain(); osc.start();
+    this.textContent = "stop tone";
+    say("tone running — now move the in-game volume slider AND the one above");
+  });
+
+  /* Each button asks SQF to fade the game's music level. The slaving loop then
+     notices musicVolume changed and pushes it back — so if the readout moves,
+     the whole chain (page -> SQF -> engine -> SQF -> page) is proven live. */
+  [0, 25, 50, 100].forEach(function (pct) {
+    var b = document.createElement('button');
+    b.textContent = pct + "%";
+    b.style.cssText = "font:inherit;margin-right:.3rem;padding:.15rem .5rem;background:#0e1a15;" +
+                      "color:#7f938a;border:1px solid rgba(201,226,26,.3);border-radius:.25rem;cursor:pointer";
+    b.addEventListener('click', function () {
+      WEBUI.call("setArmaMusic", [pct / 100]).then(function (r) {
+        say("setArmaMusic " + pct + "% -> " + JSON.stringify(r));
+      }).catch(function (e) { say("setArmaMusic failed: " + e.message); });
+    });
+    el('mvbtns').appendChild(b);
+  });
+
+  /* Local feedback on every step, but only ONE call to SQF once the drag
+     settles. `input` fires per step, so dragging 70% -> 0% used to send ~70
+     setVol calls, each spawning an SQF thread; before the SQF side was
+     debounced that was ~70 profile writes to disk in about a second.
+     The rejection is surfaced too: it used to be swallowed by an empty catch,
+     so running this page without `[_ctrl] spawn webui_fnc_volumeSlave` showed
+     nothing at all while the RPT filled with "blocked call to unregistered
+     name 'setVol'". */
+  var volTimer = null;
+  el('uvol').addEventListener('input', function () {
+    VOL.user = this.value / 100;
+    el('uvolv').textContent = this.value + "%";
+    applyGain();
+    if (volTimer) clearTimeout(volTimer);
+    volTimer = setTimeout(function () {
+      volTimer = null;
+      WEBUI.call("setVol", [VOL.user]).catch(function (e) {
+        say("setVol failed: " + (e && e.message) +
+            " — is [_ctrl] spawn webui_fnc_volumeSlave running? The volume block needs it.");
+      });
+    }, 250);
+  });
+
+  /* SQF pushes the game's own slider positions, and a distance falloff, so the
+     page can duck exactly the way the native radio does for bystanders. */
+  var savedApplied = false;
+  WEBUI.on("vol", function (v) {
+    if (!v) return;
+    /* SQF sends the persisted in-page volume on EVERY push, not just the first
+       -- deliberately, so a document rebuilt by a reload or a freeze/resume
+       still receives it (the page's channel map starts empty, and the loop's
+       resend is then the first `vol` message the new document ever sees).
+       That is exactly why it must be latched HERE: applying it on every push
+       would fight the player mid-drag. The original persistence bug was the
+       value being sent and never read. */
+    if (!savedApplied && typeof v.saved === "number") {
+      savedApplied = true;
+      VOL.user = v.saved;
+      el('uvol').value = Math.round(v.saved * 100);
+      el('uvolv').textContent = Math.round(v.saved * 100) + "%";
+    }
+    VOL.arma = (typeof v.music === "number") ? v.music : 1;
+    VOL.dist = (typeof v.dist  === "number") ? v.dist  : 1;
+    el('amus').textContent  = (VOL.arma * 100).toFixed(0) + "%";
+    el('asnd').textContent  = (typeof v.sound === "number" ? (v.sound*100).toFixed(0) : "?") + "%";
+    el('adist').textContent = (VOL.dist * 100).toFixed(0) + "%";
+    applyGain();
+  });
+
+  /* Ask, rather than wait to be told. This readout is the first field on the
+     page and used to be fillable ONLY by an SQF-side `whoami` call that nothing
+     in the repo or the docs ever makes -- so it sat on "?" permanently and read
+     as "the bridge could not determine the idc". The handler stays registered
+     for a host that does drive it. */
+  WEBUI.handle("whoami", function (idc) {
+    el('idc').textContent = idc;
+    return { idc: idc, w: window.innerWidth, h: window.innerHeight };
+  });
+
+  WEBUI.call("ctrlInfo").then(function (info) {
+    if (Array.isArray(info)) el('idc').textContent = info[0];
+  }).catch(function (e) { el('idc').textContent = "unavailable (" + (e && e.message) + ")"; });
+
+  /* announce presence — the multi-control test counts these in the RPT */
+  WEBUI.call("log", ["probe page alive, viewport " + window.innerWidth + "x" + window.innerHeight]).catch(function(){});
+});
+</script>
+</body>
+</html>

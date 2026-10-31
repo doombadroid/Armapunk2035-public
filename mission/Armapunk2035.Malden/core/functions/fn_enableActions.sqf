@@ -1,0 +1,12 @@
+if (AP_scrollDisabled) exitWith {};
+if (player getVariable["AP_restrained", false] || (isWeaponDeployed player)) exitWith {};
+if (AP_show_actions) exitWith {};
+AP_show_actions = true;
+[] spawn AP_fnc_setupActions;
+AP_action_time = time + 7;
+waitUntil {uiSleep 0.25;
+    AP_action_time < time};
+private _obj_main = player;
+removeAllActions _obj_main;
+AP_actions = [];
+AP_show_actions = false;

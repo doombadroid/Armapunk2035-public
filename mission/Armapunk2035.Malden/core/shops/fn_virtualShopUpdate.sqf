@@ -1,0 +1,52 @@
+params[["_shopType", "", [""]], ["_mainItemListSelect", -1, [0]]];
+if (_shopType isEqualTo "") exitWith {};
+private _plb_display = findDisplay 39500;
+if (isNull _plb_display) exitWith {};
+private _topTitle = _plb_display displayCtrl 39501;
+private _subTitle = _plb_display displayCtrl 39502;
+private _mainListGroup = _plb_display displayCtrl 39503;
+private _mainItemList = _mainListGroup controlsGroupCtrl 1000;
+private _mainItemListEdit = _mainListGroup controlsGroupCtrl 1004;
+private _mainItemListBackground = _mainListGroup controlsGroupCtrl 1003;
+private _mainItemListBuyButton = _mainListGroup controlsGroupCtrl 1005;
+private _mainItemListSellButton = _mainListGroup controlsGroupCtrl 1006;
+private _selectedData = [_mainItemList lnbData[_mainItemListSelect, 0], _mainItemList lnbValue[_mainItemListSelect, 1], _mainItemList lnbValue[_mainItemListSelect, 2]];
+_selectedData params["_item", "_price"];
+private _shopInfo = [_shopType] call AP_fnc_virt_shops;
+_shopInfo params[["_shopTitle", ""], ["_buyItems", []], ["_sellItems", []]];
+_subTitle ctrlSetText(format["Player Weight: %2/%3", _shopTitle, AP_carryWeight, AP_maxWeight]);
+private _canOnlyBeSold = ((_item in _sellItems) && !(_item in _buyItems));
+private _canOnlyBeBought = (!(_item in _sellItems) && (_item in _buyItems));
+private _canBeSoldAndBought = ((_item in _sellItems) && (_item in _buyItems));
+private _name = ["getName", _item] call AP_fnc_virtItemCfg;
+private _picture = ["getIcon", _item] call AP_fnc_virtItemCfg;
+private _qtyInInventory = missionNameSpace getVariable[format["AP_inv_%1", _item], 0];
+private _color = [1, 1, 1, 0.3];
+switch (true) do {case (_canOnlyBeSold): {if (_qtyInInventory isEqualTo 0) then {_mainItemList lnbDeleteRow _mainItemListSelect;
+                _mainItemListSellButton ctrlEnable false;} else {private _invText = format["%1", _qtyInInventory];
+                _mainItemList lnbSetValue[[_mainItemListSelect, 2], _qtyInInventory];
+                _mainItemList lnbSetText[[_mainItemListSelect, 2], _invText];
+                _mainItemListSellButton ctrlEnable true;};};
+    case (_canBeSoldAndBought): {private _invText = format["%1", _qtyInInventory];
+            _mainItemList lnbSetValue[[_mainItemListSelect, 2], _qtyInInventory];
+            _mainItemList lnbSetText[[_mainItemListSelect, 2], _invText];
+            if (_qtyInInventory isEqualTo 0) then {_mainItemListSellButton ctrlEnable false;} else {_mainItemListBuyButton ctrlEnable true;
+                _mainItemListSellButton ctrlEnable true;};
+            
+                if (_shopType in ["rebel"]) then {if (AP_cash >= _price) then {_color set[3, 1]};};
+                if (((AP_cash >= _price) || (AP_atmcash >= _price)) && !(_shopType in ["rebel"])) then {
+                    _color set[3, 1]};
+                _mainItemList lnbSetColor[[_mainItemListSelect, 0], _color];
+                _mainItemList lnbSetColor[[_mainItemListSelect, 1], [0.325, 0.890, 0.612, _color select 3]];
+                _mainItemList lnbSetColor[[_mainItemListSelect, 2], [0.780, 0.635, 0.306, _color select 3]];;};
+    case (_canOnlyBeBought): {private _invText = format["%1", _qtyInInventory];
+            _mainItemList lnbSetValue[[_mainItemListSelect, 2], _qtyInInventory];
+            _mainItemList lnbSetText[[_mainItemListSelect, 2], _invText];
+            
+                if (_shopType in ["rebel"]) then {if (AP_cash >= _price) then {_color set[3, 1]};};
+                if (((AP_cash >= _price) || (AP_atmcash >= _price)) && !(_shopType in ["rebel"])) then {
+                    _color set[3, 1]};
+                _mainItemList lnbSetColor[[_mainItemListSelect, 0], _color];
+                _mainItemList lnbSetColor[[_mainItemListSelect, 1], [0.325, 0.890, 0.612, _color select 3]];
+                _mainItemList lnbSetColor[[_mainItemListSelect, 2], [0.780, 0.635, 0.306, _color select 3]];;
+            _mainItemListBuyButton ctrlEnable true;};};

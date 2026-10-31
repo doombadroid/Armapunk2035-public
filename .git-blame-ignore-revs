@@ -1,0 +1,39 @@
+# Commits that only move whitespace around. Listed here so `git blame` walks
+# through them to the author who actually wrote the line.
+#
+# Enable locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub honours this file automatically.
+#
+# Each commit below was verified with tools/sqf_equiv.py before it landed:
+# identical token stream, and string literals either byte-identical or (for
+# literals that are themselves compiled SQF) token-identical with every nested
+# literal byte-identical.
+
+# setupActions: rejoin the beautifier's line explosion (7318 -> 3218)
+afc1f6718035def9175b6f276b7c355279d6cdfc
+
+# setupActions: collapse the 204 multi-line condition strings (3218 -> 1042)
+cdd3d63334c364a4935d56eb27c452e80091045d
+
+# Wave 5 -- repo-wide reflow, whitespace only, 1,318 files / -44,682 lines.
+# Each batch verified with tools/sqf_equiv.py plus a comment-text check: identical
+# token stream, string literals byte-for-byte, preprocessor directives and comments.
+
+# Wave 5 batch 1: reflow core/config (41 files, -3,916 lines)
+b0e8213a5ce7d3478d445da7d05a5ddd6283509e
+
+# Wave 5 batch 2: reflow dialog/ (158 files, -7,386) + config fixpoint (-75)
+6889d93e198f549ec8f909d8fe9b5e32c69b54b6
+
+# Wave 5 batch 3: reflow server/AP_server (314 files, -5,824 lines)
+59c326ed26d1d188e7b351377284e9e64ee257a7
+
+# Wave 5 batch 4: reflow mission core/ (729 files, -24,349 lines)
+0883af4dfcca91d7b81c2cd46c0c297638ffaa7d
+
+# Wave 5 batch 5a: reflow remaining mission files (74 files, -2,500 lines)
+56c4a552186bdc5b26696ce2321dc3db5c53dc9b
+
+# Wave 5 batch 5b: reflow CfgRE.hpp (1052 -> 404 lines)
+353103bc6e1bd6211875f25929616449f3dbc709

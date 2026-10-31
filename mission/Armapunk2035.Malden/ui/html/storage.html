@@ -1,0 +1,437 @@
+<!doctype html>
+<!-- STORAGE — DUAL MANIFEST (design 2a, signed off). Self-contained, game-ready:
+     inline CSS/JS, no libs, no network, no storage. AP stub behind a guard.
+     Replaces TrunkMenu (idd 4500) for the containers fn_storageOpen.sqf
+     supports. Spec: STORAGE.md.
+
+     THE DESIGN: two manifests — the container left, ON YOU right — with a
+     command gutter between them: qty stepper (1/10/MAX), TAKE / STORE, and
+     bulk TO VEHICLE. Containers switch in the header (house + keyed trunk,
+     own inventories and caps); T opens the trunk, Y opens self-inventory —
+     same screen, game-side binds. Weight is a live bar per side, selection is
+     one magenta wash wherever it lives, virtual ⇄ physical keeps its slot
+     bottom-left and is HIDDEN unless the snapshot says house:true — only a
+     house has a script-side physical store; a vehicle's gear lives in its real
+     engine cargo, which the native inventory owns. In game this dialog floats
+     over the world; this file ships a dim placeholder backdrop, replaced by
+     the actual world behind the windowed control (see __WINFIT__ below).
+
+     CONTRACT (page defines it; SQF matches; server owns every inventory)
+       AP.on("storage", { mode,                       // "virtual" | "physical"
+                          house,                      // container is a house -> physical mode exists
+                          cont,                       // active container id
+                          conts: [{ id, name, label, cap,
+                                    items: [{ id, name, kind, wt, qty, icon }] }],
+                          you:   { cap, items: [...] } })
+         — pushed on open + after ANY mutation; the page renders pushes
+           verbatim and never mutates a manifest itself. icon is the item's
+           in-game texture path (mission icons\*.paa for virtual goods, the
+           config picture for physical gear); the page resolves it through
+           AP.texture(path, size) — same bridge call the phone uses.
+       AP.call("stMove", [contId, itemId, "take"|"store", qty]) // -> { ok, msg }
+       AP.call("stBulkVehicle", [itemId])   // -> { ok } — 10/sec to nearest keyed veh ≤ 25 m
+       AP.call("stMode", ["virtual"|"physical"])  // server re-pushes; refused unless house
+       AP.call("stCont", [contId])                // server re-pushes
+       AP.call("stClose", [])
+     Weight math shown client-side is display only; the server re-checks.
+     Only ONE container is ever pushed today (fn_storageOpen.sqf's target) —
+     the header switcher renders fine with a single entry; T/Y are game-side
+     binds outside this page (see fn_storageOpen.sqf's header for scope).
+
+     WHAT ANIMATES: header LED pulse + scanline drift (CSS keyframes) and the
+     2.6 s flash-line timeout. No rAF. Esc closes; T switches container and Y
+     is a no-op here (demo mirrors of the game binds). -->
+<html><head><meta charset="utf-8"><title>STORAGE — dual manifest</title>
+<script>
+/* ---- BRIDGE SHIM (hand-applied, matching tools/install_shop_pages.py's
+   pattern for the other HTML shop pages — see ui/html/loot.html / armory.html)
+   AP defined synchronously so the page's dev stub below never installs;
+   on()/call() queue until webui.js lands.
+
+   texture() DELIBERATELY differs from the installer's copy: that one calls
+   A3API.RequestTexture directly, which only resolves ABSOLUTE game-content
+   paths (fine for armory's \A3\... weapon pictures). webui_fnc_init's own
+   comment says why that is not enough here: "RequestTexture searches the
+   GAME filesystem, so mission-relative paths resolve to nothing. WEBUI.
+   texture() retries under this prefix." Virtual item icons are mission-
+   relative ("icons\marijuana.paa"), so this delegates to WEBUI.texture()
+   (webui/ui/webui.js) instead, the same call deck.html itself uses for its
+   own icon grid — and keeps the ALPHA TRIM crop below, since physical rows
+   use the same left-aligned BI gear pictures armory does. */
+(function () {
+  var subs = {}, queued = [], W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  window.__apSubs = subs;
+  window.AP = {
+    __shim: true,
+    on: function (n, f) { (subs[n] = subs[n] || []).push(f); if (W) W.on(n, f); },
+    call: function (n, a) {
+      if (W) return W.call(n, a || [], 20000);
+      return new Promise(function (res, rej) { queued.push([n, a || [], res, rej]); });
+    },
+    texture: function (p, s) {
+      var fetchTex = function () {
+        if (W && W.texture) return W.texture(p, s);
+        return window.WEBUIReady.then(function (w) { return w.texture(p, s); });
+      };
+      return fetchTex().then(function (durl) {
+        return new Promise(function (res) {
+          var im = new Image();
+          im.onload = function () {
+            try {
+              var cv = document.createElement("canvas");
+              cv.width = im.width; cv.height = im.height;
+              var g = cv.getContext("2d");
+              g.drawImage(im, 0, 0);
+              var d = g.getImageData(0, 0, cv.width, cv.height).data;
+              var x0 = cv.width, y0 = cv.height, x1 = 0, y1 = 0;
+              for (var y = 0; y < cv.height; y++) for (var x = 0; x < cv.width; x++) {
+                if (d[(y * cv.width + x) * 4 + 3] > 10) {
+                  if (x < x0) x0 = x; if (x > x1) x1 = x;
+                  if (y < y0) y0 = y; if (y > y1) y1 = y;
+                }
+              }
+              if (x1 <= x0 || y1 <= y0) return res(durl);
+              var pad = 2, w = x1 - x0 + 1 + pad * 2, h = y1 - y0 + 1 + pad * 2;
+              var out = document.createElement("canvas"); out.width = w; out.height = h;
+              out.getContext("2d").drawImage(cv, x0 - pad, y0 - pad, w, h, 0, 0, w, h);
+              res(out.toDataURL("image/png"));
+            } catch (e) { res(durl); }
+          };
+          im.onerror = function () { res(durl); };
+          im.src = durl;
+        });
+      });
+    },
+    handle: function (n, f) { if (W) W.handle(n, f); }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    queued.forEach(function (q) { W.call(q[0], q[1], 20000).then(q[2], q[3]); });
+    queued = [];
+    W.call("log", ["storage page up"]);   // instant readiness drain
+  });
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else { window.__apBootErr = "no A3API on this page"; }
+})();
+</script>
+<style>
+:root{
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --scr2:#0a121c; --panel:#0c1622; --panel2:#0e1a28;
+  --acc:#f5a623; --acc2:#54b0ff; --danger:#ff4d4d; --amber:#54b0ff; --magenta:#ff3d81;
+  --ink:#dbe6f2; --dim:#7d8b9e; --faint:#3c4a5c; --line:rgba(245,166,35,.15);
+}
+html{font-size:clamp(9px,1.22vw,22px)}
+html,body{margin:0;height:100%;background:#07090a;font-family:var(--sans)}
+#stage{position:fixed;inset:0;display:grid;place-items:center;
+  background:radial-gradient(ellipse at 50% 30%,#12171a,#07090a 75%)}
+#frame{position:relative;width:min(94vw,168vh);aspect-ratio:960/472;border-radius:.55rem;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 22%,#0c1622 0%,#050a10 72%);
+  box-shadow:0 22px 60px rgba(0,0,0,.65), inset 0 0 0 1px #000;
+  display:flex;flex-direction:column;color:var(--ink)}
+#scan{position:absolute;inset:0;z-index:9;pointer-events:none;opacity:.5;
+  background:repeating-linear-gradient(180deg,transparent 0 2px,rgba(0,0,0,.22) 2px 3px);
+  animation:apScan 5.5s linear infinite,apFlicker 6.1s ease-in-out infinite}
+@keyframes apScan{0%{background-position:0 0}100%{background-position:0 3px}}
+@keyframes apFlicker{0%,100%{opacity:.46}47%{opacity:.5}52%{opacity:.42}}
+@keyframes apPulse{0%,100%{opacity:1}50%{opacity:.35}}
+button{font:inherit;color:inherit;cursor:pointer}
+/* header */
+#hdr{position:relative;z-index:3;flex:none;display:flex;align-items:center;gap:1rem;padding:.62rem 1rem;
+  background:var(--scr2);border-bottom:1px solid var(--line);font-family:var(--mono)}
+#hdr .led{width:.5rem;height:.5rem;border-radius:50%;background:var(--acc);box-shadow:0 0 .55rem var(--acc);
+  animation:apPulse 2.4s ease-in-out infinite}
+#hdr .ttl{color:var(--acc);font-weight:800;font-size:1rem;letter-spacing:.3em}
+#hdr .cont{border:1px solid var(--line);background:transparent;color:var(--dim);border-radius:.35rem;
+  font-family:var(--mono);font-size:.62rem;letter-spacing:.16em;font-weight:600;padding:.3rem .55rem}
+#hdr .cont.on{border-color:rgba(245,166,35,.5);background:rgba(245,166,35,.14);color:var(--acc)}
+#hdr .mode{color:var(--faint);font-size:.68rem;letter-spacing:.26em}
+#hdr .caps{margin-left:auto;display:flex;align-items:baseline;gap:1.4rem;font-size:.78rem;font-variant-numeric:tabular-nums}
+#hdr .x{border:1px solid var(--line);background:var(--panel2);color:var(--dim);border-radius:.35rem;
+  font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;padding:.3rem .55rem}
+#hdr .x:hover{color:var(--danger);border-color:rgba(255,90,60,.5)}
+/* body */
+#bd{position:relative;z-index:2;flex:1;min-height:0;display:flex;padding:.7rem;gap:.7rem}
+.col{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:.7rem;
+  display:flex;flex-direction:column;overflow:hidden}
+.col .ch{flex:none;display:flex;align-items:center;gap:.6rem;padding:.55rem .85rem;border-bottom:1px solid var(--line)}
+.col .cl{font-family:var(--mono);font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+.col .ck{font-family:var(--mono);font-size:.6rem;color:var(--faint)}
+.col .track{margin-left:auto;flex:none;width:7rem;height:.35rem;border-radius:.18rem;background:#0a121c;overflow:hidden}
+.col .track span{display:block;height:100%;border-radius:.18rem;background:var(--amber)}
+.col .list{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:.45rem .55rem;display:flex;flex-direction:column;gap:.3rem}
+.row{display:flex;align-items:center;gap:.55rem;height:2.55rem;flex:none;padding:0 .65rem;border-radius:.55rem;
+  background:var(--panel2);border:1px solid var(--line);text-align:left}
+.row.on{background:rgba(255,61,129,.16);border-color:rgba(255,61,129,.55)}
+.row .ic{width:1.7rem;height:1.7rem;flex:none;border-radius:.3rem;background:#0a121c 50%/cover no-repeat;border:1px solid rgba(255,255,255,.06)}
+.row .nm{flex:1;min-width:0;font-size:.78rem;font-weight:550;color:#eaf0f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .kd{font-family:var(--mono);font-size:.52rem;font-weight:700;letter-spacing:.1em;padding:.14rem .38rem;
+  border-radius:.26rem;color:var(--dim);background:rgba(255,255,255,.045)}
+.row .wt{font-family:var(--mono);font-size:.62rem;color:var(--faint);width:3.4rem;text-align:right}
+.row .q{font-family:var(--mono);font-size:.78rem;color:var(--ink);width:2.8rem;text-align:right;font-variant-numeric:tabular-nums}
+.empty{margin:auto;font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;color:var(--faint)}
+/* gutter */
+#gut{flex:none;width:8.4rem;display:flex;flex-direction:column;gap:.45rem;justify-content:center}
+#gut .box{background:var(--panel);border:1px solid var(--line);border-radius:.7rem;padding:.6rem;
+  display:flex;flex-direction:column;gap:.45rem}
+#gut .k{font-family:var(--mono);font-size:.55rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);text-align:center}
+#gut .step{display:flex;align-items:center;gap:.3rem}
+#gut .pm{flex:none;width:1.8rem;height:1.8rem;border:1px solid var(--line);background:var(--panel2);color:var(--dim);
+  border-radius:.4rem;font-family:var(--mono);font-size:.8rem}
+#gut .pm:hover{color:var(--acc)}
+#gut .qv{flex:1;text-align:center;font-family:var(--mono);font-size:1.15rem;font-weight:700;color:var(--acc);font-variant-numeric:tabular-nums}
+#gut .qs{display:flex;gap:.25rem}
+#gut .qb{flex:1;height:1.5rem;border:1px solid var(--line);background:transparent;color:var(--acc2);
+  border-radius:.3rem;font-family:var(--mono);font-size:.55rem}
+#gut .go{height:2.3rem;border-radius:.5rem;font-family:var(--mono);font-size:.66rem;font-weight:700;letter-spacing:.12em}
+#gut .go.on{border:1px solid rgba(84,176,255,.5);background:rgba(84,176,255,.16);color:var(--acc2)}
+#gut .go.off{border:1px solid rgba(60,74,92,.35);background:transparent;color:#34435a;cursor:not-allowed}
+#gut .veh{height:1.9rem;border:1px solid var(--line);background:transparent;color:var(--acc2);border-radius:.45rem;
+  font-family:var(--mono);font-size:.56rem;letter-spacing:.08em}
+#gut .veh:hover{border-color:rgba(84,176,255,.45)}
+/* footer */
+#ft{position:relative;z-index:2;flex:none;display:flex;align-items:center;gap:.7rem;padding:.5rem 1rem .65rem;font-family:var(--mono)}
+#ft .tog{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:.4rem;
+  font-size:.6rem;letter-spacing:.1em;padding:.35rem .6rem}
+#ft .tog:hover{color:var(--acc);border-color:rgba(245,166,35,.5)}
+/* explicit: #ft is a flex container, and a flex item's display is the one thing a UA
+   [hidden] rule loses to if any later rule sets it. Non-house containers hide the toggle. */
+#ft .tog[hidden]{display:none}
+#ft #flash{font-size:.62rem;letter-spacing:.06em;color:var(--faint)}
+#ft .hint{margin-left:auto;font-size:.55rem;letter-spacing:.1em;color:var(--faint)}
+*::-webkit-scrollbar{width:6px}*::-webkit-scrollbar-thumb{background:#22332a;border-radius:3px}
+</style></head><body>
+<div id="stage"><div id="frame">
+  <div id="scan"></div>
+  <div id="hdr"></div>
+  <div id="bd">
+    <div class="col"><div class="ch"><span class="cl" id="lLab"></span><span class="ck" id="lKinds"></span>
+      <div class="track"><span id="lBar"></span></div></div><div class="list" id="lList"></div></div>
+    <div id="gut">
+      <div class="box"><span class="k">Quantity</span>
+        <div class="step"><button class="pm" id="qm">−</button><span class="qv" id="qv">10</span><button class="pm" id="qp">+</button></div>
+        <div class="qs"><button class="qb" data-q="1">1</button><button class="qb" data-q="10">10</button><button class="qb" data-q="max">MAX</button></div>
+      </div>
+      <button class="go" id="btnTake">◂ TAKE</button>
+      <button class="go" id="btnStore">STORE ▸</button>
+      <button class="veh" id="btnVeh" title="Bulk-move the highlighted item to the nearest keyed vehicle within 25 m">⇊ TO VEHICLE</button>
+    </div>
+    <div class="col"><div class="ch"><span class="cl">On you</span><span class="ck" id="rKinds"></span>
+      <div class="track"><span id="rBar"></span></div></div><div class="list" id="rList"></div></div>
+  </div>
+  <div id="ft">
+    <button class="tog" id="tog"></button>
+    <span id="flash">READY</span>
+    <span class="hint">T OPENS THE TRUNK · Y OPENS YOUR INVENTORY → SAME SCREEN · DROP IS PHYSICAL ONLY</span>
+  </div>
+</div></div>
+<script>
+/* ---- AP stub (real bridge from the shim above wins) --------------- */
+if (typeof AP === "undefined") {
+  window.AP = (function () {
+    const subs = {}, last = {}, texCache = {};
+    const push = (c, v) => { last[c] = v; (subs[c] || []).forEach(f => f(v)); };
+    const IT = {
+      cannabis:["Cannabis","PROC",3], smash:["Smash","PROC",6], moonshine:["Moonshine","PROC",4],
+      toolkit:["Toolkit","TOOL",5], medkit:["MediKit","MED",2], lockpick:["Lockpick","TOOL",1],
+      water:["Water","FOOD",1], rations:["Rations","FOOD",2], boltcut:["Bolt Cutters","TOOL",8],
+      rope:["Rope","GEAR",2], gps:["GPS","GEAR",1], fuel:["Fuel Can","GEAR",10],
+      mx:["MX 6.5 mm","WPN",14,"\\A3\\weapons_f\\rifles\\mx\\data\\ui\\gear_mx_x_ca.paa"],
+      mag65:["6.5 mm Mag","AMMO",1,"\\A3\\weapons_f\\data\\ui\\m_30stanag_ca.paa"],
+      p07:["P07 9 mm","WPN",4,"\\A3\\weapons_f\\pistols\\p07\\data\\ui\\gear_p07_x_ca.paa"],
+      mag9:["9 mm Mag","AMMO",1,"\\A3\\weapons_f\\data\\ui\\m_16rnd_9x21_ca.paa"],
+      vest:["Carrier Lite","GEAR",8,"\\A3\\characters_f\\data\\ui\\icon_v_plate_carrier_2_ca.paa"],
+      fak:["First Aid Kit","MED",1,"\\A3\\structures_f\\items\\medical\\data\\ui\\gear_fak_ca.paa"]
+    };
+    const rows = h => Object.keys(h).map(id => ({ id, name: IT[id][0], kind: IT[id][1], wt: IT[id][2], qty: h[id],
+      icon: IT[id][3] || ("icons\\items\\" + id + ".paa") }));
+    const V = {
+      house: { cannabis:40, smash:12, moonshine:6, toolkit:2, medkit:5, lockpick:8, water:10, rations:4, boltcut:1, rope:3, fuel:2 },
+      trunk: { smash:8, toolkit:1, fuel:4, rope:2, water:6 },
+      you:   { smash:2, medkit:1, lockpick:2, water:2, gps:1 },
+      housePh: { mx:1, mag65:6, vest:2, fak:4 }, youPh: { p07:1, mag9:3, fak:1 }
+    };
+    let mode = "virtual", cont = "house4a";
+    const wt = h => Object.keys(h).reduce((a, id) => a + h[id] * IT[id][2], 0);
+    const snap = () => ({
+      mode, cont, house: true,
+      conts: mode === "physical"
+        ? [{ id:"house4a", name:"HOUSE 4-A", label:"IN STORAGE", cap:250, items: rows(V.housePh) }]
+        : [{ id:"house4a", name:"HOUSE 4-A", label:"IN STORAGE", cap:250, items: rows(V.house) },
+           { id:"kt7",     name:"ZAMAK — KT7-2091", label:"IN TRUNK", cap:110, items: rows(V.trunk) }],
+      you: { cap: 90, items: rows(mode === "physical" ? V.youPh : V.you) }
+    });
+    const CALLS = {
+      stMove: (cid, id, dir, qty) => {
+        const H = mode === "physical" ? V.housePh : (cid === "kt7" ? V.trunk : V.house);
+        const Y = mode === "physical" ? V.youPh : V.you;
+        const from = dir === "take" ? H : Y, to = dir === "take" ? Y : H;
+        const n = Math.min(qty, from[id] || 0);
+        if (n <= 0) return { ok:false, msg:"none to " + dir };
+        if (dir === "take") {
+          const room = Math.floor((90 - wt(Y)) / IT[id][2]);
+          if (room < n) return { ok:false, msg:"too heavy — room for " + Math.max(0, room) + " × " + IT[id][0] };
+        }
+        from[id] -= n; if (from[id] <= 0) delete from[id];
+        to[id] = (to[id] || 0) + n;
+        push("storage", snap());
+        return { ok:true, msg:'stMove ["' + id + '","' + dir + '",' + n + "] → ok" };
+      },
+      stBulkVehicle: id => ({ ok:true, msg:"moving 10/sec to KT7-2091" }),
+      stMode: m => { mode = m; cont = "house4a"; push("storage", snap()); return { ok:true }; },
+      stCont: c => { cont = c; push("storage", snap()); return { ok:true }; },
+      stClose: () => true
+    };
+    setTimeout(() => push("storage", snap()), 40);
+    return {
+      on(c, f) { (subs[c] = subs[c] || []).push(f); if (c in last) f(last[c]); },
+      get: c => last[c],
+      call: (k, a) => { console.log("AP.call", k, a || []); return Promise.resolve(CALLS[k] ? CALLS[k].apply(null, a || []) : null); },
+      texture(path, size) {   // hatched placeholder — the real bridge rasterizes the .paa
+        if (texCache[path]) return Promise.resolve(texCache[path]);
+        const c = document.createElement("canvas"); c.width = c.height = size || 64;
+        const x = c.getContext("2d"), n = path.length;
+        x.fillStyle = "#0b1420"; x.fillRect(0, 0, c.width, c.height);
+        x.strokeStyle = "#12202e"; x.lineWidth = 5;
+        for (let i = -c.height; i < c.width; i += 11) {
+          x.beginPath(); x.moveTo(i, 0); x.lineTo(i + c.height * (n % 3 ? 1 : -1), c.height); x.stroke();
+        }
+        return Promise.resolve(texCache[path] = c.toDataURL());
+      },
+      _push: push
+    };
+  })();
+}
+
+const $ = id => document.getElementById(id);
+let D = null, sel = ["h", null], qty = 10, flashT = 0;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const wt = items => items.reduce((a, r) => a + r.qty * r.wt, 0);
+const activeCont = () => D.conts.find(c => c.id === D.cont) || D.conts[0];
+
+function say(msg, ok) {
+  const f = $("flash");
+  f.textContent = msg; f.style.color = ok === false ? "var(--danger)" : "var(--acc)";
+  clearTimeout(flashT);
+  flashT = setTimeout(() => { f.textContent = "READY"; f.style.color = "var(--faint)"; }, 2600);
+}
+
+function rowsHtml(items, side) {
+  if (!items.length) return '<div class="empty">EMPTY</div>';
+  return items.map(r =>
+    '<button class="row' + (sel[0] === side && sel[1] === r.id ? " on" : "") + '" data-side="' + side + '" data-id="' + r.id + '">' +
+    '<span class="ic" data-tex="' + esc(r.icon || "") + '"></span>' +
+    '<span class="nm">' + esc(r.name) + '</span><span class="kd">' + esc(r.kind) + '</span>' +
+    '<span class="wt">' + r.wt + ' WT</span><span class="q">×' + r.qty + "</span></button>").join("");
+}
+const texDone = {};
+function resolveTex() {
+  document.querySelectorAll("[data-tex]").forEach(el => {
+    const p = el.dataset.tex; if (!p) return;
+    if (texDone[p]) { el.style.backgroundImage = 'url("' + texDone[p] + '")'; return; }
+    if (AP.texture) AP.texture(p, 64).then(u => { texDone[p] = u; el.style.backgroundImage = 'url("' + u + '")'; });
+  });
+}
+
+function render() {
+  if (!D) return;
+  const C = activeCont(), youW = wt(D.you.items), houseW = wt(C.items);
+  if (sel[1]) { // drop dead selections
+    const list = sel[0] === "h" ? C.items : D.you.items;
+    if (!list.some(r => r.id === sel[1])) sel = ["h", null];
+  }
+  if (!sel[1]) sel = ["h", (C.items[0] || D.you.items[0] || {}).id || null];
+  $("hdr").innerHTML =
+    '<span class="led"></span><span class="ttl">STORAGE</span>' +
+    D.conts.map(c => '<button class="cont' + (c.id === D.cont ? " on" : "") + '" data-cont="' + c.id + '">' + esc(c.name) + "</button>").join("") +
+    '<span class="mode">// ' + D.mode.toUpperCase() + "</span>" +
+    '<span class="caps"><span style="color:var(--amber)">' + (C.id === "kt7" ? "TRUNK " : "HOUSE ") + houseW + " / " + C.cap + "</span>" +
+    '<span style="color:' + (youW > D.you.cap * .85 ? "var(--danger)" : "var(--amber)") + '">YOU ' + youW + " / " + D.you.cap + "</span>" +
+    '<button class="x" id="btnClose">✕ CLOSE</button></span>';
+  $("lLab").textContent = C.label.toLowerCase();
+  $("lKinds").textContent = C.items.length + " kinds"; $("rKinds").textContent = D.you.items.length + " kinds";
+  $("lBar").style.width = Math.min(100, houseW / C.cap * 100) + "%";
+  $("rBar").style.width = Math.min(100, youW / D.you.cap * 100) + "%";
+  $("rBar").style.background = youW > D.you.cap * .85 ? "var(--danger)" : "var(--amber)";
+  $("lList").innerHTML = rowsHtml(C.items, "h");
+  $("rList").innerHTML = rowsHtml(D.you.items, "y");
+  $("qv").textContent = qty;
+  const canTake = sel[0] === "h" && sel[1], canStore = sel[0] === "y" && sel[1];
+  $("btnTake").className = "go " + (canTake ? "on" : "off");
+  $("btnStore").className = "go " + (canStore ? "on" : "off");
+  // Only a house has an AP_pinv to switch to; stMode refuses on anything else, so the
+  // control is hidden rather than left to produce a refusal the player cannot act on.
+  $("tog").hidden = !D.house;
+  $("tog").textContent = "⇄ " + (D.mode === "virtual" ? "SWITCH TO PHYSICAL" : "SWITCH TO VIRTUAL");
+  resolveTex();
+}
+AP.on("storage", d => { D = d; render(); });
+
+document.addEventListener("click", ev => {
+  const row = ev.target.closest(".row");
+  if (row) { sel = [row.dataset.side, row.dataset.id]; render(); return; }
+  const cont = ev.target.closest("[data-cont]");
+  if (cont) { AP.call("stCont", [cont.dataset.cont]); return; }
+  const qb = ev.target.closest(".qb");
+  if (qb) {
+    if (qb.dataset.q === "max") {
+      const list = sel[0] === "h" ? activeCont().items : D.you.items;
+      const r = list.find(x => x.id === sel[1]); qty = Math.max(1, r ? r.qty : 1);
+    } else qty = +qb.dataset.q;
+    render(); return;
+  }
+  if (ev.target.id === "qm") { qty = Math.max(1, qty - 1); render(); }
+  if (ev.target.id === "qp") { qty = Math.min(999, qty + 1); render(); }
+  if (ev.target.id === "btnTake" && sel[0] === "h" && sel[1])
+    AP.call("stMove", [D.cont, sel[1], "take", qty]).then(r => say(r.msg, r.ok));
+  if (ev.target.id === "btnStore" && sel[0] === "y" && sel[1])
+    AP.call("stMove", [D.cont, sel[1], "store", qty]).then(r => say(r.msg, r.ok));
+  if (ev.target.id === "btnVeh" && sel[1])
+    AP.call("stBulkVehicle", [sel[1]]).then(r => say(r.msg || "bulk move started", r.ok));
+  if (ev.target.id === "btnClose") AP.call("stClose", []);
+  if (ev.target.id === "tog" && D.house) AP.call("stMode", [D.mode === "virtual" ? "physical" : "virtual"]);
+});
+document.addEventListener("keydown", ev => {
+  if (ev.key === "Escape") AP.call("stClose", []);
+  if (ev.key.toLowerCase() === "t" && D && D.conts.length > 1)
+    AP.call("stCont", [D.cont === "kt7" ? "house4a" : "kt7"]);
+  if (ev.key.toLowerCase() === "y") say("Y — self inventory, same screen");
+});
+</script>
+<style>
+/* __WINFIT__ (hand-applied, matching the installer's pattern for the other web
+   pages): windowed control -- no letterbox slab, the world shows around/behind
+   the dialog instead of the mock's dim placeholder backdrop. storage.html's own
+   html{font-size:clamp(...)} already tracks the control's CSS viewport width
+   (confirmed: 30px per UI_GRID unit regardless of screen res, core/web/README.md)
+   so no JS font-fit script is needed here, unlike loot.html/armory.html. */
+html,body{background:transparent!important}
+#stage{background:transparent!important}
+#frame{width:100%!important;height:100%!important;aspect-ratio:auto!important}
+</style>
+<script>
+/* WHEEL SHIM: scroll the nearest scrollable ancestor by hand. Native wheel
+   scrolling has not proven itself in a WINDOWED control; this is deterministic
+   either way, and preventDefault stops any double-scroll where native works.
+   Both list panes (#lList/#rList) scroll independently, so this matters here. */
+document.addEventListener("wheel", function (e) {
+  var el = e.target;
+  while (el && el !== document.body) {
+    var st = getComputedStyle(el);
+    if (/(auto|scroll)/.test(st.overflowY) && el.scrollHeight > el.clientHeight + 1) {
+      el.scrollTop += e.deltaY;
+      e.preventDefault();
+      return;
+    }
+    el = el.parentElement;
+  }
+}, { passive: false });
+</script>
+</body></html>

@@ -1,0 +1,36 @@
+[Unit]
+Description=LooneyBin live Arma server (power-loss auto-recovery; freeze relaunch, no repack)
+After=network-online.target
+
+[Service]
+Type=simple
+# never ship staged source on an unattended boot -- relaunch the already-deployed PBOs as-is
+Environment=NO_REPACK=1
+WorkingDirectory=/home/timb/Documents/LooneyBin Altis Life
+# refuse to start if the live server is already up (a start would pkill+bounce it mid-session)
+ExecStartPre=/bin/bash -c '! pgrep -f "[a]rma3server_x64.*-config=server.cfg" >/dev/null'
+# wait for the DB container (extDB3 needs 3306 at mission load); give docker up to 2 min
+ExecStartPre=-/usr/bin/timeout 120 /bin/bash -c 'until (echo > /dev/tcp/127.0.0.1/3306) 2>/dev/null; do sleep 2; done'
+ExecStart=/bin/bash "/home/timb/Documents/LooneyBin Altis Life/deploy/run-boot2.sh"
+# lifecycle after boot belongs to restart_watchdog (4h restarts, deploys) -- the unit must NOT restart
+Restart=no
+
+[Install]
+WantedBy=default.target
+
+# ---------------------------------------------------------------------------
+# 2026-07-24 INCIDENT FIX (power outage; server did not auto-recover).
+# The original guard was:
+#     ExecStartPre=/bin/bash -c '! pgrep -f "arma3server_x64.*-config=server.cfg" >/dev/null'
+# With the leading `!`, bash cannot exec-optimise, so it FORKS pgrep and the
+# parent `bash -c` process stays alive with the pattern in its OWN cmdline.
+# pgrep -f scans every cmdline, matched that parent, returned 0, `!` inverted
+# it to 1, and ExecStartPre failed -> the unit could NEVER start at boot.
+# (Without the `!`, bash execs into pgrep, same PID, pgrep skips itself -- which
+# is why the pattern appeared to work when tested by hand.)
+# Fix: the [a] bracket. As a REGEX [a]rma still matches a real "arma..." cmdline,
+# but the guard's own cmdline contains the literal text "[a]rma", which the regex
+# cannot match -> no self-match. Verified BOTH directions on the live box:
+# exit 0 when no server runs (allows start), exit 1 with a server present
+# (still blocks a start that would pkill+bounce a live session).
+# ---------------------------------------------------------------------------

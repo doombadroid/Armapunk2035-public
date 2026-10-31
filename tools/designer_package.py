@@ -1,0 +1,305 @@
+#!/usr/bin/env python3
+"""Build the Eden-loadable map package we hand to the external designer.
+
+WHY THIS EXISTS
+    Our working mission is not something the designer can open and understand. Two things are missing
+    from `mission.sqm` on purpose:
+
+      * the map layer -- 8,991 objects live in `core/config/fn_mapData.sqf` as an array and are spawned
+        per-client at init, so Eden shows none of them (that is deliberate: no network/JIP cost).
+      * the custom buildings -- authored by the designer as Land_HelipadEmpty_F anchors, stripped out
+        by sqm_strip_anchors.py and re-created by custom_p3ds/malden_buildings.sqf.
+
+    Hand them a raw copy and they see ~4,260 objects (interiors, clutter) and none of their own work.
+    This builds a SEPARATE mission folder with both staged for import, so one debug-console line in
+    3DEN materialises the whole map as real, editable entities.
+
+WHY THE BAKE IS NOT DONE HERE
+    Converting the array's ATL heights into sqm positions offline was measured at 56% accurate
+    (median 2mm, p90 14m, max 134m) -- see tools/MAP_EDITING.md. The engine has to place them. So this
+    script stages; 3DEN bakes; the designer receives the result.
+
+    Saving THIS package in 3DEN is safe and is the point of it. Saving the WORKING mission is the
+    thing that must never happen (it re-bakes the map layer into our sqm -- 2026-07-26).
+
+USAGE
+    python3 tools/designer_package.py build [--force]
+    # then, once, in 3DEN with the package mission open:
+    #     call compile preprocessFileLineNumbers "designerImport.sqf"
+    #   ... and SAVE (this copy, not the working mission)
+    python3 tools/designer_package.py pack
+"""
+import sys, os, re, shutil, zipfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import mapdata_all as MA
+import sqm_read
+
+ROOT = os.path.join(HERE, "..")
+MISSION = os.path.join(ROOT, "mission", "Armapunk2035.Malden")
+DIST = os.path.join(ROOT, "dist")
+PKG_NAME = "Armapunk2035_DESIGNER.Malden"
+PKG = os.path.join(DIST, PKG_NAME)
+
+WORLD_SIZE = 12800.0          # Malden. Entries outside this are Altis inheritance -- see build().
+BUILDINGS = os.path.join(MISSION, "custom_p3ds", "malden_buildings.sqf")
+
+# _o = createSimpleObject [_MALDEN + "Name.p3d", [x, y, z], true]; _o setDir D; _o setObjectScale S;
+CB_RE = re.compile(
+    r'createSimpleObject\s*\[\s*_MALDEN\s*\+\s*"([^"]+)"\s*,\s*'
+    r'\[\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\]'
+    r'.*?setDir\s+(-?[\d.]+).*?setObjectScale\s+(-?[\d.]+)',
+    re.S)
+
+
+def _entry_xy(raw):
+    """[x,y] of a fn_mapData entry: ["class",[x,y,z],...]. None if it does not parse."""
+    m = re.search(r'\[\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\]', raw)
+    return (float(m.group(1)), float(m.group(2))) if m else None
+
+
+def _stage_mapdata(out_dir):
+    """Malden-only slice of allLocalMapEntities -> mapImportAll_data.sqf in the package."""
+    rows = MA._entries(open(MA.MAP, encoding="utf-8").read())
+    keep, drop = [], 0
+    for r in rows:
+        xy = _entry_xy(r)
+        if xy and 0.0 <= xy[0] <= WORLD_SIZE and 0.0 <= xy[1] <= WORLD_SIZE:
+            keep.append(r.strip())
+        else:
+            drop += 1
+    body = "AP_dataAll = [" + ",".join(keep) + "];\n"
+    open(os.path.join(out_dir, "mapImportAll_data.sqf"), "w", encoding="utf-8").write(body)
+    for t in ("mapImportAll.sqf", "mapExportAll.sqf"):
+        shutil.copy(os.path.join(HERE, t), os.path.join(out_dir, t))
+    return len(keep), drop
+
+
+def _stage_baseline(out_dir):
+    ids = sqm_read.entity_ids(os.path.join(MISSION, "mission.sqm"))
+    open(os.path.join(out_dir, "mapBaseline_ids.sqf"), "w", encoding="utf-8").write(
+        "AP_sqmIds = [" + ",".join(str(i) for i in ids) + "];\n")
+    return len(ids)
+
+
+def _stage_anchors(out_dir):
+    """custom_p3ds/malden_buildings.sqf -> anchorImport.sqf (movable Eden anchors + previews).
+
+    The designer authored these as Land_HelipadEmpty_F anchors in the first place, so anchors are the
+    form they expect to move. Each anchor's description carries the model/dir/scale/world-z so nothing
+    is lost when it comes back to us -- the .sqf stays the source of truth for everything but position.
+
+    The z in the .sqf is a MODEL-CENTRE world z (createSimpleObject's frame), not ATL, and the two
+    differ by a per-class constant. Rather than convert, the script places a throwaway simple object at
+    the authored position, asks the ENGINE where that is in ATL, and puts the anchor there.
+    """
+    src = open(BUILDINGS, encoding="utf-8").read()
+    hits = CB_RE.findall(src)
+    # count REAL placements only -- the file's header comments mention createSimpleObject twice, and a
+    # warning that fires on every clean run is a warning nobody reads.
+    total_calls = sum(1 for ln in src.splitlines()
+                      if "createSimpleObject" in ln and not ln.lstrip().startswith("//"))
+    lines = [
+        '// GENERATED by tools/designer_package.py -- do not hand-edit.',
+        '// Recreates the custom buildings as movable Land_HelipadEmpty_F anchors, plus a non-saved',
+        '// simple-object preview of each so the designer can SEE what they are moving.',
+        'if (!is3DEN) exitWith { systemChat "anchorImport: run from the 3DEN Debug Console."; };',
+        '// double-run guard -- a second pass would stack 55 more anchors on the first set.',
+        'if (((all3DENEntities select 0) findIf { (_x get3DENAttribute "name") param [0,""] isEqualTo "cb_0" }) isNotEqualTo -1)',
+        '    exitWith { systemChat "anchorImport: anchors already present -- delete the CustomBuildings layer first."; };',
+        'private _lay = -1 add3DENLayer "CustomBuildings";',
+        'private _mp = getMissionPath "";',
+        'private _made = [];',
+        'private _n = 0;',
+    ]
+    for model, x, y, z, d, s in hits:
+        desc = "AP_CB model=%s dir=%s scale=%s worldz=%s" % (model, d, s, z)
+        lines += [
+            '',
+            # models live at the MISSION ROOT -- malden_buildings.sqf uses `getMissionPath ""` + name,
+            # with no subfolder. (SQF has no backslash escapes, so never emit a doubled separator here.)
+            'private _tmp = createSimpleObject [_mp + "%s", [%s, %s, %s], true];' % (model, x, y, z),
+            '_tmp setDir %s; _tmp setObjectScale %s;' % (d, s),
+            'private _atl = getPosATL _tmp;',
+            '// preview stays -- it is a simple object, not an entity, so a save does not persist it',
+            # mirror mapImportAll.sqf's proven idiom: create at origin with the 4-arg form, then write
+            # position/rotation as attributes, and assign the LAYER once at the end with set3DENLayer
+            # (there is no add3DENLayerEntity command -- using one aborts the script on the first anchor).
+            'private _e = create3DENEntity ["Object", "Land_HelipadEmpty_F", [0,0,0], false];',
+            '_e set3DENAttribute ["position", _atl];',
+            '_e set3DENAttribute ["rotation", [0, 0, %s]];' % d,
+            '_e set3DENAttribute ["name", format ["cb_%1", _n]];',
+            '_e set3DENAttribute ["description", "%s"];' % desc,
+            '_made pushBack _e;',
+            '_n = _n + 1;',
+        ]
+    lines += [
+        '',
+        '_made set3DENLayer _lay;',
+        'systemChat format ["anchorImport: %1 custom-building anchors placed (previews are visual only).", _n];',
+    ]
+    open(os.path.join(out_dir, "anchorImport.sqf"), "w", encoding="utf-8").write("\n".join(lines) + "\n")
+    return len(hits), total_calls, [h[0] for h in hits]
+
+
+def _copy_assets(out_dir, models):
+    """Copy ONLY the models malden_buildings.sqf actually references, to the mission ROOT.
+
+    Two things this deliberately does not do:
+      * it does not copy custom_p3ds/*.p3d -- those are superseded duplicates of the root files
+        (see the 2026-07-25 model cull); the script resolves `getMissionPath "" + name`, i.e. the root.
+      * it does not chase textures. Every referenced model textures itself off vanilla `a3\\...` paths,
+        so there is nothing mission-local to carry.
+    """
+    n, missing = 0, []
+    for m in sorted(set(models)):
+        src = os.path.join(MISSION, m)
+        if os.path.isfile(src):
+            shutil.copy(src, os.path.join(out_dir, m))
+            n += 1
+        else:
+            missing.append(m)
+    return n, missing
+
+
+README = """MALDEN AFTER DARK -- map editing package
+=======================================
+
+INSTALL
+  Copy the folder "{pkg}" into:
+      Documents\\Arma 3\\missions\\
+  Launch Arma 3 -> EDITOR -> Malden -> it will be in the list.
+
+WHAT YOU ARE LOOKING AT
+  The whole map is here as normal, editable objects. Move / rotate / add / delete freely.
+
+  Two layers matter:
+    MapDataAll       - the map layer (every prop, wall, building, shop NPC).
+    CustomBuildings  - one anchor per custom building (the big custom models). The building itself is
+                       shown as a preview next to the anchor. MOVE THE ANCHOR, not the preview --
+                       the preview is only there so you can see what you are aiming at, and it is
+                       not saved.
+
+WHEN YOU ARE DONE
+  File -> Save. Send back the mission.sqm from:
+      Documents\\Arma 3\\missions\\{pkg}\\mission.sqm
+
+PLEASE DON'T
+  * Don't clear an object's DESCRIPTION field. Some of them carry settings (a shop NPC's behaviour,
+    a custom building's model and scale) and clearing one loses that.
+  * Don't rename the layers.
+  * Don't delete the player slots (the 201 units parked out of the way) -- the mission needs them.
+
+If something looks wrong or missing, say so before editing around it -- it is usually faster to fix
+the export than to rebuild the placement.
+"""
+
+# NOTE ON RE-RUNNING (cost us a cycle on 2026-07-27): Arma caches preprocessFileLineNumbers results
+# per PATH for the session. Editing a staged .sqf and re-running the same filename re-executes the
+# CACHED text -- the fix appears to do nothing and the old error repeats, with the corrected file
+# sitting on disk. Either restart the editor or run the script under a NEW filename.
+IMPORT_SQF = """// One-shot: materialise the whole map in 3DEN, ready to save as the designer package.
+//   1) open this mission in the 3DEN editor
+//   2) Tools -> Debug Console -> paste this line:
+//          call compile preprocessFileLineNumbers "designerImport.sqf"
+//   3) wait for both "done" messages, then SAVE.
+//
+// Saving THIS mission is correct -- it is a separate copy. Never do this in the working mission.
+if (!is3DEN) exitWith { systemChat "designerImport: open this mission in the 3DEN editor first."; };
+call compile preprocessFileLineNumbers "mapImportAll.sqf";
+call compile preprocessFileLineNumbers "anchorImport.sqf";
+systemChat "designerImport: done -- SAVE now, then run  designer_package.py pack";
+"""
+
+
+def build(force=False):
+    if os.path.exists(PKG):
+        if not force:
+            sys.exit("%s already exists -- pass --force to rebuild it" % PKG)
+        shutil.rmtree(PKG)
+    os.makedirs(PKG)
+
+    shutil.copy(os.path.join(MISSION, "mission.sqm"), os.path.join(PKG, "mission.sqm"))
+    kept, dropped = _stage_mapdata(PKG)
+    ids = _stage_baseline(PKG)
+    anchors, calls, models = _stage_anchors(PKG)
+    assets, missing = _copy_assets(PKG, models)
+    open(os.path.join(PKG, "designerImport.sqf"), "w", encoding="utf-8").write(IMPORT_SQF)
+    open(os.path.join(PKG, "README_DESIGNER.txt"), "w", encoding="utf-8").write(
+        README.format(pkg=PKG_NAME))
+
+    print("package: %s" % PKG)
+    print("  mission.sqm     copied")
+    print("  map layer       %d entries staged, %d dropped as outside Malden (Altis inheritance)" % (kept, dropped))
+    print("  baseline ids    %d" % ids)
+    print("  custom builds   %d anchors from %d createSimpleObject calls" % (anchors, calls))
+    if anchors != calls:
+        print("  WARNING: %d call(s) did not match the expected pattern -- check malden_buildings.sqf"
+              % (calls - anchors))
+    print("  models          %d copied to the package root" % assets)
+    if missing:
+        print("  WARNING: referenced but NOT FOUND in the mission: %s" % ", ".join(missing))
+        print("           the designer would see those buildings as invisible anchors.")
+    print("")
+    print("NEXT (once, in 3DEN):")
+    print("  1. copy %s into the Arma 3 'missions' folder and open it in the editor" % PKG_NAME)
+    print('  2. Debug Console:  call compile preprocessFileLineNumbers "designerImport.sqf"')
+    print("  3. SAVE (this copy -- never the working mission)")
+    print("  4. python3 tools/designer_package.py pack")
+
+
+EDITOR_PKG = ("/home/timb/.local/share/Steam/steamapps/compatdata/107410/pfx/drive_c/users/"
+              "steamuser/Documents/Arma 3/missions/" + PKG_NAME)
+
+
+def pack():
+    if not os.path.isdir(PKG):
+        sys.exit("no package built yet -- run: designer_package.py build")
+
+    # The BAKE happens in the editor's copy (that is the mission 3DEN opened and saved), so that file --
+    # not the one staged in dist/ -- is the deliverable. Pull it back before zipping; packing the staged
+    # copy would ship a mission with no map layer in it and look perfectly fine while doing so.
+    ed = os.path.join(EDITOR_PKG, "mission.sqm")
+    if os.path.isfile(ed):
+        staged = os.path.join(PKG, "mission.sqm")
+        if os.path.getsize(ed) != os.path.getsize(staged):
+            shutil.copy(ed, staged)
+            print("pulled the baked mission.sqm back from the editor folder (%.2f MB)"
+                  % (os.path.getsize(staged) / 1e6))
+    # after the 3DEN bake the staging scripts are dead weight; the designer only needs the mission.
+    drop = {"mapImportAll.sqf", "mapImportAll_data.sqf", "mapExportAll.sqf",
+            "mapBaseline_ids.sqf", "anchorImport.sqf", "designerImport.sqf"}
+    zpath = os.path.join(DIST, PKG_NAME + ".zip")
+    n = 0
+    with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
+        for root, _dirs, files in os.walk(PKG):
+            for f in files:
+                if f in drop:
+                    continue
+                full = os.path.join(root, f)
+                z.write(full, os.path.join(PKG_NAME, os.path.relpath(full, PKG)))
+                n += 1
+    print("%s  (%d files, %.1f MB)" % (zpath, n, os.path.getsize(zpath) / 1e6))
+    sqm = os.path.join(PKG, "mission.sqm")
+    try:
+        root = sqm_read.parse(sqm)
+        cnt = 0
+        for node in sqm_read.walk(root):
+            if node["props"].get("dataType") == "Object":
+                cnt += 1
+        print("mission.sqm carries %d objects" % cnt)
+        if cnt < 10000:
+            print("WARNING: that looks like the UN-baked sqm (expect ~13k+ after the 3DEN import+save).")
+            print("         Did step 2/3 happen? The designer would open this and see no map layer.")
+    except Exception as e:
+        print("could not verify mission.sqm: %s" % e)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2 or sys.argv[1] not in ("build", "pack"):
+        sys.exit(__doc__)
+    if sys.argv[1] == "build":
+        build(force="--force" in sys.argv)
+    else:
+        pack()

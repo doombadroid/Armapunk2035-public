@@ -1,0 +1,25 @@
+// Desktop 3D printer -- LCD / touchscreen / LED strip. A MILD emissive, deliberately.
+//
+// The neon_* rvmats in this mission run emmisive[] in the 1e5 range because they are building-scale
+// signage that has to read from across a district. A 10 cm printer LCD lit at that level stops being
+// a screen and becomes a lamp: it blows out, throws colour onto the wall behind it, and reads as a
+// bug rather than as a running machine. This sits three orders of magnitude lower -- enough to look
+// self-lit in a dark house at night, not enough to light the room.
+//
+// NEUTRAL on purpose. One rvmat serves the teal LCD (i3), the blue touchscreen (CoreXY) and the
+// white LED strips, because the hue comes from each material's own procedural colour texture --
+// which is read straight out of printer.js by the harness -- and this only lifts it. Three
+// near-identical rvmats differing by tint would be three files to keep in sync with a design source
+// that already states the colours.
+ambient[]={1,1,1,1};
+diffuse[]={1,1,1,1};
+forcedDiffuse[]={0.35,0.35,0.35,1};
+emmisive[]={9,9,9,1};
+specular[]={0,0,0,0};
+specularPower=1;
+PixelShaderID="Normal";
+VertexShaderID="Basic";
+class StageTI
+{
+	texture="a3\data_f\default_vehicle_ti_ca.paa";
+};

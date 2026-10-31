@@ -1,0 +1,10 @@
+{
+ "note": "sqm phase of the 2026-09-07 designer-delivery merge. To undo the sqm: restore the backup below (git also has the pre-merge file at cca1eb6f). To undo the table: rows with author_uid='designer-20260907' -> inserted ones (deleted=false) set deleted=true, soft-deleted ones set deleted=false; row 9649 back to x=7216.6 y=7777.4 z=226.0; rows 9616/9617/9618 were restored (author restore-0907).",
+ "backup_pre_merge": "/tmp/claude-1000/-home-timb/82924563-99c1-4dfb-9ca1-31318f1f6b5e/scratchpad/sqm_backups/mission.sqm.pre-delivery-20260907-141556",
+ "backup_pre_sqm_phase": "/tmp/claude-1000/-home-timb/82924563-99c1-4dfb-9ca1-31318f1f6b5e/scratchpad/sqm_backups/mission.sqm.pre-delivery-20260907-142149",
+ "deleted": {"objects": 113, "logic": 4, "markers": ["marker_190","marker_191","marker_192","marker_225","marker_226","marker_227","marker_228","marker_229"]},
+ "moved_markers": ["marker_60", "air_spawn_5"],
+ "new_markers": {"car_spawn_10": 50866, "car_spawn_11": 50867, "air_spawn_6": 50868},
+ "new_modules": 5, "init_objects_spliced": 16, "nextID": 50869,
+ "dead_designer_anchors_dropped": [60256, 60554, 60555]
+}

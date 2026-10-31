@@ -1,0 +1,6 @@
+[Unit]
+Description=Armapunk 2035 nightly PostgreSQL dump (14-day local retention; samurai pulls to the NAS)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/timb/Armapunk2035/deploy/live/pg_backup.sh

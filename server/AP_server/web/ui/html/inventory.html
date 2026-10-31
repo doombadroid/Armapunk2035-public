@@ -1,0 +1,1320 @@
+<!doctype html>
+<!-- INVENTORY — the combined I screen (design 4a: 3a figure overlay + GUNSMITH).
+     Self-contained, game-ready: inline CSS/JS, no libs, no network, no storage.
+     AP stub behind a guard. Spec: INVENTORY_SPEC.md (§4 contract, §5 rules,
+     §9 build design). Replaces the native inventory display (602) for the
+     player's own gear + what is in reach; the SQF half is core/inventory/.
+
+     THE DESIGN: four columns. WORN — a figure with eight slot cards pinned by
+     leader lines and the six ASSIGNED items under it. CONTAINERS — uniform /
+     vest / backpack as three mass-capped lists. REACH — the vehicle or crate in
+     reach, the GROUND pile (engine holders + suitcases) and the SELECTED item
+     with every button a drag has. BAG — the virtual inventory with a search.
+     Double-clicking PRIMARY or HANDGUN swaps the containers column for the
+     GUNSMITH: four sockets, the magazine, and everything in reach that fits.
+
+     CONTRACT (inventory_plan.md "Contract" — the page renders pushes verbatim)
+       AP.on("inventory", { you:{name,side,flags,slots,containers,bag}, ground, container, players })
+       AP.on("gunsmith",  null | { slot, weapon, sockets:[{type,item}], mag, magsInContainers, fits })
+       AP.call(verb, args) -> { ok, msg } — invMove invEquip invUnequip invOpenWeapon invMount
+         invDetach invUnload invReload invCloseWeapon bagUse bagGive bagDrop groundTake
+         invRefresh invClose log. Every call is followed by a push; the page never
+         mutates a list itself.
+
+     WHAT ANIMATES: header LED pulse + scanline drift, the in-flight dot pulse,
+     the .14 s hover and the snap-back. Nothing is legible only through motion.
+     Esc closes game-side (no page Esc handler); SQF calls closeGunsmith() first
+     when the gunsmith is open. -->
+<html><head><meta charset="utf-8"><title>INVENTORY — 4a</title>
+<script>
+/* ---- BRIDGE SHIM (hand-applied, matching tools/install_shop_pages.py's
+   pattern for the other HTML pages — see ui/html/storage.html / loot.html)
+   AP defined synchronously so the page's dev stub below never installs;
+   on()/call() queue until webui.js lands.
+
+   texture() delegates to WEBUI.texture() (webui/ui/webui.js), which retries
+   mission-relative paths ("icons\apple.paa") under the mission root —
+   A3API.RequestTexture alone only resolves absolute game-content paths — and
+   keeps the ALPHA TRIM crop, since BI gear pictures are drawn left-aligned
+   inside a large transparent canvas. */
+(function () {
+  var subs = {}, queued = [], W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  window.__apSubs = subs;
+  window.AP = {
+    __shim: true,
+    on: function (n, f) { (subs[n] = subs[n] || []).push(f); if (W) W.on(n, f); },
+    call: function (n, a) {
+      if (W) return W.call(n, a || [], 20000);
+      return new Promise(function (res, rej) { queued.push([n, a || [], res, rej]); });
+    },
+    texture: function (p, s) {
+      var fetchTex = function () {
+        if (W && W.texture) return W.texture(p, s);
+        return window.WEBUIReady.then(function (w) { return w.texture(p, s); });
+      };
+      return fetchTex().then(function (durl) {
+        return new Promise(function (res) {
+          var im = new Image();
+          im.onload = function () {
+            try {
+              var cv = document.createElement("canvas");
+              cv.width = im.width; cv.height = im.height;
+              var g = cv.getContext("2d");
+              g.drawImage(im, 0, 0);
+              var d = g.getImageData(0, 0, cv.width, cv.height).data;
+              var x0 = cv.width, y0 = cv.height, x1 = 0, y1 = 0;
+              for (var y = 0; y < cv.height; y++) for (var x = 0; x < cv.width; x++) {
+                if (d[(y * cv.width + x) * 4 + 3] > 10) {
+                  if (x < x0) x0 = x; if (x > x1) x1 = x;
+                  if (y < y0) y0 = y; if (y > y1) y1 = y;
+                }
+              }
+              if (x1 <= x0 || y1 <= y0) return res(durl);
+              var pad = 2, w = x1 - x0 + 1 + pad * 2, h = y1 - y0 + 1 + pad * 2;
+              var out = document.createElement("canvas"); out.width = w; out.height = h;
+              out.getContext("2d").drawImage(cv, x0 - pad, y0 - pad, w, h, 0, 0, w, h);
+              res(out.toDataURL("image/png"));
+            } catch (e) { res(durl); }
+          };
+          im.onerror = function () { res(durl); };
+          im.src = durl;
+        });
+      });
+    },
+    handle: function (n, f) { if (W) W.handle(n, f); }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    queued.forEach(function (q) { W.call(q[0], q[1], 20000).then(q[2], q[3]); });
+    queued = [];
+    W.call("log", ["inventory page up"]);   // instant readiness drain
+  });
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else { window.__apBootErr = "no A3API on this page"; }
+})();
+</script>
+<style>
+/* ---- tokens: the house palette (deck.html :root after the 9/2 recolor). Same
+   values on body.tal — the cop skin is a hook, not a second look. Never
+   hard-code an accent outside these. ---------------------------------------- */
+:root{
+  --scr:#050a10; --scr2:#0a121c; --panel:#0c1622; --panel2:#0e1a28;
+  --acc:#f5a623; --acc2:#54b0ff; --danger:#ff4d4d; --amber:#54b0ff;
+  --ice:#5fd3ff; --violet:#b57bff; --magenta:#ff3d81;
+  --ink:#dbe6f2; --dim:#7d8b9e; --faint:#3c4a5c;
+  --line:rgba(245,166,35,.15);
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+}
+body.tal{
+  --scr:#050a10; --scr2:#0a121c; --panel:#0c1622; --panel2:#0e1a28;
+  --acc:#f5a623; --acc2:#54b0ff; --danger:#ff4d4d; --amber:#54b0ff;
+  --ink:#dbe6f2; --dim:#7d8b9e; --faint:#3c4a5c;
+  --line:rgba(245,166,35,.15);
+}
+html{font-size:clamp(9px,1.22vw,22px)}
+html,body{margin:0;height:100%;background:#07090a;font-family:var(--sans);color:var(--ink);
+  -webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer}
+input{font:inherit}
+*::-webkit-scrollbar{width:6px}*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:#22332a;border-radius:3px}
+@keyframes apScan{0%{background-position:0 0}100%{background-position:0 3px}}
+@keyframes apFlicker{0%,100%{opacity:.46}47%{opacity:.5}52%{opacity:.42}}
+@keyframes apPulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes apSnap{0%{transform:translateX(.5rem)}60%{transform:translateX(-.2rem)}100%{transform:none}}
+#stage{position:fixed;inset:0;display:grid;place-items:center;
+  background:radial-gradient(ellipse at 50% 30%,#12171a,#07090a 75%)}
+#frame{position:relative;width:min(100vw,181.8vh);aspect-ratio:1600/880;border-radius:.55rem;overflow:hidden;
+  background:radial-gradient(ellipse at 45% 18%,#0c1622,#050a10 74%);
+  box-shadow:0 22px 60px rgba(0,0,0,.65), inset 0 0 0 1px #000;
+  display:flex;flex-direction:column;color:var(--ink)}
+#scan{position:absolute;inset:0;z-index:9;pointer-events:none;opacity:.5;
+  background:repeating-linear-gradient(180deg,transparent 0 2px,rgba(0,0,0,.22) 2px 3px);
+  animation:apScan 5.5s linear infinite,apFlicker 6.1s ease-in-out infinite}
+
+/* ---- header ---------------------------------------------------------------- */
+.hdr{flex:none;position:relative;z-index:3;display:flex;align-items:center;gap:.9rem;padding:.5rem 1rem;
+  background:var(--scr2);border-bottom:1px solid var(--line);font-family:var(--mono)}
+.livedot{width:.5rem;height:.5rem;border-radius:50%;flex:none;background:var(--acc);
+  box-shadow:0 0 .55rem var(--acc);animation:apPulse 2.4s ease-in-out infinite}
+.hdr-os{color:var(--acc);font-weight:800;font-size:1rem;letter-spacing:.3em;white-space:nowrap}
+.hdr-app{color:var(--acc2);font-size:.72rem;font-weight:600;letter-spacing:.28em;white-space:nowrap}
+.hdr-crumb{color:var(--faint);font-size:.68rem;letter-spacing:.26em;white-space:nowrap}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:1.2rem;
+  color:#c9d3de;font-size:.72rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hdr-right b{color:var(--acc);font-weight:600}
+.hdr-right .sep{color:var(--faint)}
+
+/* ---- body: four columns ------------------------------------------------------ */
+#bd{position:relative;z-index:2;flex:1;min-height:0;display:flex;padding:.7rem;gap:.7rem}
+.col{min-width:0;display:flex;flex-direction:column;gap:.7rem}
+/* WORN wider (owner 2026-09-03): the live-body strip needs room for a real body, not a silhouette */
+.c1{flex:1.9}.c2{flex:1}.c3{flex:.95}.c4{flex:.95}
+.col>.panel{flex:1}#sel{flex:1.15}
+
+/* ---- shared panel / row / chip grammar (deck.html) ---------------------------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:.7rem;
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;position:relative}
+.panel.lit{border-color:rgba(84,176,255,.45);box-shadow:0 0 1rem rgba(84,176,255,.12)}
+.ph{flex:none;display:flex;align-items:center;gap:.5rem;padding:.45rem .7rem;min-height:2.2rem;
+  border-bottom:1px solid var(--line);overflow:hidden}
+.ph .lb,.ph .num,.ph .act{flex:none}.ph .chip{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}.ph .bar{flex:0 1 3.6rem;min-width:1.8rem}
+.lb{font-family:var(--mono);font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.lb.acc{color:var(--acc)}
+.meta{font-family:var(--mono);font-size:.58rem;letter-spacing:.12em;color:var(--faint);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;min-width:0}
+.bar{flex:none;width:3.6rem;height:.35rem;border-radius:.18rem;background:var(--scr2);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:.18rem;background:var(--acc2);transition:width .2s}
+.bar.warn i{background:var(--amber)}.bar.bad i{background:var(--danger)}
+.bar.proj i{background:var(--acc)}
+.num{font-family:var(--mono);font-size:.62rem;color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+.num.bad{color:var(--danger)}
+.right{margin-left:auto}
+.list{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:.4rem .5rem;display:flex;flex-direction:column;gap:.3rem}
+.foot{flex:none;padding:.35rem .7rem;border-top:1px solid var(--line);font-family:var(--mono);font-size:.55rem;
+  letter-spacing:.1em;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.5rem;
+  display:flex;align-items:center;gap:.4rem}
+.empty{margin:auto;font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;color:var(--faint);
+  text-align:center;padding:1rem;line-height:1.7}
+
+.row{flex:none;height:2.35rem;display:flex;align-items:center;gap:.5rem;padding:0 .55rem;
+  background:var(--panel2);border:1px solid var(--line);border-radius:.55rem;cursor:pointer;user-select:none;
+  transition:border-color .14s,opacity .14s;position:relative}
+.row:hover{border-color:rgba(245,166,35,.35)}
+.row.on{border-color:rgba(84,176,255,.6);background:rgba(84,176,255,.1)}
+.row .dot{width:.42rem;height:.42rem;border-radius:50%;flex:none;background:#2f3d36}
+.row .dot.bad{background:var(--danger);box-shadow:0 0 .4rem var(--danger)}
+.row .dot.on{background:var(--acc2);box-shadow:0 0 .4rem var(--acc2)}
+.row.inflight .dot{background:var(--acc);box-shadow:0 0 .4rem var(--acc);animation:apPulse 1s ease-in-out infinite}
+.row.snap{animation:apSnap .35s ease-out}
+.row .nm{flex:1;min-width:0;font-size:.74rem;font-weight:550;color:#eaf0f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .mt{font-family:var(--mono);font-size:.6rem;color:var(--dim);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.row.fits{border-left:2px solid var(--acc2)}
+.row.nofit{opacity:.38}
+.art{flex:none;width:1.6rem;height:1.6rem;border-radius:.3rem;background:var(--scr2) center/contain no-repeat;
+  border:1px solid rgba(255,255,255,.06)}
+.art.wide{width:3.4rem}
+.chip{font-family:var(--mono);font-size:.52rem;font-weight:700;letter-spacing:.1em;padding:.14rem .36rem;border-radius:.28rem;
+  color:var(--dim);background:rgba(255,255,255,.045);white-space:nowrap;flex:none}
+.chip.lead{color:var(--acc)}.chip.off2{color:var(--acc2)}.chip.bad{color:var(--danger);background:rgba(255,77,77,.12)}
+.act{border:1px solid var(--line);background:transparent;color:var(--dim);border-radius:.35rem;padding:.3rem .45rem;
+  font-family:var(--mono);font-size:.56rem;letter-spacing:.1em;white-space:nowrap;flex:none;transition:color .14s,border-color .14s}
+.act:hover:not(:disabled){color:var(--acc2);border-color:rgba(84,176,255,.5)}
+.act.acid{color:var(--acc)}.act.acid:hover:not(:disabled){color:var(--acc);border-color:rgba(245,166,35,.45)}
+.act.bad{color:var(--danger)}.act.bad:hover:not(:disabled){color:var(--danger);border-color:rgba(255,90,60,.45)}
+.act:disabled{color:#34435a!important;border-color:rgba(60,74,92,.35)!important;cursor:not-allowed;background:rgba(70,90,81,.12)}
+.act.plus{padding:.18rem .32rem;font-size:.52rem}
+.kv{display:flex;justify-content:space-between;gap:.6rem;font-family:var(--mono);font-size:.62rem;color:var(--dim);min-width:0}
+.kv b{font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kv b.acid{color:var(--acc);font-weight:600}.kv b.cyan{color:var(--acc2);font-weight:600}
+.status{flex:none;position:relative;z-index:2;min-height:1.9rem;display:flex;align-items:center;gap:.75rem;
+  padding:.45rem .85rem;border-top:1px solid var(--line);font-family:var(--mono);font-size:.62rem;color:var(--faint)}
+.status .msg{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.status .msg.hot{color:var(--acc)}.status .msg.bad{color:var(--danger)}
+.status .foothint{margin-left:auto;letter-spacing:.1em;white-space:nowrap}
+.fieldrow{display:flex;gap:.4rem;align-items:stretch;padding:.4rem .5rem 0}
+.fieldrow input{flex:1;min-width:0;background:var(--scr2);border:1px solid #22332a;border-radius:.45rem;
+  padding:.4rem .55rem;font-family:var(--mono);font-size:.66rem;color:var(--ink)}
+.fieldrow input:focus{border-color:rgba(245,166,35,.55);outline:none}
+.fieldrow input::placeholder{color:var(--faint)}
+.ovl{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:rgba(3,7,6,.72)}
+.ovl-box{min-width:16rem;max-width:24rem;background:var(--panel);border:1px solid rgba(245,166,35,.45);
+  border-radius:.7rem;padding:.9rem 1rem;display:flex;flex-direction:column;gap:.35rem}
+.ovl-box .row{cursor:pointer}
+
+/* ---- drop targets --------------------------------------------------------------- */
+body.dragging *{cursor:default!important}
+.tgt-ok{outline:1px solid var(--acc);outline-offset:-1px;background:rgba(245,166,35,.06)!important}
+.tgt-ok.tgt-hover{box-shadow:0 0 .7rem rgba(245,166,35,.45);background:rgba(245,166,35,.12)!important}
+.tgt-no{opacity:.45}
+.sock.tgt-ok{outline:none;border-color:var(--acc2)!important;background:rgba(84,176,255,.08)!important}
+.sock.tgt-ok.tgt-hover{box-shadow:0 0 .7rem rgba(84,176,255,.45)}
+.ghost{position:fixed;z-index:50;pointer-events:none;opacity:.6;width:14rem;left:0;top:0;transform:translate(-40%,-50%)}
+.ghost.slot{width:8rem}
+
+/* ---- WORN: figure + slot cards ---------------------------------------------------- */
+.fig{flex:1;min-height:0;position:relative;display:grid;grid-template-columns:8.4rem 1fr 8.4rem;gap:.4rem;padding:.5rem .6rem}
+.fig .side{display:flex;flex-direction:column;justify-content:space-evenly;gap:.4rem;min-height:0}
+.fig .mid{position:relative;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center}
+.fig svg.body{width:100%;height:100%;max-height:100%;overflow:visible}
+.fig svg.body .bod{fill:rgba(84,176,255,.05);stroke:var(--faint);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.fig svg.body .sling{fill:none;stroke:var(--faint);stroke-width:2.2;stroke-linecap:round;stroke-dasharray:3 2;transition:stroke .14s}
+.fig svg.body .sling.on{stroke:var(--acc2);stroke-dasharray:none;filter:drop-shadow(0 0 2px var(--acc2))}
+.fig svg.body .hip{fill:none;stroke:var(--faint);stroke-width:1.4;stroke-dasharray:2 2}
+.fig .leaders{position:absolute;inset:0;pointer-events:none;overflow:visible}
+.fig .leaders line{stroke:var(--faint);stroke-width:1;stroke-dasharray:3 3;opacity:.8}
+.fig .leaders line.on{stroke:var(--acc2);stroke-dasharray:none;opacity:1}
+.fig .leaders circle{fill:var(--faint)}
+.fig .leaders circle.on{fill:var(--acc2)}
+/* LIVE FIGURE: SQF lays a native render-to-texture picture of the player's real body over #figMid
+   (fn_invFigure.sqf). The drawn silhouette goes invisible, not display:none, so drawLeaders() still
+   has its box to aim the leader lines at. */
+body.figlive .fig svg.body{visibility:hidden}
+body.figlive #figMid{cursor:grab} body.figlive #figMid.turning{cursor:grabbing}
+/* THE VIGNETTE: the engine's tonemapper cannot render a surface as dark as --panel without crushing
+   it to black, so the studio backdrop is the closest tone it can hold and this element -- a sibling
+   of #frame, so the frame's mask does not cut it -- blends the strip's edges into the panel colour
+   above the native render. pointer-events off so the figure drag still lands on #figMid. */
+#figVignette{position:absolute;display:none;pointer-events:none;z-index:5;
+  background:radial-gradient(ellipse 58% 52% at 50% 46%, rgba(12,22,34,0) 50%, rgba(12,22,34,.55) 78%, var(--panel) 100%);
+  box-shadow:inset 0 0 2.2rem 1.2rem var(--panel)}
+body.figlive #figVignette{display:block}
+/* ...and the page itself goes transparent over the strip: the native picture is drawn UNDER the
+   browser (a sibling declared after it never shows), and the browser surface composites with alpha,
+   so a masked-out rectangle in #frame is a window onto it. --hx/--hy/--hw/--hh are set by
+   reportFigure() from #figMid's box. */
+body.figlive #frame{
+  -webkit-mask-image:linear-gradient(#000 0 0),linear-gradient(#000 0 0);
+  -webkit-mask-size:100% 100%,var(--hw,0px) var(--hh,0px);
+  -webkit-mask-position:0 0,var(--hx,0px) var(--hy,0px);
+  -webkit-mask-repeat:no-repeat;
+  -webkit-mask-composite:xor;
+  mask-image:linear-gradient(#000 0 0),linear-gradient(#000 0 0);
+  mask-size:100% 100%,var(--hw,0px) var(--hh,0px);
+  mask-position:0 0,var(--hx,0px) var(--hy,0px);
+  mask-repeat:no-repeat;
+  mask-composite:exclude;
+}
+.slot{position:relative;display:flex;flex-direction:column;gap:.12rem;padding:.35rem .45rem;background:var(--panel2);
+  border:1px solid var(--line);border-radius:.55rem;cursor:pointer;user-select:none;min-height:3.9rem;
+  transition:border-color .14s,box-shadow .14s}
+.slot:hover{border-color:rgba(245,166,35,.4)}
+.slot.vacant{border-style:dashed;background:transparent;cursor:default}
+.slot.vacant .nm{color:var(--faint);font-weight:500}
+.slot.on{border-color:rgba(84,176,255,.55)}
+.slot.open{border:1px solid var(--acc2);box-shadow:0 0 .7rem rgba(84,176,255,.45),inset 0 0 .6rem rgba(84,176,255,.12)}
+.slot.inflight .lab{color:var(--acc);animation:apPulse 1s ease-in-out infinite}
+.slot .lab{font-family:var(--mono);font-size:.52rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:flex;gap:.3rem;align-items:center}
+.slot .lab .chip{margin-left:auto}
+.slot .top{display:flex;gap:.4rem;align-items:center;min-width:0}
+.slot .art{width:2rem;height:2rem}.slot .art.wide{width:4.8rem;height:1.9rem}
+.slot.wide .top{flex-direction:column;align-items:stretch;gap:.25rem}.slot.wide .art.wide{width:100%;height:2.1rem}
+.slot .txt{min-width:0;flex:1;display:flex;flex-direction:column;gap:.05rem}
+.slot .nm{font-size:.68rem;font-weight:600;color:#eaf0f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot .ms{font-family:var(--mono);font-size:.52rem;color:var(--faint);white-space:nowrap;font-variant-numeric:tabular-nums}
+.assigned{flex:none;display:grid;grid-template-columns:repeat(6,1fr);gap:.35rem;padding:.45rem .6rem;border-top:1px solid var(--line)}
+.acell{display:flex;flex-direction:column;gap:.1rem;padding:.3rem .4rem;background:var(--panel2);border:1px solid var(--line);
+  border-radius:.45rem;min-width:0;cursor:pointer;user-select:none}
+.acell.vacant{border-style:dashed;background:transparent;cursor:default}
+.acell .lab{font-family:var(--mono);font-size:.5rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.acell .nm{font-size:.62rem;font-weight:550;color:#eaf0f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acell.vacant .nm{color:var(--faint)}
+
+/* ---- GUNSMITH ---------------------------------------------------------------------- */
+#gs .wpn{flex:none;display:flex;gap:.6rem;align-items:center;padding:.55rem .7rem;border-bottom:1px solid var(--line)}
+#gs .wpn .art.lg{width:8.4rem;height:3.1rem;border-radius:.45rem}
+#gs .wpn .txt{min-width:0;flex:1;display:flex;flex-direction:column;gap:.15rem}
+#gs .wpn .nm{font-size:.86rem;font-weight:700;color:#eef4ee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.socks{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:.4rem;padding:.5rem .6rem;border-bottom:1px solid var(--line)}
+.sock{display:flex;gap:.45rem;align-items:center;padding:.35rem .5rem;background:var(--panel2);border:1px solid var(--line);
+  border-radius:.55rem;min-height:3rem;min-width:0;transition:border-color .14s,box-shadow .14s;position:relative}
+.sock.vacant .art{border-style:dashed;background-image:none!important}
+.sock.off{opacity:.25;pointer-events:none;border-style:dashed;background:transparent}
+.sock.tgt{border-color:var(--acc2);box-shadow:0 0 .6rem rgba(84,176,255,.35)}
+.sock .art{width:1.9rem;height:1.9rem}
+.sock .txt{min-width:0;flex:1;display:flex;flex-direction:column;gap:.05rem}
+.sock .sl{font-family:var(--mono);font-size:.5rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.sock .sv{font-size:.68rem;font-weight:650;color:#eaf0f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sock.vacant .sv{color:var(--faint);font-weight:500}
+.sock.mag{grid-column:1/-1}
+.sock .acts{display:flex;gap:.3rem;flex:none;align-items:center;margin-top:.15rem}
+.sock .acts:empty{display:none}.sock .acts .act{padding:.18rem .35rem;font-size:.5rem}
+.sock.mag{display:flex}.sock.mag .txt{flex:1 1 7rem}.sock.mag .txt .acts{display:none}.sock.mag .sv{white-space:normal;line-height:1.2}
+.sock.mag>.acts{margin-top:0}
+.sock .hint{font-family:var(--mono);font-size:.5rem;letter-spacing:.1em;color:var(--acc2);white-space:nowrap}
+#gs .lbrow{flex:none;padding:.4rem .7rem .1rem;display:flex;align-items:center;gap:.5rem}
+#gsMeta{white-space:normal;line-height:1.5}
+#gs .prev{flex:none;padding:.4rem .7rem;border-top:1px solid var(--line)}
+#gs .prev .kv b{color:var(--acc2)}
+.dimmed{opacity:.38}
+
+/* ---- SELECTED ------------------------------------------------------------------------ */
+#sel .sb{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:.5rem .7rem;display:flex;flex-direction:column;gap:.35rem}
+#sel .head{display:flex;gap:.55rem;align-items:center;min-width:0}
+#sel .head .art{width:2.6rem;height:2.6rem}#sel .head .art.wide{width:5.8rem;height:2.3rem}
+#sel .head .nm{font-size:.84rem;font-weight:700;color:#eef4ee;line-height:1.15;min-width:0;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#sel .desc{font-size:.62rem;color:var(--dim);line-height:1.45}
+#sel .acts{display:flex;flex-wrap:wrap;gap:.3rem}
+.step{display:flex;align-items:center;gap:.3rem}
+.step .pm{flex:none;width:1.5rem;height:1.5rem;border:1px solid var(--line);background:var(--panel2);color:var(--dim);
+  border-radius:.4rem;font-family:var(--mono);font-size:.8rem;padding:0}
+.step .pm:hover:not(:disabled){color:var(--acc)}
+.step .qv{width:2.6rem;text-align:center;font-family:var(--mono);font-size:.9rem;font-weight:700;color:var(--acc);font-variant-numeric:tabular-nums}
+.step .lb{margin-right:.2rem}
+#sel .empty{padding:1.5rem 1rem}
+</style></head><body>
+<div id="stage"><div id="figVignette"></div><div id="frame">
+  <div id="scan"></div>
+  <div class="hdr">
+    <span class="livedot"></span><span class="hdr-os">INVENTORY</span>
+    <span class="hdr-app" id="hName">—</span>
+    <span class="chip" id="hSide">CIV</span>
+    <span class="hdr-right"><span>BAG <b id="hBag">— / —</b></span><span class="sep">·</span><span id="hFlag" class="chip" hidden>OVERWEIGHT — WALKING</span><span class="hdr-crumb">ESC CLOSES</span></span>
+  </div>
+  <div id="bd">
+    <!-- 1 WORN -->
+    <div class="col c1">
+      <div class="panel" id="worn">
+        <div class="ph"><span class="lb acc">Worn</span><span class="meta" id="wornMeta">DOUBLE-CLICK A WEAPON TO OPEN IT · ESC CLOSES</span></div>
+        <div class="fig" id="fig">
+          <div class="side" id="sideL"></div>
+          <div class="mid" id="figMid">
+            <svg class="body" viewBox="16 0 68 216" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+              <circle class="bod" cx="50" cy="20" r="12"/>
+              <path class="bod" d="M38 36 L62 36 L70 44 L78 60 L80 100 L72 102 L69 70 L69 118 L64 122 L64 206 L54 206 L52 140 L48 140 L46 206 L36 206 L36 122 L31 118 L31 70 L28 102 L20 100 L22 60 L30 44 Z"/>
+              <path class="hip" d="M33 120 Q50 128 67 120"/>
+              <path class="sling" id="sling" d="M64 42 Q52 86 36 118"/>
+            </svg>
+            <svg class="leaders" id="leaders" aria-hidden="true"></svg>
+          </div>
+          <div class="side" id="sideR"></div>
+        </div>
+        <div class="assigned" id="assigned"></div>
+      </div>
+    </div>
+    <!-- 2 CONTAINERS / GUNSMITH -->
+    <div class="col c2" id="c2">
+      <div class="panel" id="cont-uniform" data-drop="uniform">
+        <div class="ph"><span class="lb">Uniform</span><span class="meta cls"></span><span class="bar right"><i></i></span><span class="num"></span></div>
+        <div class="list"></div><div class="foot">DRAG HERE TO STOW</div>
+      </div>
+      <div class="panel" id="cont-vest" data-drop="vest">
+        <div class="ph"><span class="lb">Vest</span><span class="meta cls"></span><span class="bar right"><i></i></span><span class="num"></span></div>
+        <div class="list"></div><div class="foot">DRAG HERE TO STOW</div>
+      </div>
+      <div class="panel" id="cont-backpack" data-drop="backpack">
+        <div class="ph"><span class="lb">Backpack</span><span class="meta cls"></span><span class="bar right"><i></i></span><span class="num"></span></div>
+        <div class="list"></div><div class="foot">DRAG HERE TO STOW</div>
+      </div>
+      <div class="panel lit" id="gs" hidden data-drop="wpn">
+        <div class="ph"><span class="lb acc">Gunsmith</span><span class="meta" id="gsSlot">PRIMARY</span><button class="act right" id="gsBack">← BACK</button></div>
+        <div class="wpn"><span class="art wide lg" id="gsArt"></span><div class="txt"><span class="nm" id="gsName">—</span><span class="num" id="gsMass"></span></div></div>
+        <div class="socks" id="socks"></div>
+        <div class="lbrow"><span class="lb">Fits this weapon</span><span class="meta right" id="gsFitN"></span></div>
+        <div class="list" id="fits"></div>
+        <div class="foot" id="gsMeta"></div>
+        <div class="prev"><div class="kv"><span id="gsPrev">HOVER A FIT TO PREVIEW ITS DISPLACEMENT</span></div></div>
+      </div>
+    </div>
+    <!-- 3 REACH -->
+    <div class="col c3">
+      <div class="panel" id="veh" data-drop="container">
+        <div class="ph"><span class="lb" id="vehLab">—</span><span class="chip off2" id="vehSub"></span><span class="bar right"><i></i></span><span class="num"></span></div>
+        <div class="list" id="vehList"></div><div class="foot" id="vehFoot">VIRTUAL TRUNK IS ON T · STORAGE</div>
+      </div>
+      <div class="panel" id="ground" data-drop="ground">
+        <div class="ph"><span class="lb">Ground</span><span class="meta" id="gDist"></span><span class="meta right" id="gN"></span></div>
+        <div class="list" id="gList"></div><div class="foot">DRAG HERE TO DROP · +1 TAKES ONE</div>
+      </div>
+      <div class="panel" id="sel">
+        <div class="ph"><span class="lb">Selected</span><span class="meta right" id="selLoc"></span></div>
+        <div class="sb" id="selBody"><div class="empty">SELECT AN ITEM</div></div>
+      </div>
+    </div>
+    <!-- 4 BAG -->
+    <div class="col c4">
+      <div class="panel" id="bag" data-drop="bag">
+        <div class="ph"><span class="lb acc">Bag</span><span class="chip bad" id="bagOver" hidden>OVERWEIGHT — WALKING</span><span class="bar right"><i id="bagBar"></i></span><span class="num" id="bagNum"></span></div>
+        <div class="fieldrow"><input id="bagSearch" type="text" placeholder="SEARCH THE BAG" autocomplete="off" spellcheck="false"></div>
+        <div class="list" id="bagList"></div>
+        <div class="foot" id="bagOddLine" hidden><span class="meta" id="bagOdd"></span></div>
+        <div class="foot" id="bagFoot"><button class="act acid" data-bag="use">USE</button><button class="act" data-bag="give">GIVE</button><button class="act bad" data-bag="drop">DROP</button><span class="meta right">SELECTED ROW</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="status"><span class="msg" id="msg">READING THE BAG</span><span class="foothint" id="foot">DRAG · DOUBLE-CLICK EQUIPS · EVERY DRAG HAS A BUTTON</span></div>
+  <div class="ovl" id="ovl" hidden><div class="ovl-box"><span class="lb">Give to</span><div id="ovlList"></div><button class="act" id="ovlX">CANCEL</button></div></div>
+</div></div>
+<script>
+/* ---- AP stub (real bridge from the shim above wins) --------------------------
+   §7 sample data. Every contract call mutates this state and re-pushes, so the
+   page can be driven end-to-end from file://. Refusal strings are the ones the
+   SQF side returns for the same cases. Installs only when the shim found no
+   A3API (file:// / the harness) -- in game the shim's AP stands. ------------ */
+if (typeof AP === "undefined" || (AP.__shim && window.__apBootErr === "no A3API on this page")) {
+  window.AP = (function () {
+    const subs = {}, last = {}, texCache = {}, log = [];
+    const push = (c, v) => { last[c] = JSON.parse(JSON.stringify(v)); (subs[c] || []).forEach(f => f(JSON.parse(JSON.stringify(v)))); };
+    const IC = {
+      trg:"\\A3\\Weapons_F\\Rifles\\TRG20\\Data\\UI\\gear_trg21_x_ca.paa", p45:"\\A3\\Weapons_F\\Pistols\\Pistol_heavy_01\\Data\\UI\\gear_pistol_heavy_01_x_ca.paa",
+      mx:"\\A3\\weapons_f\\rifles\\mx\\data\\ui\\gear_mx_x_ca.paa", p07:"\\A3\\weapons_f\\pistols\\p07\\data\\ui\\gear_p07_x_ca.paa",
+      m556:"\\A3\\weapons_f\\data\\ui\\m_30stanag_ca.paa", m45:"\\A3\\weapons_f\\data\\ui\\m_11rnd_45acp_ca.paa", m9:"\\A3\\weapons_f\\data\\ui\\m_16rnd_9x21_ca.paa",
+      aco:"\\A3\\weapons_F\\acc\\data\\UI\\gear_acco_aco_CA.paa", rco:"\\A3\\weapons_F\\acc\\data\\UI\\gear_acco_hamr_CA.paa", snds:"\\A3\\weapons_F\\acc\\data\\UI\\gear_acca_snds_M_CA.paa",
+      fak:"\\A3\\structures_f\\items\\medical\\data\\ui\\gear_fak_ca.paa", polo:"\\A3\\characters_f\\data\\ui\\icon_u_c_poloshirt_blue_ca.paa",
+      vest:"\\A3\\characters_f\\data\\ui\\icon_v_tacvest_khk_ca.paa", kit:"\\A3\\weapons_f\\ammoboxes\\bags\\data\\ui\\icon_b_kitbag_cbr_ca.paa",
+      band:"\\A3\\characters_f\\data\\ui\\icon_h_bandanna_khk_ca.paa", shades:"\\A3\\characters_f\\data\\ui\\icon_g_shades_black_ca.paa",
+      casual:"\\A3\\characters_f\\data\\ui\\icon_u_c_man_casual_3_f_ca.paa", ap:"\\A3\\weapons_f\\ammoboxes\\bags\\data\\ui\\icon_b_assaultpack_khk_ca.paa"
+    };
+    const MASS = { arifle_TRG21_F:80, hgun_Pistol_heavy_01_F:20, arifle_MX_F:80, hgun_P07_F:20, "30Rnd_556x45_Stanag":8, "11Rnd_45ACP_Mag":5, "16Rnd_9x21_Mag":5,
+      optic_Aco:4, optic_Hamr:10, muzzle_snds_M:6, FirstAidKit:4, U_C_Poloshirt_blue:20, V_TacVest_khk:40, B_Kitbag_cbr:40, H_Bandanna_khk:6, G_Shades_Black:2,
+      U_C_Man_casual_3_F:20, B_AssaultPack_khk:20 };
+    const NAME = { arifle_TRG21_F:"TRG-21 5.56 mm", hgun_Pistol_heavy_01_F:"4-five .45", arifle_MX_F:"MX 6.5 mm", hgun_P07_F:"P07 9 mm", "30Rnd_556x45_Stanag":"5.56 mm 30Rnd",
+      "11Rnd_45ACP_Mag":".45 ACP 11Rnd", "16Rnd_9x21_Mag":"9 mm 16Rnd", optic_Aco:"ACO (Red)", optic_Hamr:"RCO", muzzle_snds_M:"Sound Suppressor (5.56 mm)",
+      FirstAidKit:"First Aid Kit", U_C_Poloshirt_blue:"Polo Shirt (Blue)", V_TacVest_khk:"Tactical Vest (Khaki)", B_Kitbag_cbr:"Kitbag (Coyote)",
+      H_Bandanna_khk:"Bandanna (Khaki)", G_Shades_Black:"Shades (Black)", U_C_Man_casual_3_F:"Casual Outfit", B_AssaultPack_khk:"Assault Pack (Khaki)" };
+    const ICON = { arifle_TRG21_F:IC.trg, hgun_Pistol_heavy_01_F:IC.p45, arifle_MX_F:IC.mx, hgun_P07_F:IC.p07, "30Rnd_556x45_Stanag":IC.m556, "11Rnd_45ACP_Mag":IC.m45,
+      "16Rnd_9x21_Mag":IC.m9, optic_Aco:IC.aco, optic_Hamr:IC.rco, muzzle_snds_M:IC.snds, FirstAidKit:IC.fak, U_C_Poloshirt_blue:IC.polo, V_TacVest_khk:IC.vest,
+      B_Kitbag_cbr:IC.kit, H_Bandanna_khk:IC.band, G_Shades_Black:IC.shades, U_C_Man_casual_3_F:IC.casual, B_AssaultPack_khk:IC.ap };
+    const KIND = { arifle_TRG21_F:"weapon", hgun_Pistol_heavy_01_F:"weapon", arifle_MX_F:"weapon", hgun_P07_F:"weapon", "30Rnd_556x45_Stanag":"mag", "11Rnd_45ACP_Mag":"mag",
+      "16Rnd_9x21_Mag":"mag", optic_Aco:"attach", optic_Hamr:"attach", muzzle_snds_M:"attach", FirstAidKit:"item", U_C_Poloshirt_blue:"uniform", V_TacVest_khk:"vest",
+      B_Kitbag_cbr:"backpack", H_Bandanna_khk:"headgear", G_Shades_Black:"facewear", U_C_Man_casual_3_F:"uniform", B_AssaultPack_khk:"backpack" };
+    const CAP = { "30Rnd_556x45_Stanag":30, "11Rnd_45ACP_Mag":11, "16Rnd_9x21_Mag":16 };
+    const SOCK = { optic_Aco:"optic", optic_Hamr:"optic", muzzle_snds_M:"muzzle" };
+    const WPN_TYPE = { arifle_TRG21_F:"primary", arifle_MX_F:"primary", hgun_Pistol_heavy_01_F:"handgun", hgun_P07_F:"handgun" };
+    const COMPAT = { arifle_TRG21_F:{ mags:["30Rnd_556x45_Stanag"], items:["optic_Aco","optic_Hamr","muzzle_snds_M"], socks:["optic","muzzle","pointer","bipod"] },
+      arifle_MX_F:{ mags:["30Rnd_556x45_Stanag"], items:["optic_Aco","optic_Hamr","muzzle_snds_M"], socks:["optic","muzzle","pointer","bipod"] },
+      hgun_Pistol_heavy_01_F:{ mags:["11Rnd_45ACP_Mag"], items:[], socks:["optic","muzzle","pointer"] },
+      hgun_P07_F:{ mags:["16Rnd_9x21_Mag"], items:[], socks:["muzzle","pointer"] } };
+    const row = (loc, cls, qty, ammo) => ({ loc, cls, qty: qty || 1, ammo: ammo == null ? -1 : ammo });
+    const ST = {
+      side: /tal/.test(location.search) ? "cop" : "civ",
+      slots: {
+        primary: { cls:"arifle_TRG21_F", mag:{ cls:"30Rnd_556x45_Stanag", ammo:23 }, sockets:{ optic:"optic_Aco", muzzle:null, pointer:null, bipod:null } },
+        launcher: null,
+        handgun: { cls:"hgun_Pistol_heavy_01_F", mag:{ cls:"11Rnd_45ACP_Mag", ammo:11 }, sockets:{ optic:null, muzzle:null, pointer:null } },
+        uniform:"U_C_Poloshirt_blue", vest:"V_TacVest_khk", backpack:"B_Kitbag_cbr", headgear:"H_Bandanna_khk", facewear:"G_Shades_Black", binocular:null,
+        assigned:{ map:"ItemMap", gps:"ItemGPS", radio:null, compass:"ItemCompass", watch:"ItemWatch", nvg:null }
+      },
+      caps: { uniform:40, vest:100, backpack:240 },
+      cont: {
+        uniform: [row("uniform","FirstAidKit",3)],
+        vest: [row("vest","30Rnd_556x45_Stanag",6,30), row("vest","30Rnd_556x45_Stanag",1,11)],
+        backpack: [row("backpack","muzzle_snds_M",1), row("backpack","optic_Hamr",1), row("backpack","U_C_Man_casual_3_F",1), row("backpack","11Rnd_45ACP_Mag",4,11)],
+        container: [row("container","30Rnd_556x45_Stanag",10,30), row("container","B_AssaultPack_khk",1), row("container","arifle_MX_F",1), row("container","optic_Aco",1)],
+        ground: [row("ground:12:34","hgun_P07_F",1), row("ground:12:34","16Rnd_9x21_Mag",2,16)]
+      },
+      vehCap: 1000,
+      bag: [
+        { id:"apple", name:"Apple", icon:"icons\\apple.paa", qty:6, wt:1, sell:5, illegal:false, canDrop:true, desc:"Crunchy. Restores a little hunger." },
+        { id:"beer", name:"Pint of Beer", icon:"icons\\beer.paa", qty:2, wt:1, sell:7, illegal:false, canDrop:true, desc:"" },
+        { id:"bloodbag", name:"Blood Bag", icon:"icons\\bloodbag.paa", qty:3, wt:3, sell:75, illegal:false, canDrop:true, desc:"" },
+        { id:"boltCutter", name:"Bolt Cutter", icon:"icons\\boltCutter.paa", qty:1, wt:4, sell:500, illegal:false, canDrop:true, desc:"" },
+        { id:"marijuana", name:"Marijuana", icon:"icons\\marijuana.paa", qty:12, wt:1, sell:0, illegal:true, canDrop:true, desc:"" },
+        { id:"proxychain", name:"Proxy Chain", icon:"icons\\qhchip.paa", qty:2, wt:1, sell:0, illegal:false, canDrop:true, desc:"USE to arm: your next hack leaves no trace for MaxSec." },
+        { id:"bank_money", name:"Dirty Money", icon:"icons\\bank_money.paa", qty:4200, wt:0, sell:0, illegal:true, canDrop:true, desc:"" },
+        { id:"debitcard", name:"Debit Card", icon:"icons\\debitcard.paa", qty:1, wt:0, sell:0, illegal:false, canDrop:false, desc:"" }
+      ],
+      bagCap: 88,
+      cases: [{ case:"c1", id:"apple", name:"Apple", icon:"icons\\apple.paa", qty:3, wt:1, despawn:1140 }],
+      gs: null
+    };
+    const idOf = r => r.loc + "|" + r.cls + "|" + r.ammo;
+    const out = r => ({ id:idOf(r), cls:r.cls, name:NAME[r.cls] || r.cls, icon:ICON[r.cls] || "", kind:KIND[r.cls] || "item", mass:MASS[r.cls] || 1, qty:r.qty,
+      ammo:r.ammo, cap:CAP[r.cls] || 0, socket:SOCK[r.cls] || "", wide:KIND[r.cls] === "weapon", loc:r.loc });
+    const load = list => list.reduce((a, r) => a + (MASS[r.cls] || 1) * r.qty, 0);
+    const bagLoad = () => ST.bag.reduce((a, r) => a + r.wt * r.qty, 0);
+    const slotObj = (name) => {
+      const s = ST.slots[name]; if (!s) return null;
+      if (typeof s === "string") return { id:"slot|" + name + "|" + s, cls:s, name:NAME[s] || s, icon:ICON[s] || "", mass:MASS[s] || 1, kind:KIND[s] || name, wide:false };
+      const socks = {}; Object.keys(s.sockets).forEach(k => { const c = s.sockets[k]; socks[k] = c ? { cls:c, name:NAME[c], icon:ICON[c] } : null; });
+      return { id:"slot|" + name + "|" + s.cls, cls:s.cls, name:NAME[s.cls], icon:ICON[s.cls], mass:MASS[s.cls], kind:"weapon", wide:true,
+        mag: s.mag ? { cls:s.mag.cls, name:NAME[s.mag.cls], ammo:s.mag.ammo, cap:CAP[s.mag.cls] } : null, sockets:socks };
+    };
+    const snap = () => ({
+      you: {
+        name:"Rook Delacroix", side:ST.side, flags:{ overweight: bagLoad() > ST.bagCap, restrained:false, inVehicle:false },
+        slots: { primary:slotObj("primary"), launcher:null, handgun:slotObj("handgun"), uniform:slotObj("uniform"), vest:slotObj("vest"), backpack:slotObj("backpack"),
+          headgear:slotObj("headgear"), facewear:slotObj("facewear"), binocular:slotObj("binocular"),
+          assigned: Object.fromEntries(Object.keys(ST.slots.assigned).map(k => [k, ST.slots.assigned[k] ? { id:"slot|" + k + "|" + ST.slots.assigned[k], cls:ST.slots.assigned[k], name:ST.slots.assigned[k].replace("Item", "") } : null])) },
+        containers: ["uniform","vest","backpack"].filter(k => ST.slots[k]).map(k => ({ id:k, label:k.toUpperCase(), cls:ST.slots[k], load:load(ST.cont[k]), cap:ST.caps[k], items:ST.cont[k].map(out) })),
+        bag: { load:bagLoad(), cap:ST.bagCap, items:ST.bag.map(b => Object.assign({}, b, { total:b.qty * b.wt })), odd:[{ name:"Loot Key", qty:2 }, { name:"Camo 1 Key", qty:1 }] }
+      },
+      ground: { dist:1.4, physical:ST.cont.ground.map(out), virtual:ST.cases.map(c => Object.assign({}, c)) },
+      container: ST.cont.container ? { id:"veh_1234", label:"OFFROAD", sub:"KEYED · YOURS", load:load(ST.cont.container), cap:ST.vehCap, items:ST.cont.container.map(out), lockedNote:"" } : null,
+      players: [{ uid:"7656", name:"Sable Okonkwo", dist:2.1 }]
+    });
+    const gsSnap = () => {
+      if (!ST.gs) return null;
+      const s = ST.slots[ST.gs]; const cp = COMPAT[s.cls];
+      const fits = [];
+      ["uniform","vest","backpack","container"].forEach(loc => ST.cont[loc].forEach(r => { if (cp.items.includes(r.cls)) { const o = out(r); o.source = loc === "container" ? "OFFROAD" : loc.toUpperCase(); fits.push(o); } }));
+      let mags = 0; ["uniform","vest","backpack"].forEach(loc => ST.cont[loc].forEach(r => { if (cp.mags.includes(r.cls)) mags += r.qty; }));
+      return { slot:ST.gs, weapon:{ cls:s.cls, name:NAME[s.cls], icon:ICON[s.cls], mass:MASS[s.cls], wide:true },
+        sockets: cp.socks.map(t => ({ type:t, item: s.sockets[t] ? { cls:s.sockets[t], name:NAME[s.sockets[t]], icon:ICON[s.sockets[t]] } : null })),
+        mag: s.mag ? { cls:s.mag.cls, name:NAME[s.mag.cls], ammo:s.mag.ammo, cap:CAP[s.mag.cls] } : null, magsInContainers:mags, fits };
+    };
+    const pushAll = () => { push("inventory", snap()); push("gunsmith", gsSnap()); };
+    const ok = (msg) => ({ ok:true, msg:msg || "" }), no = (msg) => ({ ok:false, msg });
+    const parse = id => { const p = String(id).split("|"); return { loc:p[0], cls:p[1], ammo:+p[2] }; };
+    const listOf = loc => loc.indexOf("ground") === 0 ? ST.cont.ground : ST.cont[loc];
+    const capOf = loc => loc === "container" ? ST.vehCap : (loc.indexOf("ground") === 0 ? 1e9 : ST.caps[loc]);
+    const findRow = (loc, cls, ammo) => { const L = listOf(loc); return L ? L.find(r => r.cls === cls && r.ammo === ammo) : null; };
+    const take = (loc, cls, ammo, qty) => { const L = listOf(loc), r = findRow(loc, cls, ammo); if (!r || r.qty < qty) return false; r.qty -= qty; if (r.qty <= 0) L.splice(L.indexOf(r), 1); return true; };
+    const room = (loc, cls, qty) => (load(listOf(loc)) + (MASS[cls] || 1) * qty) <= capOf(loc);
+    const put = (loc, cls, ammo, qty) => { const L = listOf(loc); const r = L.find(x => x.cls === cls && x.ammo === ammo); if (r) r.qty += qty; else L.push(row(loc, cls, qty, ammo)); };
+    const firstRoom = (cls, pref) => (pref || ["vest","backpack","uniform"]).find(l => ST.slots[l] && room(l, cls, 1)) || "";
+    const wornKinds = { uniform:1, vest:1, backpack:1, headgear:1, facewear:1, binocular:1 };
+    const equip = (id) => {
+      const p = parse(id); const r = findRow(p.loc, p.cls, p.ammo); if (!r) return no("That item is gone.");
+      const k = KIND[p.cls];
+      if (k === "weapon") { const slot = WPN_TYPE[p.cls]; take(p.loc, p.cls, p.ammo, 1); const old = ST.slots[slot];
+        if (old) { const dest = room(p.loc, old.cls, 1) ? p.loc : "ground:12:34"; put(dest, old.cls, -1, 1); }
+        ST.slots[slot] = { cls:p.cls, mag:null, sockets:Object.fromEntries(COMPAT[p.cls].socks.map(t => [t, null])) }; return ok(NAME[p.cls] + " equipped."); }
+      if (k === "attach") { const slot = COMPAT.arifle_TRG21_F.items.includes(p.cls) && ST.slots.primary ? "primary" : ""; if (!slot) return no("THAT ATTACHMENT DOES NOT FIT THIS WEAPON."); return mount(id, slot, ""); }
+      if (k === "mag") { const slot = ["primary","handgun"].find(s => ST.slots[s] && COMPAT[ST.slots[s].cls].mags.includes(p.cls)); if (!slot) return no("NO WEAPON TAKES THAT MAGAZINE."); return reload(slot, id); }
+      if (wornKinds[k]) { const old = ST.slots[k]; take(p.loc, p.cls, p.ammo, 1); if (old) { const dest = room(p.loc, old, 1) ? p.loc : "ground:12:34"; put(dest, old, -1, 1); }
+        if (k === "uniform" || k === "vest" || k === "backpack") { const newCap = { U_C_Man_casual_3_F:40, B_AssaultPack_khk:160 }[p.cls] || ST.caps[k]; ST.caps[k] = newCap;
+          let spilled = 0; const keep = []; ST.cont[k].forEach(x => { if (load(keep) + MASS[x.cls] * x.qty <= newCap) keep.push(x); else { spilled += x.qty; put("ground:12:34", x.cls, x.ammo, x.qty); } }); ST.cont[k] = keep;
+          ST.slots[k] = p.cls; return ok(spilled ? spilled + " items spilled to the ground." : NAME[p.cls] + " worn."); }
+        ST.slots[k] = p.cls; return ok(NAME[p.cls] + " worn."); }
+      const dest = firstRoom(p.cls, ["uniform","vest","backpack"]); if (!dest) return no("No room in any container.");
+      take(p.loc, p.cls, p.ammo, 1); put(dest, p.cls, p.ammo, 1); return ok("Moved to " + dest + ".");
+    };
+    const mount = (id, slot, socket) => {
+      if (!ST.slots[slot] || KIND[ST.slots[slot].cls] !== "weapon") return no("NO WEAPON IN THAT SLOT.");
+      const p = parse(id); if (!p.cls || ST.bag.some(b => b.id === id)) return no("VIRTUAL ITEMS CAN'T BE MOUNTED. WITHDRAW IT FIRST.");
+      const r = findRow(p.loc, p.cls, p.ammo); if (!r) return no("That item is gone.");
+      const w = ST.slots[slot], cp = COMPAT[w.cls]; const sock = socket || SOCK[p.cls];
+      if (KIND[p.cls] !== "attach" || !cp.items.includes(p.cls) || SOCK[p.cls] !== sock || !cp.socks.includes(sock)) return no("THAT ATTACHMENT DOES NOT FIT THIS WEAPON.");
+      const old = w.sockets[sock]; let dest = "";
+      if (old) { dest = [p.loc, "vest", "backpack", "uniform"].find(l => listOf(l) && l !== "container" && (l === p.loc ? load(listOf(l)) - MASS[p.cls] : load(listOf(l))) + MASS[old] <= capOf(l)) || "ground:12:34"; }
+      take(p.loc, p.cls, p.ammo, 1); w.sockets[sock] = p.cls; if (old) put(dest, old, -1, 1);
+      return ok(NAME[p.cls] + " mounted." + (old ? " " + NAME[old] + " returned to " + dest.replace(/:.*/, "").toUpperCase() + "." : ""));
+    };
+    const reload = (slot, id) => {
+      const w = ST.slots[slot]; if (!w) return no("NO WEAPON IN THAT SLOT."); const cp = COMPAT[w.cls];
+      let best = null, bestLoc = "";
+      if (id) { const p = parse(id); const r = findRow(p.loc, p.cls, p.ammo); if (!r || !cp.mags.includes(p.cls)) return no("THAT MAGAZINE DOES NOT FIT THIS WEAPON."); best = r; bestLoc = p.loc; }
+      else ["vest","backpack","uniform"].forEach(l => (ST.cont[l] || []).forEach(r => { if (cp.mags.includes(r.cls) && (!best || r.ammo > best.ammo)) { best = r; bestLoc = l; } }));
+      if (!best) return no("NO COMPATIBLE MAGAZINE IN YOUR CONTAINERS.");
+      const oldMag = w.mag; const cls = best.cls, ammo = best.ammo; take(bestLoc, cls, ammo, 1);
+      w.mag = { cls, ammo }; if (oldMag) put(bestLoc.indexOf("ground") === 0 ? "vest" : bestLoc, oldMag.cls, oldMag.ammo, 1);
+      return ok("Loaded " + NAME[cls] + " " + ammo + "/" + CAP[cls] + ".");
+    };
+    const CALLS = {
+      invMove: (from, id, to, qty) => {
+        const p = parse(id); qty = Math.max(1, qty | 0);
+        if (p.loc === "slot") { const slot = p.cls, cls = String(id).split("|")[2]; const w = ST.slots[slot]; if (!w) return no("Nothing there."); const c = typeof w === "string" ? w : w.cls;
+          if (to === "ground") { put("ground:12:34", c, -1, 1); ST.slots[slot] = null; return ok(NAME[c] + " dropped."); }
+          if (!ST.cont[to]) return no("Unknown target."); if (!room(to, c, 1)) return no("Not enough room in your " + to + ".");
+          put(to, c, -1, 1); ST.slots[slot] = null; return ok(NAME[c] + " stowed."); }
+        const r = findRow(p.loc, p.cls, p.ammo); if (!r) return no("That item is gone."); qty = Math.min(qty, r.qty);
+        if (["primary","handgun","launcher","headgear","facewear","binocular"].includes(to)) return equip(id);
+        if (to === "ground") { take(p.loc, p.cls, p.ammo, qty); put("ground:12:34", p.cls, p.ammo, qty); return ok("Dropped " + qty + " × " + NAME[p.cls] + "."); }
+        if (to === "container") { if (!ST.cont.container) return no("Nothing in reach."); if (!room("container", p.cls, qty)) return no("The Offroad is full."); take(p.loc, p.cls, p.ammo, qty); put("container", p.cls, p.ammo, qty); return ok("Stored " + qty + " × " + NAME[p.cls] + "."); }
+        if (!ST.cont[to] || !ST.slots[to]) return no("Unknown target.");
+        if (p.loc === to) return no("It is already there.");
+        if (!room(to, p.cls, qty)) { const fit = Math.floor((capOf(to) - load(ST.cont[to])) / MASS[p.cls]); return no("Not enough room in your " + to + " — " + Math.max(0, fit) + " would fit."); }
+        take(p.loc, p.cls, p.ammo, qty); put(to, p.cls, p.ammo, qty); return ok("Moved " + qty + " × " + NAME[p.cls] + " to " + to + ".");
+      },
+      invEquip: id => { const r = equip(id); r.to = ""; return r; },
+      invUnequip: slot => { const w = ST.slots[slot]; if (!w) return no("Nothing there."); const c = typeof w === "string" ? w : w.cls; const dest = firstRoom(c, ["backpack","vest","uniform"]);
+        if (!dest) { put("ground:12:34", c, -1, 1); ST.slots[slot] = null; return ok(NAME[c] + " dropped — no room."); } put(dest, c, -1, 1); ST.slots[slot] = null; if (ST.gs === slot) ST.gs = null; return ok(NAME[c] + " stowed in " + dest + "."); },
+      invOpenWeapon: slot => { if (!ST.slots[slot] || KIND[ST.slots[slot].cls] !== "weapon") return no("NO WEAPON IN THAT SLOT."); ST.gs = slot; return ok(); },
+      invMount: (id, slot, socket) => mount(id, slot, socket),
+      invDetach: (slot, socket) => { const w = ST.slots[slot]; if (!w || !w.sockets[socket]) return no("Nothing mounted there."); const old = w.sockets[socket];
+        const dest = firstRoom(old, ["backpack","vest","uniform"]); if (!dest) return no("NO ROOM TO RETURN " + NAME[old].toUpperCase() + " — DROP SOMETHING FIRST."); w.sockets[socket] = null; put(dest, old, -1, 1); return ok(NAME[old] + " returned to " + dest + "."); },
+      invUnload: slot => { const w = ST.slots[slot]; if (!w || !w.mag) return no("No magazine loaded."); const dest = firstRoom(w.mag.cls, ["vest","backpack","uniform"]);
+        if (!dest) return no("NO ROOM TO RETURN " + NAME[w.mag.cls].toUpperCase() + " — DROP SOMETHING FIRST."); put(dest, w.mag.cls, w.mag.ammo, 1); w.mag = null; return ok("Unloaded to " + dest + "."); },
+      invReload: (slot, id) => reload(slot, id),
+      invCloseWeapon: () => { ST.gs = null; return ok(); },
+      bagUse: id => { const b = ST.bag.find(x => x.id === id); if (!b) return no("You don't have that."); b.qty -= 1; if (b.qty <= 0) ST.bag.splice(ST.bag.indexOf(b), 1); return ok("Used " + b.name + "."); },
+      bagGive: (id, qty, uid) => { const b = ST.bag.find(x => x.id === id); if (!b) return no("You don't have that."); qty = Math.min(qty | 0, b.qty); b.qty -= qty; if (b.qty <= 0) ST.bag.splice(ST.bag.indexOf(b), 1); return ok("Gave " + qty + " × " + b.name + "."); },
+      bagDrop: (id, qty) => { const b = ST.bag.find(x => x.id === id); if (!b) return no("You don't have that."); if (!b.canDrop) return no("You can't drop this item!"); qty = Math.min(qty | 0, b.qty);
+        b.qty -= qty; if (b.qty <= 0) ST.bag.splice(ST.bag.indexOf(b), 1); const c = ST.cases.find(x => x.id === id); if (c) c.qty += qty; else ST.cases.push({ case:"c1", id, name:b.name, icon:b.icon, qty, wt:b.wt, despawn:1800 }); return ok("Dropped " + qty + " × " + b.name + "."); },
+      groundTake: (cs, id, qty) => { const c = ST.cases.find(x => x.case === cs && x.id === id); if (!c) return no("That is gone."); qty = Math.min(qty | 0, c.qty);
+        const fit = c.wt ? Math.floor((ST.bagCap - bagLoad()) / c.wt) : qty; qty = Math.min(qty, fit); if (qty < 1) return no("Too heavy — nothing fits in your bag.");
+        c.qty -= qty; if (c.qty <= 0) ST.cases.splice(ST.cases.indexOf(c), 1); const b = ST.bag.find(x => x.id === id); if (b) b.qty += qty; else ST.bag.push({ id, name:c.name, icon:c.icon, qty, wt:c.wt, sell:5, illegal:false, canDrop:true, desc:"" }); return ok("+" + qty + " " + c.name); },
+      invRefresh: () => ok(), invClose: () => ok(), log: () => ok(),
+      invFigureBox: () => ({ ok:true, msg:"", live:/[?&]live\b/.test(location.search) }),
+      invFigureRot: () => ok()
+    };
+    setTimeout(pushAll, 40);
+    return {
+      __stub: true, __log: log, __st: ST,
+      on(c, f) { (subs[c] = subs[c] || []).push(f); if (c in last) f(JSON.parse(JSON.stringify(last[c]))); },
+      get: c => last[c],
+      call: (k, a) => { log.push([k].concat(a || [])); const r = CALLS[k] ? CALLS[k].apply(null, a || []) : { ok:false, msg:"unknown call " + k };
+        return new Promise(res => setTimeout(() => { if (k !== "log") pushAll(); res(r); }, 30)); },
+      texture(path, size) {   // hatched placeholder — the real bridge rasterizes the .paa
+        if (texCache[path]) return Promise.resolve(texCache[path]);
+        const c = document.createElement("canvas"); c.width = c.height = size || 64;
+        const x = c.getContext("2d"), n = path.length;
+        x.fillStyle = "#0b1420"; x.fillRect(0, 0, c.width, c.height);
+        x.strokeStyle = "#12202e"; x.lineWidth = 5;
+        for (let i = -c.height; i < c.width; i += 11) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i + c.height * (n % 3 ? 1 : -1), c.height); x.stroke(); }
+        return Promise.resolve(texCache[path] = c.toDataURL());
+      }
+    };
+  })();
+}
+</script>
+<script>
+/* =========================================================================
+   INVENTORY page logic. State is what the game pushed (S.inv, S.gs) plus the
+   page-only bits: selection, AMOUNT, filter, the live drag. Nothing here
+   decides a move — every gesture becomes one AP.call and the push redraws.
+   ========================================================================= */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const S = { inv:null, gs:null, sel:null, amount:1, filter:"", hoverFit:null, proj:null };
+/* LAUNCHER (owner 2026-09-03): a ninth card. Left column carries the three weapon slots + backpack, right
+   column the clothing + binocular. The launcher is a worn slot (secondaryWeapon), not a gunsmith one. */
+const SLOT_L = ["primary","launcher","handgun","backpack"], SLOT_R = ["headgear","facewear","vest","uniform","binocular"];
+const ASSIGNED = ["map","gps","radio","compass","watch","nvg"];
+const ANCHOR = { primary:[40,84], launcher:[34,56], handgun:[62,112], backpack:[30,74], binocular:[60,66], headgear:[50,12], facewear:[58,26], vest:[54,80], uniform:[54,132] };
+const SOCK_ORDER = ["optic","muzzle","pointer","bipod"];
+const CONTS = ["uniform","vest","backpack"];
+const WEAPON_SLOTS = ["primary","handgun","launcher"];
+const GUNSMITH_SLOTS = ["primary","handgun"];   // the launcher has no sockets to edit
+const SLOT_KIND = { uniform:"uniform", vest:"vest", backpack:"backpack", headgear:"headgear", facewear:"facewear", binocular:"binocular" };
+const VIRT_MSG = "VIRTUAL ITEMS CAN'T BE MOUNTED. WITHDRAW IT FIRST.";
+const NOFIT_MSG = "THAT ATTACHMENT DOES NOT FIT THIS WEAPON.";
+const locLabel = loc => loc === "container" ? ((S.inv && S.inv.container && S.inv.container.label) || "VEHICLE") : (String(loc).indexOf("ground") === 0 ? "GROUND" : String(loc).toUpperCase());
+const fmtMass = n => (Math.round(n * 10) / 10) + "";
+
+/* ---- status strip -------------------------------------------------------- */
+let sayT = 0;
+function say(msg, ok) {
+  const m = $("msg"); m.textContent = msg; m.className = "msg " + (ok === false ? "bad" : "hot");
+  clearTimeout(sayT); sayT = setTimeout(() => { m.textContent = "READY"; m.className = "msg"; }, 5000);
+}
+
+/* ---- textures ------------------------------------------------------------ */
+const texDone = {}, texBusy = {};
+function setTex(el, path, wide) {
+  el.classList.toggle("wide", !!wide);
+  const p = path || "";
+  if (el.dataset.tex === p) return;
+  el.dataset.tex = p; el.style.backgroundImage = "";
+  if (!p) return;
+  if (texDone[p]) { el.style.backgroundImage = 'url("' + texDone[p] + '")'; return; }
+}
+function resolveTex() {
+  document.querySelectorAll("[data-tex]").forEach(el => {
+    const p = el.dataset.tex; if (!p || el.style.backgroundImage) return;
+    if (texDone[p]) { el.style.backgroundImage = 'url("' + texDone[p] + '")'; return; }
+    if (texBusy[p] || !AP.texture) return;
+    texBusy[p] = true;
+    AP.texture(p, 96).then(u => { texDone[p] = u; document.querySelectorAll('[data-tex="' + p.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"]').forEach(e => { e.style.backgroundImage = 'url("' + u + '")'; }); }).catch(() => {});
+  });
+}
+
+/* ---- stable lists ---------------------------------------------------------- */
+function syncList(host, rows, key, make, update) {
+  const want = new Set(rows.map(key));
+  const have = new Map();
+  Array.from(host.children).forEach(el => {
+    const k = el.dataset.key;
+    if (k == null || k === "__empty") { if (k === "__empty" && rows.length) el.remove(); return; }
+    if (want.has(k)) have.set(k, el); else el.remove();
+  });
+  let prev = null;
+  rows.forEach(r => {
+    const k = key(r); let el = have.get(k);
+    if (!el) { el = make(r); el.dataset.key = k; }
+    update(el, r);
+    const ref = prev ? prev.nextSibling : host.firstChild;
+    if (el !== ref) host.insertBefore(el, ref);
+    prev = el;
+  });
+  if (!rows.length && !host.querySelector('[data-key="__empty"]')) {
+    const e = document.createElement("div"); e.className = "empty"; e.dataset.key = "__empty"; e.textContent = host.dataset.empty || "EMPTY"; host.appendChild(e);
+  }
+}
+const txt = (el, s) => { s = String(s); if (el.textContent !== s) el.textContent = s; };
+
+/* ---- item lookup ------------------------------------------------------------
+   list ids: uniform vest backpack container ground gcase bag fits slot assigned */
+function getItem(list, id) {
+  const I = S.inv; if (!I) return null;
+  const phys = (rows, loc) => { const r = (rows || []).find(x => x.id === id); return r ? { row:r, list, virt:false, loc:loc || r.loc } : null; };
+  switch (list) {
+    case "uniform": case "vest": case "backpack": { const c = I.you.containers.find(x => x.id === list); return c ? phys(c.items, list) : null; }
+    case "container": return I.container ? phys(I.container.items, "container") : null;
+    case "ground": return phys(I.ground.physical);
+    case "fits": return S.gs ? phys(S.gs.fits) : null;
+    case "gcase": { const r = I.ground.virtual.find(x => x.case + "|" + x.id === id); return r ? { row:r, list, virt:true, loc:"gcase" } : null; }
+    case "bag": { const r = I.you.bag.items.find(x => x.id === id); return r ? { row:r, list, virt:true, loc:"bag" } : null; }
+    case "slot": { const name = id.split("|")[1]; const r = I.you.slots[name]; return r && r.id === id ? { row:r, list, virt:false, loc:name, slot:name } : null; }
+    case "assigned": { const name = id.split("|")[1]; const r = I.you.slots.assigned[name]; return r && r.id === id ? { row:Object.assign({ kind:"assigned", mass:0 }, r), list, virt:false, loc:"assigned", slot:name } : null; }
+  }
+  return null;
+}
+const contOf = id => S.inv && S.inv.you.containers.find(c => c.id === id);
+const massOfCls = cls => {   // socket items carry no mass; find one with the same class anywhere
+  const I = S.inv; let m = null;
+  const scan = rows => (rows || []).forEach(r => { if (m == null && r.cls === cls) m = r.mass; });
+  I.you.containers.forEach(c => scan(c.items)); if (I.container) scan(I.container.items); scan(I.ground.physical); if (S.gs) scan(S.gs.fits);
+  return m == null ? 4 : m;
+};
+
+/* ---- drop matrix (display only; the game re-checks) --------------------------- */
+function canDrop(it, target) {
+  const [t, arg] = target.split(":");
+  const r = it.row;
+  if (it.virt) {
+    if (it.list === "bag") return t === "ground";
+    if (it.list === "gcase") return t === "bag";
+    return false;
+  }
+  if (t === "bag") return false;
+  if (t === "uniform" || t === "vest" || t === "backpack") return !!contOf(t) && it.loc !== t && !(it.list === "slot" && it.slot === t);
+  if (t === "container") return !!(S.inv.container && !S.inv.container.lockedNote) && it.loc !== "container";
+  if (t === "ground") return String(it.loc).indexOf("ground") !== 0;
+  if (t === "slot") {
+    if (WEAPON_SLOTS.includes(arg)) {
+      if (r.kind === "weapon") return it.slot !== arg;
+      const w = S.inv.you.slots[arg]; if (!w) return false;
+      if (r.kind === "attach") return !!(w.sockets && r.socket in w.sockets);
+      if (r.kind === "mag") return !!(w.mag && w.mag.cls === r.cls) || !w.mag;
+      return false;
+    }
+    if (ASSIGNED.includes(arg)) return (r.kind === "assigned" || r.kind === "nvg") && it.list !== "assigned";
+    return SLOT_KIND[arg] === r.kind && it.slot !== arg;
+  }
+  if (t === "sock") {
+    if (!S.gs) return false;
+    if (arg === "mag") return r.kind === "mag";
+    return r.kind === "attach" && r.socket === arg && S.gs.sockets.some(s => s.type === arg);
+  }
+  if (t === "wpn") return !!S.gs && (r.kind === "mag" || (r.kind === "attach" && S.gs.sockets.some(s => s.type === r.socket)));
+  return false;
+}
+function callFor(it, target, qty) {
+  const [t, arg] = target.split(":");
+  const r = it.row;
+  if (it.virt) {
+    if (it.list === "bag" && t === "ground") return ["bagDrop", [r.id, qty]];
+    if (it.list === "gcase" && t === "bag") return ["groundTake", [r.case, r.id, qty]];
+    return null;
+  }
+  const from = it.list === "slot" || it.list === "assigned" ? it.slot : it.loc;
+  if (t === "uniform" || t === "vest" || t === "backpack" || t === "ground" || t === "container") return ["invMove", [from, r.id, t, qty]];
+  if (t === "slot") {
+    if (WEAPON_SLOTS.includes(arg) && r.kind === "attach") return ["invMount", [r.id, arg, r.socket]];
+    if (WEAPON_SLOTS.includes(arg) && r.kind === "mag") return ["invReload", [arg, r.id]];
+    return ["invEquip", [r.id]];   // a slot drop = "put it where it belongs"; invMove never targets a slot
+  }
+  if (t === "sock") return arg === "mag" ? ["invReload", [S.gs.slot, r.id]] : ["invMount", [r.id, S.gs.slot, arg]];
+  if (t === "wpn") return r.kind === "mag" ? ["invReload", [S.gs.slot, r.id]] : ["invMount", [r.id, S.gs.slot, r.socket]];
+  return null;
+}
+
+/* ---- calls ------------------------------------------------------------------ */
+const inflight = new Set();
+function invoke(name, args, srcEl) {
+  if (srcEl) { srcEl.classList.add("inflight"); inflight.add(srcEl); }
+  return AP.call(name, args).then(r => {
+    if (srcEl) { srcEl.classList.remove("inflight"); inflight.delete(srcEl); }
+    if (!r || r.ok === false) { if (srcEl) { srcEl.classList.remove("snap"); void srcEl.offsetWidth; srcEl.classList.add("snap"); } say((r && r.msg) || "REFUSED.", false); }
+    else if (r.msg) say(r.msg, true);
+    return r;
+  }).catch(e => { if (srcEl) srcEl.classList.remove("inflight"); say(String(e && e.message || e), false); return { ok:false }; });
+}
+function pressed(btn, name, args) {
+  if (!btn || btn.disabled) return;
+  const label = btn.textContent; btn.disabled = true; btn.textContent = "…"; btn.classList.add("busy");
+  invoke(name, args).then(() => { btn.textContent = label; btn.disabled = false; btn.classList.remove("busy"); });
+}
+
+/* ---- rows ---------------------------------------------------------------------- */
+function makeRow() {
+  const el = document.createElement("div"); el.className = "row";
+  el.innerHTML = '<i class="dot"></i><span class="art" data-tex=""></span><span class="nm"></span><span class="chip"></span><span class="mt"></span><button class="act plus" hidden>+1</button>';
+  return el;
+}
+function fitsWeapon(r) {
+  if (!S.gs) return true;
+  if (r.kind === "attach") return S.gs.fits.some(f => f.cls === r.cls) && S.gs.sockets.some(s => s.type === r.socket);
+  if (r.kind === "mag") return !!(S.gs.mag && S.gs.mag.cls === r.cls);
+  return false;
+}
+function updateRow(el, r, list, opts) {
+  opts = opts || {};
+  el.dataset.list = list; el.dataset.id = opts.id || r.id; el.dataset.drag = "1";
+  el.classList.toggle("on", !!(S.sel && S.sel.list === list && S.sel.id === el.dataset.id));
+  const c = el.children;
+  c[0].className = "dot" + (r.illegal ? " bad" : "");
+  setTex(c[1], r.icon, r.wide);
+  txt(c[2], r.name);
+  let chip = "", chipCls = "chip";
+  if (opts.virt) { if (r.illegal) { chip = "ILLEGAL"; chipCls = "chip bad"; } else if (r.sell > 0) { chip = "$" + r.sell; chipCls = "chip lead"; } }
+  else if (r.kind === "mag") { chip = r.ammo + "/" + r.cap; chipCls = "chip" + (r.ammo < r.cap ? "" : " off2"); }
+  else if (r.kind === "attach") chip = r.socket.toUpperCase();
+  else if (r.kind === "weapon") chip = "WPN";
+  else if (opts.source) chip = r.source;
+  else chip = String(r.kind || "").toUpperCase().slice(0, 6);
+  txt(c[3], chip); c[3].className = chipCls; c[3].hidden = !chip;
+  let mt;
+  if (opts.virt) mt = "×" + r.qty + " · " + (r.wt * r.qty) + " WT" + (r.despawn != null && r.despawn < 300 ? " · " + Math.max(0, r.despawn | 0) + " S" : "");
+  else mt = (r.qty > 1 ? "×" + r.qty + " · " : "") + fmtMass(r.mass) + " M";
+  txt(c[4], mt);
+  c[5].hidden = !(opts.plus && r.qty > 1);
+  if (opts.fitmark) { const f = fitsWeapon(r); el.classList.toggle("fits", !!S.gs && f); el.classList.toggle("nofit", !!S.gs && !f); }
+  else { el.classList.remove("fits", "nofit"); }
+}
+function renderList(host, rows, list, opts) {
+  syncList(host, rows, r => (opts && opts.key ? opts.key(r) : r.id), makeRow, (el, r) => updateRow(el, r, list, Object.assign({}, opts, { id: opts && opts.key ? opts.key(r) : r.id })));
+}
+
+/* ---- WORN ----------------------------------------------------------------------- */
+function makeSlot(name) {
+  const el = document.createElement("div"); el.className = "slot"; el.dataset.slot = name; el.dataset.drop = "slot:" + name;
+  el.innerHTML = '<span class="lab"><span>' + name + '</span><span class="chip" hidden></span></span><div class="top"><span class="art" data-tex=""></span><div class="txt"><span class="nm"></span><span class="ms"></span></div></div>';
+  return el;
+}
+function updateSlot(el, name) {
+  const r = S.inv.you.slots[name];
+  const wide = WEAPON_SLOTS.includes(name);
+  el.classList.toggle("wide", wide);
+  el.classList.toggle("vacant", !r);
+  el.classList.toggle("open", !!(S.gs && S.gs.slot === name));
+  el.classList.toggle("on", !!(r && S.sel && S.sel.list === "slot" && S.sel.id === r.id));
+  if (r) { el.dataset.list = "slot"; el.dataset.id = r.id; el.dataset.drag = "1"; } else { delete el.dataset.list; delete el.dataset.id; delete el.dataset.drag; }
+  const lab = el.querySelector(".lab"), chip = lab.children[1], art = el.querySelector(".art"), nm = el.querySelector(".nm"), ms = el.querySelector(".ms");
+  setTex(art, r ? r.icon : "", wide);
+  txt(nm, r ? r.name : "EMPTY");
+  let m = r ? fmtMass(r.mass) + " M" : "—";
+  if (r && r.mag) m += " · " + r.mag.ammo + "/" + r.mag.cap;
+  txt(ms, m);
+  const n = r && r.sockets ? Object.keys(r.sockets).filter(k => r.sockets[k]).length : 0;
+  chip.hidden = !n; txt(chip, n + " MOD" + (n === 1 ? "" : "S"));
+}
+function renderWorn() {
+  const I = S.inv;
+  [["sideL", SLOT_L], ["sideR", SLOT_R]].forEach(([id, names]) => {
+    syncList($(id), names, n => n, makeSlot, updateSlot);
+  });
+  syncList($("assigned"), ASSIGNED, n => n, n => {
+    const el = document.createElement("div"); el.className = "acell"; el.dataset.drop = "slot:" + n;
+    el.innerHTML = '<span class="lab">' + n + '</span><span class="nm"></span>'; return el;
+  }, (el, n) => {
+    const r = I.you.slots.assigned[n];
+    el.classList.toggle("vacant", !r);
+    if (r) { el.dataset.list = "assigned"; el.dataset.id = r.id; el.dataset.drag = "1"; } else { delete el.dataset.list; delete el.dataset.id; delete el.dataset.drag; }
+    el.classList.toggle("on", !!(r && S.sel && S.sel.list === "assigned" && S.sel.id === r.id));
+    txt(el.children[1], r ? r.name : "—");
+  });
+  $("sling").classList.toggle("on", !!S.gs);
+  txt($("wornMeta"), S.gs ? "ESC OR ← BACK CLOSES THE GUNSMITH" : (document.body.classList.contains("figlive") ? "DRAG THE FIGURE TO TURN IT · DOUBLE-CLICK A WEAPON TO OPEN IT" : "DOUBLE-CLICK A WEAPON TO OPEN IT · ESC CLOSES"));
+}
+function drawLeaders() {
+  const fig = $("fig"), svg = $("leaders"), body = fig.querySelector("svg.body");
+  const fr = fig.getBoundingClientRect(); if (!fr.width) return;
+  svg.setAttribute("width", fr.width); svg.setAttribute("height", fr.height); svg.setAttribute("viewBox", "0 0 " + fr.width + " " + fr.height);
+  const VB = { x:16, w:68, h:216 };
+  const br = body.getBoundingClientRect(); const s = Math.min(br.width / VB.w, br.height / VB.h);
+  const ox = br.left - fr.left + (br.width - VB.w * s) / 2 - VB.x * s, oy = br.top - fr.top + (br.height - VB.h * s) / 2;
+  let out = "";
+  document.querySelectorAll("#fig .slot").forEach(el => {
+    const name = el.dataset.slot, a = ANCHOR[name]; if (!a) return;
+    const r = el.getBoundingClientRect(), left = SLOT_L.includes(name);
+    const x1 = (left ? r.right : r.left) - fr.left, y1 = r.top + r.height / 2 - fr.top;
+    const x2 = ox + a[0] * s, y2 = oy + a[1] * s;
+    const on = S.gs && S.gs.slot === name ? ' class="on"' : "";
+    out += '<line' + on + ' x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '"/><circle' + on + ' cx="' + x2.toFixed(1) + '" cy="' + y2.toFixed(1) + '" r="2"/>';
+  });
+  if (svg.innerHTML !== out) svg.innerHTML = out;
+}
+
+/* ---- CONTAINERS / GUNSMITH ----------------------------------------------------- */
+function barState(bar, num, load, cap, proj) {
+  const use = proj != null ? proj : load;
+  const pct = cap > 0 ? Math.min(100, use / cap * 100) : 0;
+  bar.querySelector("i").style.width = pct + "%";
+  bar.className = "bar right" + (proj != null ? (use > cap ? " bad" : " proj") : (cap > 0 && load > cap * .9 ? " warn" : ""));
+  txt(num, proj != null ? fmtMass(load) + "+" + fmtMass(use - load) + " / " + fmtMass(cap) : fmtMass(load) + " / " + fmtMass(cap));
+  num.classList.toggle("bad", proj != null && use > cap);
+}
+function renderContainers() {
+  const I = S.inv;
+  CONTS.forEach(id => {
+    const p = $("cont-" + id), c = contOf(id), list = p.querySelector(".list"), ph = p.querySelector(".ph");
+    p.classList.toggle("worn", !!c);
+    if (c) { p.dataset.drop = id; txt(ph.querySelector(".cls"), c.cls); barState(ph.querySelector(".bar"), ph.querySelector(".num"), c.load, c.cap, S.proj && S.proj.target === id ? S.proj.load : null);
+      list.dataset.empty = "EMPTY"; renderList(list, c.items, id, { fitmark:false }); }
+    else { delete p.dataset.drop; txt(ph.querySelector(".cls"), "NOT WORN"); barState(ph.querySelector(".bar"), ph.querySelector(".num"), 0, 0, null); list.dataset.empty = "NO " + id.toUpperCase(); renderList(list, [], id, {}); }
+  });
+  const open = !!S.gs;
+  CONTS.forEach(id => { $("cont-" + id).hidden = open; });
+  $("gs").hidden = !open;
+  $("bag").classList.toggle("dimmed", open);
+  if (open) renderGunsmith();
+}
+function makeSock(type) {
+  const el = document.createElement("div"); el.className = "sock"; el.dataset.sock = type;
+  el.innerHTML = '<span class="art" data-tex=""></span><div class="txt"><span class="sl">' + type + '</span><span class="sv"></span><div class="acts"><span class="hint" hidden>← RELEASE TO MOUNT</span><button class="act bad" data-detach="' + type + '" hidden>DETACH</button></div></div>';
+  return el;
+}
+function renderGunsmith() {
+  const G = S.gs;
+  txt($("gsSlot"), G.slot.toUpperCase());
+  setTex($("gsArt"), G.weapon.icon, true); txt($("gsName"), G.weapon.name); txt($("gsMass"), fmtMass(G.weapon.mass) + " M");
+  const rows = SOCK_ORDER.map(t => ({ type:t, s:G.sockets.find(x => x.type === t) || null })).concat([{ type:"mag", s:{ type:"mag", item:G.mag } }]);
+  syncList($("socks"), rows, r => r.type, r => makeSock(r.type), (el, r) => {
+    const has = !!r.s, item = has ? r.s.item : null;
+    el.classList.toggle("off", !has); el.classList.toggle("vacant", has && !item); el.classList.toggle("mag", r.type === "mag");
+    if (r.type === "mag" && !el.querySelector(":scope > .acts")) { const a = document.createElement("div"); a.className = "acts"; el.appendChild(a); }
+    if (has) el.dataset.drop = "sock:" + r.type; else delete el.dataset.drop;
+    setTex(el.querySelector(".art"), item ? item.icon : "", false);
+    const sv = el.querySelector(".sv"), acts = r.type === "mag" ? el.querySelector(":scope > .acts") : el.querySelector(".txt .acts");
+    if (r.type === "mag") {
+      txt(sv, item ? item.ammo + " / " + item.cap + " · " + item.name : "EMPTY");
+      if (!acts.querySelector("[data-unload]")) { acts.innerHTML = '<span class="hint" hidden>← RELEASE TO LOAD</span><button class="act" data-unload="1">UNLOAD</button><button class="act acid" data-reload="1">RELOAD</button><span class="chip"></span>'; el.querySelector(".sl").textContent = "MAGAZINE"; }
+      acts.querySelector("[data-unload]").disabled = !item;
+      acts.querySelector("[data-reload]").disabled = !G.magsInContainers;
+      txt(acts.querySelector(".chip"), G.magsInContainers + " SPARE");
+    } else {
+      txt(sv, !has ? "NO SOCKET" : (item ? item.name : "—"));
+      const d = acts.querySelector("[data-detach]"); d.hidden = !item;
+    }
+  });
+  txt($("gsFitN"), G.fits.length + " FIT" + (G.fits.length === 1 ? "" : "S"));
+  $("fits").dataset.empty = "NOTHING IN REACH FITS THIS WEAPON";
+  renderList($("fits"), G.fits, "fits", { source:true });
+  const by = {}; G.fits.forEach(f => { by[f.source] = (by[f.source] || 0) + f.qty; });
+  txt($("gsMeta"), (Object.keys(by).map(k => "FROM " + k + " ×" + by[k]).join(" · ") + (G.fits.length ? " · " : "") + "DRAG ONTO A SOCKET, OR DOUBLE-CLICK"));
+  if (!D || !D.live) txt($("gsPrev"), S.hoverFit ? previewFor(S.hoverFit, "") : "HOVER A FIT TO PREVIEW ITS DISPLACEMENT");
+}
+function previewFor(it, socket) {
+  const G = S.gs, r = it.row; if (!G) return "";
+  if (it.virt) return VIRT_MSG;
+  if (r.kind === "mag") return G.mag ? G.mag.name.toUpperCase() + " (" + G.mag.ammo + "/" + G.mag.cap + ") WILL RETURN TO " + locLabel(it.loc) : "LOAD " + r.name.toUpperCase();
+  const sock = socket || r.socket; const cur = G.sockets.find(s => s.type === sock);
+  if (!cur || r.kind !== "attach" || !G.fits.some(f => f.cls === r.cls)) return NOFIT_MSG;
+  if (!cur.item) return r.name.toUpperCase() + " → " + sock.toUpperCase() + " · FROM " + locLabel(it.loc);
+  const oldMass = massOfCls(cur.item.cls);
+  const chain = [it.loc, "vest", "backpack", "uniform"].filter((v, i, a) => a.indexOf(v) === i);
+  for (const loc of chain) {
+    const c = loc === "container" ? S.inv.container : contOf(loc); if (!c) continue;
+    const load = c.load - (it.loc === loc ? r.mass : 0);
+    if (load + oldMass <= c.cap) return cur.item.name.toUpperCase() + " WILL RETURN TO " + locLabel(loc) + " · " + fmtMass(load) + "+" + fmtMass(oldMass) + " / " + fmtMass(c.cap);
+  }
+  return cur.item.name.toUpperCase() + " WILL DROP TO THE GROUND — NO ROOM";
+}
+
+/* ---- REACH ---------------------------------------------------------------------- */
+function renderReach() {
+  const I = S.inv, V = I.container, veh = $("veh");
+  veh.hidden = !V;
+  if (V) {
+    txt($("vehLab"), V.label); txt($("vehSub"), V.sub || ""); $("vehSub").hidden = !V.sub;
+    const ph = veh.querySelector(".ph"); barState(ph.querySelector(".bar"), ph.querySelector(".num"), V.load, V.cap, S.proj && S.proj.target === "container" ? S.proj.load : null);
+    const list = $("vehList");
+    if (V.lockedNote) { list.dataset.empty = V.lockedNote; renderList(list, [], "container", {}); delete veh.dataset.drop; }
+    else { list.dataset.empty = "EMPTY"; renderList(list, V.items, "container", { plus:true, fitmark:true }); veh.dataset.drop = "container"; }
+  }
+  txt($("gDist"), I.ground.dist != null ? (Math.round(I.ground.dist * 10) / 10) + " M" : "");
+  const n = I.ground.physical.length + I.ground.virtual.length;
+  txt($("gN"), n ? n + " ROW" + (n === 1 ? "" : "S") : "NOTHING IN REACH");
+  const gl = $("gList"); gl.dataset.empty = "NOTHING IN REACH";
+  // one host, two kinds: physical rows keyed by id, suitcase rows by case|id
+  const rows = I.ground.physical.map(r => ({ k:"p", r })).concat(I.ground.virtual.map(r => ({ k:"v", r })));
+  syncList(gl, rows, x => x.k === "p" ? x.r.id : "v:" + x.r.case + "|" + x.r.id, makeRow, (el, x) => {
+    if (x.k === "p") updateRow(el, x.r, "ground", { plus:true, fitmark:true });
+    else updateRow(el, x.r, "gcase", { virt:true, plus:true, id: x.r.case + "|" + x.r.id });
+  });
+}
+
+/* ---- SELECTED --------------------------------------------------------------------- */
+function renderSelected() {
+  const host = $("selBody");
+  const it = S.sel ? getItem(S.sel.list, S.sel.id) : null;
+  if (!it) { S.sel = null; txt($("selLoc"), ""); if (!host.querySelector(".empty")) host.innerHTML = '<div class="empty">SELECT AN ITEM</div>'; return; }
+  const r = it.row; const stack = it.virt ? r.qty : (r.qty || 1);
+  if (S.amount > stack) S.amount = stack; if (S.amount < 1) S.amount = 1;
+  txt($("selLoc"), it.list === "gcase" ? "SUITCASE" : locLabel(it.loc));
+  if (!host.querySelector(".head")) host.innerHTML =
+    '<div class="head"><span class="art" data-tex=""></span><span class="nm"></span></div>' +
+    '<div class="kvs"></div><div class="desc"></div>' +
+    '<div class="step"><span class="lb">Amount</span><button class="pm" data-step="-1">−</button><span class="qv">1</span><button class="pm" data-step="1">+</button><button class="act" data-step="all">ALL</button></div>' +
+    '<div class="acts"></div>';
+  setTex(host.querySelector(".head .art"), r.icon, r.wide); txt(host.querySelector(".head .nm"), r.name);
+  const kv = [];
+  if (it.virt) { kv.push(["WEIGHT", r.wt + (r.qty > 1 ? " × " + r.qty + " = " + (r.wt * r.qty) : "")]); if (r.sell) kv.push(["SELL", "$" + r.sell]); if (r.despawn != null) kv.push(["DESPAWN", Math.floor(r.despawn / 60) + " MIN"]); }
+  else { kv.push(["MASS", fmtMass(r.mass) + (r.qty > 1 ? " × " + r.qty : "")]); if (r.kind === "mag") kv.push(["ROUNDS", r.ammo + " / " + r.cap]); if (r.kind === "attach") kv.push(["SOCKET", r.socket.toUpperCase()]);
+    if (r.mag) kv.push(["LOADED", r.mag.name + " " + r.mag.ammo + "/" + r.mag.cap]); if (r.sockets) { const m = Object.keys(r.sockets).filter(k => r.sockets[k]).map(k => r.sockets[k].name); if (m.length) kv.push(["MODS", m.join(", ")]); } }
+  if (r.illegal) kv.push(["STATUS", "ILLEGAL"]);
+  const kvs = host.querySelector(".kvs"); const html = kv.map(x => '<div class="kv"><span>' + x[0] + '</span><b' + (x[1] === "ILLEGAL" ? ' style="color:var(--danger)"' : "") + '>' + esc(x[1]) + "</b></div>").join("");
+  if (kvs.innerHTML !== html) kvs.innerHTML = html;
+  txt(host.querySelector(".desc"), r.desc || "");
+  const step = host.querySelector(".step"); step.hidden = stack < 2; txt(step.querySelector(".qv"), S.amount);
+  const acts = host.querySelector(".acts");
+  let btns;
+  if (it.list === "bag") btns = [["USE", "bagUse", [r.id], true, "acid"], ["GIVE", "give", null, S.inv.players.length > 0], ["DROP", "bagDrop", [r.id, S.amount], r.canDrop !== false, "bad"]];
+  else if (it.list === "gcase") btns = [["TAKE", "groundTake", [r.case, r.id, S.amount], true, "acid"]];
+  else {
+    const I = S.inv, worn = it.list === "slot" || it.list === "assigned", from = worn ? it.slot : it.loc;
+    const inReach = it.list === "container" || it.list === "ground";
+    const canEquip = !worn && ["weapon","uniform","vest","backpack","headgear","facewear","binocular","attach","mag","assigned","nvg"].includes(r.kind);
+    const toC = id => !!contOf(id) && it.loc !== id;
+    btns = [
+      ["EQUIP", "invEquip", [r.id], canEquip, "acid"],
+      ["UNEQUIP", "invUnequip", [it.slot], worn],
+      ["TO UNIFORM", "invMove", [from, r.id, "uniform", S.amount], toC("uniform")],
+      ["TO VEST", "invMove", [from, r.id, "vest", S.amount], toC("vest")],
+      ["TO PACK", "invMove", [from, r.id, "backpack", S.amount], toC("backpack")],
+      ["DROP", "invMove", [from, r.id, "ground", S.amount], it.list !== "ground", "bad"],
+      ["STORE", "invMove", [from, r.id, "container", S.amount], !!(I.container && !I.container.lockedNote) && it.list !== "container"],
+      ["TAKE", "invEquip", [r.id], inReach],
+      ["OPEN", "invOpenWeapon", [it.slot], worn && r.kind === "weapon" && GUNSMITH_SLOTS.includes(it.slot)]
+    ];
+  }
+  const want = btns.map(b => b[0]).join("|");
+  if (acts.dataset.set !== want) { acts.dataset.set = want; acts.innerHTML = btns.map(b => '<button class="act ' + (b[4] || "") + '" data-act="' + b[0] + '"></button>').join(""); }
+  btns.forEach(b => { const el = acts.querySelector('[data-act="' + b[0] + '"]'); if (el.classList.contains("busy")) return; txt(el, b[0]); el.disabled = !b[3]; el._call = [b[1], b[2]]; });
+}
+
+/* ---- BAG ----------------------------------------------------------------------------- */
+function renderBag() {
+  const B = S.inv.you.bag;
+  const over = B.load > B.cap;
+  $("bagBar").style.width = Math.min(100, B.cap ? B.load / B.cap * 100 : 0) + "%";
+  $("bagBar").parentElement.className = "bar right" + (over ? " bad" : (B.load > B.cap * .9 ? " warn" : ""));
+  txt($("bagNum"), B.load + " / " + B.cap); $("bagNum").classList.toggle("bad", over);
+  $("bagOver").hidden = !over; $("hFlag").hidden = !over; txt($("hBag"), B.load + " / " + B.cap);
+  const f = S.filter.trim().toLowerCase();
+  const rows = f ? B.items.filter(r => r.name.toLowerCase().includes(f) || r.id.toLowerCase().includes(f)) : B.items;
+  $("bagList").dataset.empty = f ? "NOTHING MATCHES" : "YOUR BAG IS EMPTY";
+  renderList($("bagList"), rows, "bag", { virt:true });
+  const odd = (B.odd || []).map(o => o.name.toUpperCase() + " ×" + o.qty).join(" · ");
+  txt($("bagOdd"), odd); $("bagOddLine").hidden = !odd;
+  const sel = S.sel && S.sel.list === "bag" ? getItem("bag", S.sel.id) : null;
+  $("bagFoot").querySelectorAll("[data-bag]").forEach(b => { if (b.classList.contains("busy")) return; const v = b.dataset.bag;
+    b.disabled = !sel || (v === "give" && !S.inv.players.length) || (v === "drop" && sel.row.canDrop === false); });
+}
+
+/* ---- render -------------------------------------------------------------------------- */
+function render() {
+  if (!S.inv) return;
+  const I = S.inv;
+  document.body.classList.toggle("tal", I.you.side === "cop");
+  document.body.classList.toggle("dragging", !!(D && D.live));
+  txt($("hName"), I.you.name); txt($("hSide"), String(I.you.side || "").toUpperCase());
+  renderWorn(); renderContainers(); renderReach(); renderSelected(); renderBag();
+  resolveTex(); drawLeaders(); reportFigure();
+}
+/* The figure strip, as fractions of the frame, for the native body camera (fn_invFigure.sqf).
+   Sent once per distinct box: on the first render and whenever the layout moves it. */
+let figSent = "";
+function reportFigure() {
+  const fr = $("frame"), mid = $("figMid"); if (!fr || !mid) return;
+  const f = fr.getBoundingClientRect(), m = mid.getBoundingClientRect();
+  if (!f.width || !f.height || !m.width || !m.height) return;
+  // fractions of the VIEWPORT (the browser control), not of #frame: in game the frame may not fill
+  // the control, and the native control is placed against the control's rect
+  const vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+  const box = [m.left / vw, m.top / vh, m.width / vw, m.height / vh].map(v => +v.toFixed(4));
+  // the hole in #frame, in frame-local px (the mask above reads these)
+  fr.style.setProperty("--hx", (m.left - f.left) + "px"); fr.style.setProperty("--hy", (m.top - f.top) + "px");
+  fr.style.setProperty("--hw", m.width + "px"); fr.style.setProperty("--hh", m.height + "px");
+  // the vignette sits on #stage over the same rect (viewport px; #stage is the viewport)
+  const v = $("figVignette"); if (v) { v.style.left = m.left + "px"; v.style.top = m.top + "px"; v.style.width = m.width + "px"; v.style.height = m.height + "px"; }
+  const key = box.join(","); if (key === figSent) return; figSent = key;
+  // plus the page's own idea of its size, so SQF can log the CSS-px <-> screen-px relation
+  AP.call("invFigureBox", box.concat([vw, vh, window.devicePixelRatio || 1, Math.round(f.left), Math.round(f.top), Math.round(f.width), Math.round(f.height)])).then(r => { document.body.classList.toggle("figlive", !!(r && r.live)); }).catch(() => {});
+}
+AP.on("inventory", v => { S.inv = v; if ($("msg").textContent === "READING THE BAG") { $("msg").textContent = "READY"; } render(); });
+AP.on("gunsmith", v => { S.gs = v || null; if (!S.gs) S.hoverFit = null; render(); });
+window.addEventListener("resize", () => { drawLeaders(); reportFigure(); });
+
+/* ---- drag ------------------------------------------------------------------------------- */
+let D = null;
+function dragQty(it) {
+  const r = it.row, stack = it.virt ? r.qty : (r.qty || 1);
+  let q = (S.sel && S.sel.list === it.list && S.sel.id === (it.list === "gcase" ? r.case + "|" + r.id : r.id)) ? S.amount : stack;
+  const m = window.__mods || {};
+  if (m.s) q = 1; else if (m.c) q = Math.max(1, Math.ceil(stack / 2));
+  return Math.max(1, Math.min(q, stack));
+}
+/* DRAG THE FIGURE TO TURN IT: the strip is the browser's (the native picture is underneath), so a
+   drag that starts on the mid column becomes invFigureRot calls -- degrees per pixel, throttled to
+   one call per animation frame. Only while the figure is live. */
+(function () {
+  let rot = null;
+  const mid = $("figMid");
+  mid.addEventListener("pointerdown", e => {
+    if (!document.body.classList.contains("figlive") || e.button !== 0) return;
+    rot = { x: e.clientX, acc: 0, pending: false };
+    mid.setPointerCapture(e.pointerId); mid.classList.add("turning");
+    e.preventDefault(); e.stopPropagation();
+  });
+  mid.addEventListener("pointermove", e => {
+    if (!rot) return;
+    rot.acc += (e.clientX - rot.x) * 0.6; rot.x = e.clientX;
+    if (!rot.pending) { rot.pending = true; const r = rot; requestAnimationFrame(() => {
+      /* the drag can end (stop() nulls rot) between this move and its frame -- hold our own
+         reference, and do nothing if it did. Reading rot.acc on null threw and killed the page. */
+      if (r !== rot) return;
+      const d = Math.round(r.acc); r.acc -= d; r.pending = false;
+      if (d) AP.call("invFigureRot", [d]).catch(() => {});
+    }); }
+  });
+  const stop = () => { if (rot) { rot = null; mid.classList.remove("turning"); } };
+  mid.addEventListener("pointerup", stop); mid.addEventListener("pointercancel", stop);
+})();
+document.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  if (e.target.closest(".act,button,input")) return;
+  const el = e.target.closest("[data-drag]"); if (!el) return;
+  const it = getItem(el.dataset.list, el.dataset.id); if (!it) return;
+  D = { it, el, x0:e.clientX, y0:e.clientY, live:false, over:null, ghost:null, qty:dragQty(it), pid:e.pointerId };
+  try { el.setPointerCapture(e.pointerId); } catch (_) {}
+});
+function startDrag(e) {
+  D.live = true;
+  const g = D.el.cloneNode(true); g.classList.add("ghost"); g.classList.remove("on", "inflight"); g.removeAttribute("data-drop"); g.removeAttribute("data-drag");
+  if (D.qty > 1 && D.qty !== (D.it.row.qty || 1)) { const mt = g.querySelector(".mt"); if (mt) mt.textContent = "×" + D.qty; }
+  document.body.appendChild(g); D.ghost = g;
+  document.body.classList.add("dragging");
+  document.querySelectorAll("[data-drop]").forEach(t => { const ok = canDrop(D.it, t.dataset.drop); t.classList.toggle("tgt-ok", ok); t.classList.toggle("tgt-no", !ok); });
+}
+function moveDrag(e) {
+  D.ghost.style.left = e.clientX + "px"; D.ghost.style.top = e.clientY + "px";
+  const hit = document.elementFromPoint(e.clientX, e.clientY); const t = hit && hit.closest("[data-drop]");
+  if (t !== D.over) {
+    if (D.over) { D.over.classList.remove("tgt-hover", "tgt"); D.over.querySelectorAll(".hint").forEach(h => h.hidden = true); }
+    D.over = t;
+    if (t) { t.classList.add("tgt-hover"); if (t.classList.contains("sock") && t.classList.contains("tgt-ok")) { t.classList.add("tgt"); t.querySelectorAll(".hint").forEach(h => h.hidden = false); } }
+    // projected load on container targets
+    const tgt = t && t.classList.contains("tgt-ok") ? t.dataset.drop : "";
+    const r = D.it.row;
+    if (!D.it.virt && (tgt === "uniform" || tgt === "vest" || tgt === "backpack" || tgt === "container")) {
+      const c = tgt === "container" ? S.inv.container : contOf(tgt); S.proj = c ? { target:tgt, load:c.load + r.mass * D.qty } : null;
+    } else S.proj = null;
+    if (S.gs) txt($("gsPrev"), t && (tgt.indexOf("sock") === 0 || tgt === "wpn") ? previewFor(D.it, tgt.indexOf("sock:") === 0 ? tgt.slice(5) : "") : (t && D.it.virt && t.dataset.drop && (t.dataset.drop.indexOf("sock") === 0 || t.dataset.drop === "wpn") ? VIRT_MSG : "RELEASE ON A SOCKET TO MOUNT"));
+    renderContainers(); renderReach();
+  }
+}
+function clearDrag() {
+  if (!D) return;
+  if (D.ghost) D.ghost.remove();
+  if (D.over) { D.over.classList.remove("tgt-hover", "tgt"); D.over.querySelectorAll(".hint").forEach(h => h.hidden = true); }
+  document.querySelectorAll(".tgt-ok,.tgt-no").forEach(t => t.classList.remove("tgt-ok", "tgt-no"));
+  document.body.classList.remove("dragging");
+  try { D.el.releasePointerCapture(D.pid); } catch (_) {}
+  S.proj = null; D = null;
+  render();
+}
+document.addEventListener("pointermove", e => {
+  if (!D) return;
+  if (!D.live) { if (Math.hypot(e.clientX - D.x0, e.clientY - D.y0) < 6) return; startDrag(e); }
+  moveDrag(e);
+});
+document.addEventListener("pointerup", e => {
+  if (!D) return;
+  if (!D.live) {   // plain click = select
+    const it = D.it; S.sel = { list:it.list, id:D.el.dataset.id }; S.amount = it.virt ? it.row.qty : (it.row.qty || 1);
+    clearDrag(); return;
+  }
+  const hit = document.elementFromPoint(e.clientX, e.clientY); const t = hit && hit.closest("[data-drop]");
+  const it = D.it, src = D.el, qty = D.qty;
+  const target = t ? t.dataset.drop : "";
+  clearDrag();
+  if (!target) return;
+  if (!canDrop(it, target)) {
+    if (it.virt && (target.indexOf("sock") === 0 || target === "wpn" || target.indexOf("slot:") === 0)) say(VIRT_MSG, false);
+    else if (!it.virt && (target.indexOf("sock") === 0 || target === "wpn") && S.gs) say(NOFIT_MSG, false);
+    return;
+  }
+  const c = callFor(it, target, qty); if (!c) return;
+  const live = document.querySelector('[data-list="' + it.list + '"][data-id="' + CSS.escape(src.dataset.id) + '"]') || src;
+  invoke(c[0], c[1], live);
+});
+document.addEventListener("pointercancel", () => clearDrag());
+
+/* ---- clicks ---------------------------------------------------------------------------- */
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.id === "gsBack") { pressed(b, "invCloseWeapon", []); return; }
+  if (b.dataset.detach) { pressed(b, "invDetach", [S.gs.slot, b.dataset.detach]); return; }
+  if (b.dataset.unload) { pressed(b, "invUnload", [S.gs.slot]); return; }
+  if (b.dataset.reload) { pressed(b, "invReload", [S.gs.slot, ""]); return; }
+  if (b.classList.contains("plus")) {
+    const row = b.closest(".row"); const it = getItem(row.dataset.list, row.dataset.id); if (!it) return;
+    if (it.list === "gcase") invoke("groundTake", [it.row.case, it.row.id, 1], row);
+    else invoke("invEquip", [it.row.id], row);
+    return;
+  }
+  if (b.dataset.step) {
+    const it = S.sel ? getItem(S.sel.list, S.sel.id) : null; if (!it) return;
+    const stack = it.virt ? it.row.qty : (it.row.qty || 1);
+    S.amount = b.dataset.step === "all" ? stack : Math.max(1, Math.min(stack, S.amount + (+b.dataset.step)));
+    renderSelected(); return;
+  }
+  if (b.dataset.act) {
+    if (b._call[0] === "give") { openGive(); return; }
+    pressed(b, b._call[0], b._call[1]); return;
+  }
+  if (b.dataset.bag) {
+    const it = S.sel && S.sel.list === "bag" ? getItem("bag", S.sel.id) : null; if (!it) return;
+    if (b.dataset.bag === "give") { openGive(); return; }
+    pressed(b, b.dataset.bag === "use" ? "bagUse" : "bagDrop", b.dataset.bag === "use" ? [it.row.id] : [it.row.id, S.amount]); return;
+  }
+  if (b.id === "ovlX") { $("ovl").hidden = true; return; }
+  if (b.dataset.uid) {
+    const it = S.sel && S.sel.list === "bag" ? getItem("bag", S.sel.id) : null; $("ovl").hidden = true; if (!it) return;
+    invoke("bagGive", [it.row.id, S.amount, b.dataset.uid]); return;
+  }
+});
+function openGive() {
+  const it = S.sel && S.sel.list === "bag" ? getItem("bag", S.sel.id) : null; if (!it) return;
+  const P = S.inv.players || [];
+  $("ovlList").innerHTML = P.length ? P.map(p => '<button class="row" data-uid="' + esc(p.uid) + '"><i class="dot on"></i><span class="nm">' + esc(p.name) + '</span><span class="mt">' + (Math.round(p.dist * 10) / 10) + ' M</span></button>').join("") : '<div class="empty">NOBODY WITHIN 5 M</div>';
+  $("ovl").hidden = false;
+}
+document.addEventListener("dblclick", e => {
+  if (e.target.closest("button,input")) return;
+  const el = e.target.closest("[data-drag],[data-slot]"); if (!el) return;
+  if (el.dataset.slot !== undefined) {   // slot card
+    const name = el.dataset.slot; const r = S.inv.you.slots[name];
+    if (!r || !GUNSMITH_SLOTS.includes(name)) return;
+    if (S.gs && S.gs.slot === name) invoke("invCloseWeapon", []);
+    else invoke("invOpenWeapon", [name], el);
+    return;
+  }
+  const it = getItem(el.dataset.list, el.dataset.id); if (!it) return;
+  if (it.list === "bag") { invoke("bagUse", [it.row.id], el); return; }
+  if (it.list === "gcase") { invoke("groundTake", [it.row.case, it.row.id, it.row.qty], el); return; }
+  if (it.list === "fits") { invoke("invMount", [it.row.id, S.gs.slot, it.row.socket], el); return; }
+  if (it.list === "assigned") return;
+  invoke("invEquip", [it.row.id], el);
+});
+document.addEventListener("mouseover", e => {
+  if (D || !S.gs) return;
+  const row = e.target.closest('#fits .row'); const it = row ? getItem("fits", row.dataset.id) : null;
+  if ((it && it.row) !== (S.hoverFit && S.hoverFit.row)) { S.hoverFit = it; txt($("gsPrev"), it ? previewFor(it, "") : "HOVER A FIT TO PREVIEW ITS DISPLACEMENT"); }
+});
+$("bagSearch").addEventListener("input", e => { S.filter = e.target.value; renderBag(); });
+window.closeGunsmith = function () { if (S.gs) AP.call("invCloseWeapon", []); };
+</script>
+<style>
+/* __WINFIT__ (hand-applied, matching the installer's pattern for the other web
+   pages): windowed control -- no letterbox slab, the world shows around/behind
+   the dialog instead of the mock's dim placeholder backdrop. html{font-size:
+   clamp(...)} already tracks the control's CSS viewport width (30px per
+   UI_GRID unit regardless of screen res, core/web/README.md), so no JS
+   font-fit script is needed here. */
+html,body{background:transparent!important}
+#stage{background:transparent!important}
+#frame{width:100%!important;height:100%!important;aspect-ratio:auto!important}
+</style>
+<script>
+/* WHEEL SHIM: scroll the nearest scrollable ancestor by hand. Native wheel
+   scrolling has not proven itself in a WINDOWED control; this is deterministic
+   either way, and preventDefault stops any double-scroll where native works.
+   Every .list scrolls independently, so this matters here. */
+document.addEventListener("wheel", function (e) {
+  var el = e.target;
+  while (el && el !== document.body) {
+    var st = getComputedStyle(el);
+    if (/(auto|scroll)/.test(st.overflowY) && el.scrollHeight > el.clientHeight + 1) {
+      el.scrollTop += e.deltaY;
+      e.preventDefault();
+      return;
+    }
+    el = el.parentElement;
+  }
+}, { passive: false });
+</script>
+</body></html>

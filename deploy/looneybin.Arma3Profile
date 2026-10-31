@@ -1,0 +1,61 @@
+// LooneyBin dedicated-server profile  (owner 2026-06-16, BUGS.md #309).
+// Installed to $PROFILES/home/looneybin/looneybin.Arma3Profile by deploy/run-boot2.sh and selected
+// via server.cfg `difficulty = "Custom"`. Reason: the stock "regular" preset sets mapContentFriendly=1,
+// and the engine treats the `civilian` side as FRIENDLY with `west`, so every civilian's map natively
+// revealed the (moving) MaxSec/cop units -- "we all looked at the map and saw the police moving" (#309).
+// fn_trackMarkers already draws the ONLY intended player markers (side-gated, createMarkerLocal), so the
+// native reveal must be off. CustomDifficulty below = "regular" with the map/3D friendly-reveal killed,
+// THIRD PERSON KEPT ON (a life server requires it -- that's why we can't just use the stock "veteran").
+version=1;
+blood=1;
+singleVoice=0;
+gamma=1;
+brightness=1;
+ppBrightness=1.01;
+ppContrast=1.0599999;
+ppSaturation=1.08;
+soundEnableEAX=1;
+soundEnableHW=0;
+volumeCD=5;
+volumeFX=5;
+volumeSpeech=5;
+volumeVoN=5;
+volumeMapDucking=1;
+volumeUI=1;
+class DifficultyPresets
+{
+	class CustomDifficulty
+	{
+		class Options
+		{
+			groupIndicators = 2;       // owner 2026-06-25 (Northhhhh): was 1 (limited dist) -> own gang/squad 3D hexes only showed up close. 2 = Always Show. NOT a map reveal -- #309 cop/civ leak stays closed via mapContentFriendly/friendlyTags=0 below.
+			friendlyTags = 0;          // #309: no floating friendly name/health tags (civ<->cop is "friendly") -- same leak in 3D
+			enemyTags = 0;
+			detectedMines = 1;
+			commands = 1;
+			waypoints = 2;             // #359: was 1 (Fade Out) -> shift+click custom waypoints faded ~10s after closing the map. 2 = Always Show. (dedicated to the waypoint indicator; groupIndicators handles the group dots separately.)
+			tacticalPing = 0;          // mission has its own ping system (fn_tacticalPing)
+			weaponInfo = 2;
+			stanceIndicator = 2;
+			staminaBar = 1;
+			weaponCrosshair = 1;
+			visionAid = 0;
+			thirdPersonView = 1;       // KEEP -- life server requires 3rd person
+			cameraShake = 1;
+			scoreTable = 1;
+			deathMessages = 0;         // owner 2026-06-25 (Northhhhh): mission prints its OWN kill/suicide line (fn_onPlayerKilled -> broadcast). Engine's native one stacked on top = double systemChat. Keep only the mission's.
+			vonID = 1;
+			mapContentFriendly = 0;    // #309 THE FIX: stop the native map reveal of friendly (= civ-friendly cops) units
+			mapContentEnemy = 0;
+			mapContentMines = 0;
+			autoReport = 0;
+			multipleSaves = 0;
+		};
+		aiLevelPreset = 3;             // 3 = Custom -> reads class CustomAILevel below
+	};
+	class CustomAILevel
+	{
+		skillAI = 0.5;
+		precisionAI = 0.5;
+	};
+};

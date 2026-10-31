@@ -1,0 +1,12 @@
+[Unit]
+Description=Armapunk 2035 restart driver (server_control.restart_now -> systemctl --user restart armapunk-arma)
+After=armapunk-arma.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /home/timb/Armapunk2035/deploy/live/restart_watchdog_pg.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,2 @@
+(systemTimeUTC) params[["_year", 0, [0]], ["_month", 0, [0]], ["_day", 0, [0]], ["_hour", 0, [0]], ["_minute", 0, [0]], ["_seconds", 0, [0]]];
+(format["%1/%2/%3 at %4:%5:%6", _month, _day, _year, _hour, _minute, _seconds])

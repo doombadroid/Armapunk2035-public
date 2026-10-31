@@ -1,0 +1,255 @@
+<!doctype html>
+<!-- THE CLIP — the web virtual shop. Dialog 39600, served from ui\html\ (already
+     in allowedHTMLLoadURIs, which is what binds A3API into the page).
+
+     ONE PAGE FOR EVERY VIRTUAL SHOP. The shop type is data, not layout: market,
+     rebel, gas, hospital, wongs, black market and the rest all land here.
+
+     SELF-CONTAINED, because the control has no resolvable base URL: no <script
+     src>, no <link>, no network, no fonts. The token block below is a verbatim
+     copy of deck.html's — duplicated on purpose. A shared stylesheet would need a
+     <link> the sandbox forbids, and a build step that assembled pages from parts
+     would give the packed PBO a way to disagree with source. Tokens change rarely;
+     if they do, both files move together.
+
+     THE PAGE NEVER SENDS A PRICE. It sends an item id and an amount, and SQF
+     recomputes the cost through the same function the native till uses. -->
+<html><head><meta charset="utf-8"><title>THE CLIP</title>
+<style>
+:root{
+  --scr:#050a10; --scr2:#0a121c; --panel:#0c1622; --panel2:#0e1a28;
+  --acc:#f5a623; --acc2:#54b0ff; --danger:#ff4d4d; --amber:#54b0ff;
+  --magenta:#ff3d81;
+  --ink:#dbe6f2; --dim:#7d8b9e; --faint:#3c4a5c;
+  --line:rgba(245,166,35,.15);
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:transparent;overflow:hidden}
+button{font-family:var(--mono);background:none;border:none;color:inherit;cursor:pointer;padding:0}
+input{font-family:var(--mono);background:none;border:none;outline:none;color:var(--ink)}
+*::-webkit-scrollbar{width:5px}*::-webkit-scrollbar-thumb{background:#22332a;border-radius:3px}
+
+#fit{position:fixed;inset:0;display:grid;place-items:center}
+/* Portrait panel — a counter, not a handset. Deliberately narrow so the world
+   stays visible either side. */
+.clip{width:26rem;max-width:94vw;height:94vh;max-height:40rem;display:flex;flex-direction:column;
+  background:radial-gradient(ellipse at 50% 0%,var(--panel),var(--scr) 78%);
+  border:1px solid var(--line);border-radius:.7rem;overflow:hidden;
+  box-shadow:0 24px 70px rgba(0,0,0,.7),inset 0 0 0 1px #000}
+.hd{flex:none;display:flex;align-items:baseline;gap:.5rem;padding:.7rem .85rem;
+  background:var(--scr2);border-bottom:1px solid var(--line)}
+.hd .nm{flex:1;font-family:var(--mono);font-size:.86rem;font-weight:700;letter-spacing:.18em;color:var(--acc)}
+.hd .cash{font-family:var(--mono);font-size:.72rem;color:var(--ink);font-variant-numeric:tabular-nums}
+.sub{flex:none;display:flex;gap:.8rem;padding:.3rem .85rem .45rem;background:var(--scr2);
+  border-bottom:1px solid var(--line);font-family:var(--mono);font-size:.54rem;letter-spacing:.1em;color:var(--faint)}
+.sub .w{margin-left:auto}
+.sub .w.hot{color:var(--danger)}
+
+.rows{flex:1;min-height:0;overflow-y:auto;padding:.35rem}
+.row{display:flex;align-items:center;gap:.5rem;width:100%;text-align:left;min-height:2.7rem;
+  padding:.35rem .5rem;border-radius:.45rem;border:1px solid transparent}
+.row:hover{background:var(--panel2)}
+.row[aria-current="page"]{background:rgba(255,61,129,.14);border-color:rgba(255,61,129,.5)}
+.row .n{flex:1;min-width:0;font-family:var(--sans);font-size:.76rem;color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .own{font-family:var(--mono);font-size:.55rem;color:var(--faint);min-width:2.6rem;text-align:right}
+.row .p{font-family:var(--mono);font-size:.66rem;min-width:4.4rem;text-align:right;font-variant-numeric:tabular-nums}
+.row .p.b{color:var(--dim)}
+.row .p.s{color:var(--acc)}
+
+.ft{flex:none;border-top:1px solid var(--line);background:var(--scr2);padding:.5rem .6rem;
+  display:flex;flex-direction:column;gap:.45rem}
+.qty{display:flex;align-items:center;gap:.35rem}
+.qty button{flex:none;height:1.9rem;min-width:1.9rem;padding:0 .4rem;border-radius:.35rem;
+  background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-size:.64rem}
+.qty button:hover{border-color:rgba(245,166,35,.5);color:var(--acc)}
+.qty .v{flex:1;text-align:center;font-family:var(--mono);font-size:1.05rem;color:var(--acc);
+  font-variant-numeric:tabular-nums}
+.acts{display:flex;gap:.4rem}
+.acts button{flex:1;height:2.4rem;border-radius:.4rem;font-family:var(--mono);font-size:.64rem;
+  letter-spacing:.1em;font-weight:700;border:1px solid var(--line);background:var(--panel2);color:var(--ink)}
+.acts .buy{background:rgba(245,166,35,.16);border-color:rgba(245,166,35,.5);color:var(--acc)}
+.acts .sell{background:rgba(84,176,255,.14);border-color:rgba(84,176,255,.45);color:var(--acc2)}
+.acts button[disabled]{background:rgba(60,74,92,.35);border-color:transparent;color:#34435a;cursor:not-allowed}
+.st{flex:none;min-height:1.4rem;font-family:var(--mono);font-size:.56rem;letter-spacing:.06em;color:var(--faint)}
+.st.bad{color:var(--danger)} .st.hot{color:var(--acc)}
+.empty{margin:auto;font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;color:var(--faint)}
+</style>
+<script>
+/* THE BRIDGE IS INJECTED, NOT INCLUDED. window.WEBUI does not exist while this
+   file's own script runs, so anything that touches it synchronously silently does
+   nothing -- which is exactly how this page first shipped, sitting on "OPENING"
+   forever with a payload it had already been sent.
+
+   Two things happen here, both before <body>:
+     1. a promise the page can await, resolved by webui.js at the end of its init
+     2. a self-load over A3API.RequestFile, because a <script src> would NOT work
+        -- the page has no resolvable base URL and the src quietly resolves to
+        nothing. fn_shopOpen also injects the same file over ExecJS; webui.js is
+        idempotent, so whichever arrives first wins. */
+window.WEBUIReady = new Promise(function (resolve) { window.__webuiReady = resolve; });
+if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+  A3API.RequestFile("webui\\ui\\webui.js")
+    .then(function (src) { (0, eval)(src); })
+    .catch(function (e) { console.error("bridge self-load failed, waiting for SQF injection", e); });
+}
+</script>
+</head>
+<body>
+<div id="fit"><div class="clip">
+  <div class="hd"><span class="nm" id="shopName">…</span><span class="cash" id="cash"></span></div>
+  <div class="sub"><span id="count"></span><span class="w" id="wt"></span></div>
+  <div class="rows" id="rows"><div class="empty">OPENING</div></div>
+  <div class="ft">
+    <div class="qty">
+      <button data-act="q" data-id="-10">&minus;10</button>
+      <button data-act="q" data-id="-1">&minus;</button>
+      <span class="v" id="qv">1</span>
+      <button data-act="q" data-id="1">+</button>
+      <button data-act="q" data-id="10">+10</button>
+      <button data-act="q" data-id="max">MAX</button>
+    </div>
+    <div class="acts">
+      <button class="buy"  id="buyBtn"  data-act="buy">BUY</button>
+      <button class="sell" id="sellBtn" data-act="sell">SELL</button>
+    </div>
+    <div class="st" id="status">READY</div>
+  </div>
+</div></div>
+<script>
+"use strict";
+var S = { shop:null, pick:null, qty:1, msg:"", tone:"" };
+var el = function(i){ return document.getElementById(i); };
+function esc(s){ return String(s == null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function F(n){ n = Number(n) || 0; return "$" + n.toLocaleString("en-US"); }
+function money(n){ return S.shop && S.shop.nd ? (Number(n)||0).toLocaleString("en-US") + " ND" : F(n); }
+
+function say(m, tone){ S.msg = m; S.tone = tone || ""; paintStatus(); }
+function paintStatus(){
+  var n = el("status"); if (!n) return;
+  n.textContent = S.msg || "READY";
+  n.className = "st " + (S.msg ? S.tone : "");
+}
+function call(key, args){
+  if (!window.WEBUI) { say("bridge not up yet", "bad"); return Promise.resolve(null); }
+  return WEBUI.call(key, args || [], 20000).then(function(r){
+    if (r && typeof r === "object" && "msg" in r && r.msg) say(String(r.msg), r.ok ? "hot" : "bad");
+    return r;
+  }, function(e){ say(String(e && e.message || e), "bad"); return null; });
+}
+function item(){
+  if (!S.shop || !S.pick) return null;
+  for (var i = 0; i < S.shop.items.length; i++) if (S.shop.items[i].id === S.pick) return S.shop.items[i];
+  return null;
+}
+/* MAX has to respect BOTH limits, same as the till: what you can afford and what
+   you can carry. The server re-checks; this only stops a click that would fail. */
+function maxBuy(it){
+  if (!it || it.buy < 0) return 0;
+  var byCash = it.buy > 0 ? Math.floor(S.shop.cash / it.buy) : 999;
+  var room   = S.shop.maxWeight - S.shop.weight;
+  var byWt   = it.wt > 0 ? Math.floor(room / it.wt) : 999;
+  return Math.max(0, Math.min(byCash, byWt, 999));
+}
+function render(){
+  var s = S.shop;
+  if (!s){ return; }
+  el("shopName").textContent = s.name;
+  el("cash").textContent = money(s.cash);
+  el("count").textContent = s.items.length + " LINES";
+  var room = s.maxWeight - s.weight;
+  var w = el("wt");
+  w.textContent = "LOAD " + s.weight + "/" + s.maxWeight;
+  w.className = "w" + (room <= 0 ? " hot" : "");
+
+  var h = "";
+  for (var i = 0; i < s.items.length; i++){
+    var it = s.items[i];
+    h += '<button class="row" data-act="pick" data-id="' + esc(it.id) + '"' +
+      (S.pick === it.id ? ' aria-current="page"' : '') + '>' +
+      '<span class="n">' + esc(it.name) + '</span>' +
+      '<span class="own">' + (it.own > 0 ? "×" + it.own : "") + '</span>' +
+      '<span class="p b">' + (it.buy  >= 0 ? money(it.buy)  : "—") + '</span>' +
+      '<span class="p s">' + (it.sell >= 0 ? money(it.sell) : "—") + '</span>' +
+      '</button>';
+  }
+  el("rows").innerHTML = h || '<div class="empty">NOTHING TRADES HERE</div>';
+
+  var it = item();
+  el("qv").textContent = S.qty;
+  var b = el("buyBtn"), sb = el("sellBtn");
+  /* Buttons price themselves, and disable with the reason rather than failing
+     on click. */
+  if (!it){
+    b.textContent = "BUY"; sb.textContent = "SELL";
+    b.disabled = true; sb.disabled = true;
+  } else {
+    var canBuy = it.buy >= 0, canSell = it.sell >= 0 && it.own > 0;
+    b.textContent  = canBuy  ? "BUY — " + money(it.buy * S.qty)   : "NOT SOLD HERE";
+    sb.textContent = it.sell < 0 ? "NOT BOUGHT HERE"
+                   : it.own <= 0 ? "YOU HAVE NONE"
+                   : "SELL — " + money(it.sell * Math.min(S.qty, it.own));
+    b.disabled  = !canBuy;
+    sb.disabled = !canSell;
+  }
+  paintStatus();
+}
+function adopt(v){
+  /* fn_shopData answers an EMPTY hashmap for an unknown shop type, and {} is
+     truthy -- taking it as a payload would throw on s.items.length and leave the
+     page frozen on its placeholder with no visible error. */
+  if (v && !v.items) { say("that shop has no stock list", "bad"); v = null; }
+  S.shop = v || null;
+  if (S.shop && S.pick){
+    var still = false;
+    for (var i = 0; i < S.shop.items.length; i++) if (S.shop.items[i].id === S.pick) still = true;
+    if (!still) S.pick = null;
+  }
+  render();
+}
+
+document.addEventListener("click", function(ev){
+  var t = ev.target.closest ? ev.target.closest("[data-act]") : null;
+  if (!t || t.disabled) return;
+  var act = t.getAttribute("data-act"), id = t.getAttribute("data-id"), it = item();
+  switch (act){
+    case "pick": S.pick = id; S.qty = 1; render(); break;
+    case "q":
+      if (id === "max") S.qty = Math.max(1, maxBuy(it));
+      else S.qty = Math.max(1, S.qty + parseInt(id, 10));
+      render();
+      break;
+    case "buy":
+      if (!it) break;
+      call("shopBuy", [it.id, S.qty]).then(function(r){ if (r && r.shop) adopt(r.shop); });
+      break;
+    case "sell":
+      if (!it) break;
+      call("shopSell", [it.id, Math.min(S.qty, it.own)]).then(function(r){ if (r && r.shop) adopt(r.shop); });
+      break;
+  }
+});
+
+function fit(){
+  var h = document.documentElement.clientHeight;
+  document.documentElement.style.fontSize = Math.max(10, Math.min(18, h / 34)) + "px";
+}
+addEventListener("resize", fit);
+fit();
+
+/* on() replays the last value on subscribe, and fn_shopOpen pushes as soon as the
+   bridge is up, so the subscribe alone is normally enough. The delayed fetch is
+   the belt in case the push landed before this ran. */
+var booted = false;
+window.WEBUIReady.then(function (W) {
+  booted = true;
+  W.on("shop", adopt);
+  setTimeout(function(){ if (!S.shop) call("shop", []).then(adopt); }, 1200);
+});
+setTimeout(function(){ if (!booted) say("no bridge", "bad"); }, 12000);
+</script>
+</body></html>

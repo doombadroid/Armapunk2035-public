@@ -1,0 +1,28 @@
+# Discord contact point + message templates (TELEMETRY_SPEC.md § Alerts). The dashboard link is a bare
+# URL on purpose: angle brackets came out HTML-escaped (&lt;) in the delivered message (measured 2026-09-09). The webhook URL comes
+# from DISCORD_ALERT_WEBHOOK in ~/.config/armapunk/telemetry.env (compose passes it through);
+# unset = a placeholder URL so provisioning still loads and delivery fails visibly in the Grafana
+# log instead of Grafana refusing to start.
+apiVersion: 1
+templates:
+  - orgId: 1
+    name: ap.title
+    template: |
+      {{ define "ap.title" }}{{ if eq .Status "firing" }}🔴 FIRING{{ else }}🟢 RESOLVED{{ end }}: {{ .CommonLabels.alertname }}{{ end }}
+  - orgId: 1
+    name: ap.message
+    template: |
+      {{ define "ap.message" }}{{ range .Alerts }}• {{ .Annotations.summary }}{{ if .Labels.severity }} `{{ .Labels.severity }}`{{ end }}
+      {{ end }}https://grafana.armapunk.com/d/ap-server{{ end }}
+contactPoints:
+  - orgId: 1
+    name: discord-armapunk
+    receivers:
+      - uid: discord-armapunk
+        type: discord
+        disableResolveMessage: false
+        settings:
+          url: $DISCORD_ALERT_WEBHOOK
+          use_discord_username: true
+          title: '{{ template "ap.title" . }}'
+          message: '{{ template "ap.message" . }}'

@@ -1,0 +1,648 @@
+{
+  "label": "warmcheck",
+  "expect": {
+    "files": 3,
+    "tiles": 338,
+    "icons": 251,
+    "guns": 24,
+    "total": 616
+  },
+  "warmErrors": [],
+  "landingErrors": [],
+  "warm": {
+    "guns": 24,
+    "finalized": true,
+    "gunHits": 24,
+    "gunSizes": [
+      128
+    ],
+    "firstGun": 592,
+    "lastIcon": 591,
+    "gunMisses": 4,
+    "backslashed": [],
+    "total": 616,
+    "done": 616,
+    "pct": 100,
+    "drained": true,
+    "pageErr": null,
+    "bootErr": null,
+    "hits": 616,
+    "head": [
+      "ui\\html\\malden_hf.txt",
+      "ui\\html\\malden_bld.txt",
+      "ui\\html\\malden_msh.txt",
+      "a3\\map_malden\\data\\layers\\s_000_000_lco.paa"
+    ],
+    "txtAfterHead": [],
+    "tiles": 338,
+    "icons": 251,
+    "maxInflight": 3,
+    "misses": {
+      "stub": 88,
+      "reject": 1
+    },
+    "prog": [
+      [
+        7,
+        46,
+        616
+      ],
+      [
+        8,
+        47,
+        616
+      ],
+      [
+        9,
+        53,
+        616
+      ],
+      [
+        10,
+        59,
+        616
+      ],
+      [
+        11,
+        65,
+        616
+      ],
+      [
+        12,
+        71,
+        616
+      ],
+      [
+        13,
+        77,
+        616
+      ],
+      [
+        14,
+        84,
+        616
+      ],
+      [
+        15,
+        90,
+        616
+      ],
+      [
+        16,
+        96,
+        616
+      ],
+      [
+        17,
+        102,
+        616
+      ],
+      [
+        18,
+        108,
+        616
+      ],
+      [
+        19,
+        114,
+        616
+      ],
+      [
+        20,
+        121,
+        616
+      ],
+      [
+        21,
+        127,
+        616
+      ],
+      [
+        22,
+        133,
+        616
+      ],
+      [
+        23,
+        139,
+        616
+      ],
+      [
+        24,
+        145,
+        616
+      ],
+      [
+        25,
+        151,
+        616
+      ],
+      [
+        26,
+        158,
+        616
+      ],
+      [
+        27,
+        164,
+        616
+      ],
+      [
+        28,
+        170,
+        616
+      ],
+      [
+        29,
+        176,
+        616
+      ],
+      [
+        30,
+        182,
+        616
+      ],
+      [
+        31,
+        188,
+        616
+      ],
+      [
+        32,
+        195,
+        616
+      ],
+      [
+        33,
+        201,
+        616
+      ],
+      [
+        34,
+        207,
+        616
+      ],
+      [
+        35,
+        213,
+        616
+      ],
+      [
+        36,
+        219,
+        616
+      ],
+      [
+        37,
+        225,
+        616
+      ],
+      [
+        38,
+        231,
+        616
+      ],
+      [
+        39,
+        238,
+        616
+      ],
+      [
+        40,
+        244,
+        616
+      ],
+      [
+        41,
+        250,
+        616
+      ],
+      [
+        42,
+        256,
+        616
+      ],
+      [
+        43,
+        262,
+        616
+      ],
+      [
+        44,
+        268,
+        616
+      ],
+      [
+        45,
+        275,
+        616
+      ],
+      [
+        46,
+        281,
+        616
+      ],
+      [
+        47,
+        287,
+        616
+      ],
+      [
+        48,
+        293,
+        616
+      ],
+      [
+        49,
+        299,
+        616
+      ],
+      [
+        50,
+        305,
+        616
+      ],
+      [
+        51,
+        312,
+        616
+      ],
+      [
+        52,
+        318,
+        616
+      ],
+      [
+        53,
+        324,
+        616
+      ],
+      [
+        54,
+        330,
+        616
+      ],
+      [
+        55,
+        336,
+        616
+      ],
+      [
+        56,
+        342,
+        616
+      ],
+      [
+        57,
+        349,
+        616
+      ],
+      [
+        58,
+        355,
+        616
+      ],
+      [
+        59,
+        361,
+        616
+      ],
+      [
+        60,
+        367,
+        616
+      ],
+      [
+        61,
+        373,
+        616
+      ],
+      [
+        62,
+        379,
+        616
+      ],
+      [
+        63,
+        385,
+        616
+      ],
+      [
+        64,
+        392,
+        616
+      ],
+      [
+        65,
+        398,
+        616
+      ],
+      [
+        66,
+        404,
+        616
+      ],
+      [
+        67,
+        410,
+        616
+      ],
+      [
+        68,
+        416,
+        616
+      ],
+      [
+        69,
+        422,
+        616
+      ],
+      [
+        70,
+        429,
+        616
+      ],
+      [
+        71,
+        435,
+        616
+      ],
+      [
+        72,
+        441,
+        616
+      ],
+      [
+        73,
+        447,
+        616
+      ],
+      [
+        74,
+        453,
+        616
+      ],
+      [
+        75,
+        459,
+        616
+      ],
+      [
+        76,
+        466,
+        616
+      ],
+      [
+        77,
+        472,
+        616
+      ],
+      [
+        78,
+        478,
+        616
+      ],
+      [
+        79,
+        484,
+        616
+      ],
+      [
+        80,
+        490,
+        616
+      ],
+      [
+        81,
+        496,
+        616
+      ],
+      [
+        82,
+        503,
+        616
+      ],
+      [
+        83,
+        509,
+        616
+      ],
+      [
+        84,
+        515,
+        616
+      ],
+      [
+        85,
+        521,
+        616
+      ],
+      [
+        86,
+        527,
+        616
+      ],
+      [
+        87,
+        533,
+        616
+      ],
+      [
+        88,
+        539,
+        616
+      ],
+      [
+        89,
+        546,
+        616
+      ],
+      [
+        90,
+        552,
+        616
+      ],
+      [
+        91,
+        558,
+        616
+      ],
+      [
+        92,
+        564,
+        616
+      ],
+      [
+        93,
+        570,
+        616
+      ],
+      [
+        94,
+        576,
+        616
+      ],
+      [
+        95,
+        583,
+        616
+      ],
+      [
+        96,
+        589,
+        616
+      ],
+      [
+        97,
+        595,
+        616
+      ],
+      [
+        98,
+        601,
+        616
+      ],
+      [
+        99,
+        607,
+        616
+      ],
+      [
+        100,
+        613,
+        616
+      ]
+    ],
+    "maxBytes": 40,
+    "haveWebui": true
+  },
+  "landing": {
+    "at0": {
+      "pct": "0%",
+      "loadrow": "",
+      "play": "ready",
+      "welcomeOff": false,
+      "factionOff": true,
+      "bootErr": null
+    },
+    "at37": {
+      "pct": "37%",
+      "loadrow": "",
+      "play": "ready",
+      "welcomeOff": false,
+      "factionOff": true,
+      "bootErr": null
+    },
+    "at3": {
+      "pct": "3%",
+      "loadrow": "",
+      "play": "ready",
+      "welcomeOff": false,
+      "factionOff": true,
+      "bootErr": null
+    },
+    "clicked": {
+      "pct": "3%",
+      "loadrow": "",
+      "play": "ready",
+      "welcomeOff": true,
+      "factionOff": false,
+      "bootErr": null
+    },
+    "at100": {
+      "pct": "100%",
+      "loadrow": "done",
+      "play": "ready",
+      "welcomeOff": true,
+      "factionOff": false,
+      "bootErr": null
+    }
+  },
+  "results": [
+    {
+      "name": "0. the worker page boots with no page errors and no console errors",
+      "ok": true,
+      "detail": "none"
+    },
+    {
+      "name": "0b. the bridge came up, so the reports below are the real wire",
+      "ok": true,
+      "detail": "webui=true bootErr=null pageErr=null"
+    },
+    {
+      "name": "1. the three map text assets are requested BEFORE the tile and icon bulk",
+      "ok": true,
+      "detail": "head=[\"ui\\\\html\\\\malden_hf.txt\",\"ui\\\\html\\\\malden_bld.txt\",\"ui\\\\html\\\\malden_msh.txt\",\"a3\\\\map_malden\\\\data\\\\layers\\\\s_000_000_lco.paa\"] strayTxt=[]"
+    },
+    {
+      "name": "1b. the weapon pictures go LAST -- after the map, tile and icon entries",
+      "ok": true,
+      "detail": "gunHits=24/24 firstGun=592 lastIcon=591 of 616"
+    },
+    {
+      "name": "2. concurrency never exceeds 3 in flight (and the lanes were really used)",
+      "ok": true,
+      "detail": "maxInflight=3"
+    },
+    {
+      "name": "3. a miss does not stall the pump: the queue drains to completion anyway",
+      "ok": true,
+      "detail": "drained=true done=616/616 misses={\"stub\":88,\"reject\":1}"
+    },
+    {
+      "name": "3b. a MISS among the weapon pictures does not stall the pump either",
+      "ok": true,
+      "detail": "gunMisses=4 gunHits=24 drained=true"
+    },
+    {
+      "name": "4. progress is monotonic, starts below 100 and lands on exactly 100",
+      "ok": true,
+      "detail": "n=94 first=7 last=100 monotonic=true"
+    },
+    {
+      "name": "5. the reported total is what the queue HOLDS (3 files + 338 tiles + 251 icons on disk + 24 weapon pictures)",
+      "ok": true,
+      "detail": "total=616 expected=616 requests=616 tiles=338 icons=251 guns=24"
+    },
+    {
+      "name": "5c. every weapon picture is warmed at 128 and at NO other mip (512 is the one-image hero preview, on demand)",
+      "ok": true,
+      "detail": "sizes=[128]"
+    },
+    {
+      "name": "5d. NOT ONE requested path begins with a backslash (the silent-404 trap)",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "5b. every progress message is far inside webui.js's 10240 byte page->SQF cap",
+      "ok": true,
+      "detail": "maxBytes=40"
+    },
+    {
+      "name": "6. the landing page renders the pushed loadPct verbatim",
+      "ok": true,
+      "detail": "0% -> 37% -> 3% -> 100%"
+    },
+    {
+      "name": "7. PLAY IS NOT GATED: lit at every value, including 3%",
+      "ok": true,
+      "detail": "at0=ready at3=ready at100=ready"
+    },
+    {
+      "name": "8. clicking PLAY at 3% advances to faction select",
+      "ok": true,
+      "detail": "before: welcomeOff=false factionOff=true | after: welcomeOff=true factionOff=false"
+    },
+    {
+      "name": "9. the row still flips to its done state at 100",
+      "ok": true,
+      "detail": "at37=\"\" at100=\"done\""
+    },
+    {
+      "name": "9b. the landing page boots with no page errors and no console errors",
+      "ok": true,
+      "detail": "none bootErr=null"
+    }
+  ]
+}

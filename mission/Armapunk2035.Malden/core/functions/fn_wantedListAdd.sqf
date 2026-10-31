@@ -1,0 +1,16 @@
+params[["_crimeID", -1, [0]], ["_uid", "", [""]], ["_amountToAdd", 1, [0]]];
+if !(_uid isEqualTo getPlayerUID player) exitWith {};
+if !(AP_effSide isEqualTo civilian) exitWith {};
+if (_crimeID isEqualTo 999) exitWith {A_stats_crimes = A_stats_crimes apply {0};
+    player setVariable["AP_wantedAmt", A_stats_crimes select 0, true];
+    [8] call AP_fnc_ClupdatePartial;
+    [] call AP_fnc_hudUpdate; [getPlayerUID player, name player, +A_stats_crimes] remoteExec ["APS_fnc_wantedSyncList", 2];};
+if (_crimeID < 1 || _crimeID > AP_totalCrimes) exitWith {};
+private _currentBounty = A_stats_crimes select 0;
+private _selectedCrimeAmount = A_stats_crimes select _crimeID;
+private _crimeValue = ["getChargeValue", _crimeID] call AP_fnc_wantedChargesConfig;
+A_stats_crimes set[0, _currentBounty + (_crimeValue * _amountToAdd)];
+A_stats_crimes set[_crimeID, _selectedCrimeAmount + _amountToAdd];
+player setVariable["AP_wantedAmt", A_stats_crimes select 0, true];
+[8] call AP_fnc_ClupdatePartial;
+[] call AP_fnc_hudUpdate; [getPlayerUID player, name player, +A_stats_crimes] remoteExec ["APS_fnc_wantedSyncList", 2];

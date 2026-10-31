@@ -1,0 +1,357 @@
+<!doctype html>
+<!-- SHOPS — FITTING ROOM (clothing shop, design 1b). Self-contained,
+     game-ready: inline CSS/JS, no libs, no network, no storage. AP stub
+     behind a guard. Replaces clothing.hpp (idd 3100). Companion: ARMORY.
+
+     THE DESIGN RULE: the compact left panel exists so YOUR CHARACTER stays
+     on screen — the world IS the preview. Selecting a row equips it for real
+     (cTry); CANCEL restores the saved loadout. In game the right side of the
+     frame is the game world showing your character; this file dims it with a
+     placeholder silhouette zone for browser review.
+
+     CONTRACT (page defines it; SQF matches; server re-checks everything)
+       AP.on("cshop", { name, cash, cats:[id],
+                        items:[{ id, name, cat, price, worn }] })
+       AP.on("cash", n)                    // pushed after any settle
+       AP.call("cTry",    [id])            // equips the try-on in world
+       AP.call("cBuy",    [[ids]])         // -> { ok, msg, cash, receipt } atomic outfit
+       AP.call("cCancel", [])              // restores the saved loadout
+       AP.call("cVision", [])              // NV / thermal preview toggle
+     Search is a REAL input — typed text works. OUTFIT TOTAL prices every
+     try-on across categories; BUY OUTFIT is atomic (all or nothing).
+
+     WHAT ANIMATES: nothing persistent — the header LED pulse (CSS) and .18s
+     row transitions. Zero rAF. Esc closes the dialog (game-side): the game
+     restores the saved loadout on close, same as CANCEL. -->
+<html><head><meta charset="utf-8"><title>SHOP — fitting room</title>
+<script>
+/* ---- BRIDGE SHIM (installed by tools/install_shop_pages.py) ---------------
+   AP defined synchronously so the page's dev stub never installs; on()/call()
+   queue until webui.js lands. AP.texture goes straight to A3API -- no bridge
+   round-trip, cached by the page. */
+(function () {
+  var subs = {}, queued = [], W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  window.__apSubs = subs;
+  window.AP = {
+    __shim: true,
+    on: function (n, f) { (subs[n] = subs[n] || []).push(f); if (W) W.on(n, f); },
+    call: function (n, a) {
+      if (W) return W.call(n, a || [], 20000);
+      return new Promise(function (res, rej) { queued.push([n, a || [], res, rej]); });
+    },
+    texture: function (p, s) {
+      if (typeof A3API === "undefined" || !A3API.RequestTexture) return Promise.reject(new Error("no A3API"));
+      /* ALPHA TRIM. BI gear icons draw the art left-aligned inside a large
+         transparent canvas, so object-fit:contain centres the CANVAS, not the
+         weapon. Crop to the alpha bounding box before handing it to the page. */
+      return A3API.RequestTexture(p, s).then(function (durl) {
+        return new Promise(function (res) {
+          var im = new Image();
+          im.onload = function () {
+            try {
+              var cv = document.createElement("canvas");
+              cv.width = im.width; cv.height = im.height;
+              var g = cv.getContext("2d");
+              g.drawImage(im, 0, 0);
+              var d = g.getImageData(0, 0, cv.width, cv.height).data;
+              var x0 = cv.width, y0 = cv.height, x1 = 0, y1 = 0;
+              for (var y = 0; y < cv.height; y++) for (var x = 0; x < cv.width; x++) {
+                if (d[(y * cv.width + x) * 4 + 3] > 10) {
+                  if (x < x0) x0 = x; if (x > x1) x1 = x;
+                  if (y < y0) y0 = y; if (y > y1) y1 = y;
+                }
+              }
+              if (x1 <= x0 || y1 <= y0) return res(durl);
+              var pad = 2, w = x1 - x0 + 1 + pad * 2, h = y1 - y0 + 1 + pad * 2;
+              var out = document.createElement("canvas"); out.width = w; out.height = h;
+              out.getContext("2d").drawImage(cv, x0 - pad, y0 - pad, w, h, 0, 0, w, h);
+              res(out.toDataURL("image/png"));
+            } catch (e) { res(durl); }
+          };
+          im.onerror = function () { res(durl); };
+          im.src = durl;
+        });
+      });
+    },
+    handle: function (n, f) { if (W) W.handle(n, f); }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    queued.forEach(function (q) { W.call(q[0], q[1], 20000).then(q[2], q[3]); });
+    queued = [];
+    W.call("log", ["armory page up"]);   // instant readiness drain
+    /* FLAIR: same page, three uniforms. The payload names the theme; the shim
+       applies it so the designer's file stays untouched. */
+    ["wshop", "cshop"].forEach(function (ch) {
+      W.on(ch, function (v) {
+        if (v && v.flair !== undefined) document.body.setAttribute("data-flair", v.flair || "");
+      });
+    });
+  });
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else { window.__apBootErr = "no A3API on this page"; }
+})();
+</script>
+<style>
+:root{
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --scr2:#0a121c; --panel:#0c1622; --panel2:#0e1a28;
+  --acc:#f5a623; --acc2:#54b0ff; --danger:#ff4d4d; --amber:#54b0ff; --magenta:#ff3d81;
+  --ink:#dbe6f2; --dim:#7d8b9e; --faint:#3c4a5c; --line:rgba(245,166,35,.15);
+}
+html,body{margin:0;height:100%;background:#07090a;font-family:var(--sans)}
+#stage{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at 62% 40%,#161a14,#07090a 80%)}
+#frame{width:min(96vw,192vh);aspect-ratio:2/1;position:relative}
+/* the world placeholder — in game this is the live character behind the dialog */
+.world{position:absolute;right:16%;top:12%;bottom:6%;width:30%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:.6rem}
+.mannequin{width:9rem;flex:1;border-radius:.6rem;border:1px dashed #22332a;display:grid;place-items:center;
+  background:repeating-linear-gradient(90deg,rgba(245,166,35,.05) 0 2px,transparent 2px 9px),linear-gradient(180deg,rgba(30,38,52,.4),rgba(14,20,30,.6))}
+.mannequin span{font-family:var(--mono);font-size:.58rem;letter-spacing:.12em;color:var(--faint);text-align:center;line-height:1.8}
+.wornLine{font-family:var(--mono);font-size:.52rem;letter-spacing:.14em;color:var(--faint)}
+#shop{position:absolute;left:4.5%;top:7%;bottom:7%;width:17.5rem;background:var(--panel);border:1px solid var(--line);border-radius:.7rem;
+  box-shadow:0 18px 44px rgba(0,0,0,.6);display:flex;flex-direction:column;overflow:hidden}
+#shop::after{content:"";position:absolute;inset:0;z-index:40;pointer-events:none;opacity:.22;
+  background:repeating-linear-gradient(180deg,transparent 0 2px,rgba(0,0,0,.2) 2px 3px)}
+.hdr{flex:none;display:flex;align-items:center;gap:.5rem;padding:.55rem .75rem;background:var(--scr2);border-bottom:1px solid var(--line);font-family:var(--mono)}
+.led{width:.45rem;height:.45rem;border-radius:50%;background:var(--acc);box-shadow:0 0 .5rem var(--acc);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.cash{margin-left:auto;font-size:.6rem;color:#c9d3de;font-variant-numeric:tabular-nums}
+.cats{flex:none;display:flex;gap:.25rem;padding:.45rem .55rem;flex-wrap:wrap}
+.cat{border:1px solid var(--line);background:transparent;color:var(--dim);border-radius:.35rem;
+  font-family:var(--mono);font-size:.54rem;letter-spacing:.12em;padding:.24rem .45rem;cursor:pointer}
+.cat:hover{color:var(--acc)}
+.cat.on{border-color:rgba(245,166,35,.5);background:rgba(245,166,35,.14);color:var(--acc)}
+.search{flex:none;display:flex;align-items:center;gap:.4rem;margin:0 .55rem;padding:.4rem .55rem;background:var(--scr2);
+  border:1px solid var(--line);border-radius:.45rem;border-left:2px solid var(--acc2)}
+.search .g{font-family:var(--mono);font-size:.62rem;color:var(--faint)}
+.search input{flex:1;min-width:0;font:inherit;font-size:.7rem;color:var(--acc2);background:none;border:none;outline:none}
+.search input::placeholder{color:var(--faint)}
+.search .x{display:none;border:none;background:none;color:var(--faint);font-family:var(--mono);font-size:.7rem;cursor:pointer;padding:0}
+.search .x:hover{color:var(--danger)}
+.list{flex:1;min-height:0;overflow-y:auto;padding:.4rem .5rem;display:flex;flex-direction:column;gap:.26rem}
+.row{display:flex;align-items:center;gap:.45rem;height:2.2rem;flex:none;padding:0 .5rem;border-radius:.45rem;cursor:pointer;
+  background:var(--panel2);border:1px solid var(--line);transition:border-color .18s ease,background .18s ease;font-family:var(--sans);text-align:left;color:inherit}
+.row:hover{border-color:rgba(255,61,129,.35)}
+.row.tried{background:rgba(255,61,129,.16);border-color:rgba(255,61,129,.55)}
+.row .nm{flex:1;min-width:0;font-size:.72rem;font-weight:550;color:#eaf0f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .chip{font-family:var(--mono);font-size:.5rem;font-weight:700;letter-spacing:.1em;padding:.14rem .35rem;border-radius:.26rem;background:rgba(255,255,255,.05)}
+.row .pr{font-family:var(--mono);font-size:.64rem;color:var(--acc);width:3.2rem;text-align:right;font-variant-numeric:tabular-nums}
+.nohits{padding:1rem;text-align:center;font-family:var(--mono);font-size:.58rem;color:var(--faint)}
+.foot{flex:none;padding:.5rem .6rem;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:.35rem}
+.kv{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.6rem;color:var(--dim)}
+.kv b{font-variant-numeric:tabular-nums}
+.btns{display:flex;gap:.3rem}
+.buy{flex:1;height:2.1rem;border-radius:.45rem;font-family:var(--mono);font-size:.6rem;font-weight:700;letter-spacing:.1em;cursor:pointer;
+  border:1px solid rgba(84,176,255,.5);background:rgba(84,176,255,.16);color:var(--acc2)}
+.buy:hover{background:rgba(84,176,255,.26)}
+.buy:disabled{border-color:rgba(60,74,92,.35);background:transparent;color:#34435a;cursor:not-allowed}
+.aux{flex:none;height:2.1rem;padding:0 .6rem;border:1px solid var(--line);background:var(--panel2);color:var(--dim);border-radius:.45rem;
+  font-family:var(--mono);font-size:.56rem;letter-spacing:.1em;cursor:pointer}
+.aux:hover.cxl{color:var(--danger)}
+.aux:hover.vis{color:var(--acc2)}
+.flash{font-family:var(--mono);font-size:.56rem;letter-spacing:.04em;min-height:.9rem;color:var(--faint)}
+*::-webkit-scrollbar{width:5px}*::-webkit-scrollbar-thumb{background:#22332a;border-radius:3px}
+</style></head><body>
+<div id="stage"><div id="frame">
+  <div class="world">
+    <div class="mannequin"><span>YOUR CHARACTER<br>LIVE TRY-ON<br><span style="color:#34435a">list select = equipped in world</span></span></div>
+    <span class="wornLine" id="wornLine">WEARING YOUR OWN CLOTHES</span>
+  </div>
+  <div id="shop" data-screen-label="Fitting Room">
+    <div class="hdr">
+      <span class="led"></span>
+      <span style="color:var(--acc);font-weight:800;font-size:.78rem;letter-spacing:.2em" id="shopName">KABUKI THREADS</span>
+      <span class="cash" id="cash">—</span>
+    </div>
+    <div class="cats" id="cats"></div>
+    <div class="search">
+      <span class="g">⌕</span>
+      <input id="q" placeholder="Search…">
+      <button class="x" id="qx">✕</button>
+    </div>
+    <div class="list" id="list"></div>
+    <div class="foot">
+      <div class="kv"><span>ITEM PRICE</span><b style="color:var(--acc2)" id="itemPrice">—</b></div>
+      <div class="kv"><span>OUTFIT TOTAL</span><b style="color:var(--acc)" id="outfitTotal">$0</b></div>
+      <div class="btns">
+        <button class="buy" id="buyBtn">NOTHING TO BUY</button>
+        <button class="aux cxl" id="cancelBtn">CANCEL</button>
+        <button class="aux vis" id="visionBtn">VISION</button>
+      </div>
+      <span class="flash" id="flash">READY</span>
+    </div>
+  </div>
+</div></div>
+
+<script>
+/* ---- AP stub (dev only — the real bridge replaces it). Catalogue mirrors
+   the current clothing.hpp config shape; server owns worn state + prices. ---- */
+if (typeof AP === "undefined") window.AP = (function () {
+  const subs = {}, last = {};
+  const push = (n, v) => { last[n] = v; (subs[n] || []).forEach(f => f(JSON.parse(JSON.stringify(v)))); };
+  let cash = 214000;
+  const C = [
+    ["c1", "Worn Hoodie (Grey)", "uniform", 850, true], ["c2", "Courier Jacket", "uniform", 1400, false],
+    ["c3", "Slick Suit (Black)", "uniform", 5200, false], ["c4", "Combat Fatigues", "uniform", 3800, false],
+    ["v1", "Carrier Lite (Black)", "vest", 8200, false], ["v2", "Press Vest", "vest", 2400, false],
+    ["b1", "Courier Pack", "backpack", 1900, false], ["b2", "Carryall", "backpack", 6400, false],
+    ["h1", "Beanie (Acid)", "headgear", 300, false], ["h2", "Ballistic Helmet", "headgear", 7800, false],
+    ["g1", "Aviators", "glasses", 450, false], ["g2", "Thermal Visor", "glasses", 12500, false]
+  ];
+  const shop = () => ({ name:"KABUKI THREADS", cash,
+    cats:["uniform", "vest", "backpack", "headgear", "glasses"],
+    items:C.map(c => ({ id:c[0], name:c[1], cat:c[2], price:c[3], worn:c[4] })) });
+  push("cshop", shop());
+  return {
+    on(n, f) { (subs[n] = subs[n] || []).push(f); if (n in last) f(JSON.parse(JSON.stringify(last[n]))); },
+    call(name, a) {
+      a = a || [];
+      if (name === "cTry") return Promise.resolve({ ok:true, msg:"equipped in world" });
+      if (name === "cCancel") return Promise.resolve({ ok:true, msg:"loadout restored" });
+      if (name === "cVision") return Promise.resolve({ ok:true, msg:"vision toggled" });
+      if (name === "cBuy") {
+        const ids = a[0] || [];
+        const total = ids.reduce((t, id) => { const c = C.find(x => x[0] === id); return t + (c ? c[3] : 0); }, 0);
+        if (!ids.length) return Promise.resolve({ ok:false, msg:"nothing to buy" });
+        if (total > cash) return Promise.resolve({ ok:false, msg:"not enough cash" });
+        cash -= total;
+        ids.forEach(id => { const c = C.find(x => x[0] === id); if (c) { C.forEach(x => { if (x[2] === c[2]) x[4] = false; }); c[4] = true; } });
+        push("cash", cash);
+        push("cshop", shop());   // worn state is server truth — pushed after the settle
+        return Promise.resolve({ ok:true, msg:"outfit is yours", cash, receipt:total });
+      }
+      return Promise.resolve({ ok:true });
+    },
+    _push:push
+  };
+})();
+
+const $ = s => document.querySelector(s);
+function fit() { document.documentElement.style.fontSize = Math.max(9, $("#frame").getBoundingClientRect().width / 75) + "px"; }
+window.addEventListener("resize", fit); fit();
+const F = n => "$" + Math.round(n).toLocaleString();
+
+let shop = null, cash = 0, cat = null, sel = null, tried = {};   // cat -> itemId (try-ons this visit)
+let flashT = null;
+function say(m, bad) {
+  const el = $("#flash");
+  el.textContent = m; el.style.color = bad ? "var(--danger)" : "var(--acc)";
+  clearTimeout(flashT);
+  flashT = setTimeout(() => { el.textContent = "READY"; el.style.color = "var(--faint)"; }, 2800);
+}
+const wornOf = c => { const w = shop.items.find(i => i.cat === c && i.worn); return w && w.id; };
+const outfit = () => Object.keys(tried).filter(c => tried[c] && tried[c] !== wornOf(c)).map(c => tried[c]);
+
+function renderCats() {
+  const LBL = { uniform:"UNIFORM", vest:"VEST", backpack:"PACK", headgear:"HEAD", glasses:"EYES" };
+  $("#cats").innerHTML = shop.cats.map(c => '<button class="cat' + (c === cat ? " on" : "") + '" data-c="' + c + '">' + (LBL[c] || c.toUpperCase()) + "</button>").join("");
+  [...$("#cats").children].forEach(b => b.onclick = () => { cat = b.dataset.c; renderCats(); renderList(); });
+}
+function renderList() {
+  const q = $("#q").value.trim().toLowerCase();
+  $("#qx").style.display = q ? "block" : "none";
+  const rows = shop.items.filter(i => q ? i.name.toLowerCase().includes(q) : i.cat === cat);
+  if (!rows.length) {
+    $("#list").innerHTML = '<span class="nohits">NOTHING MATCHES “' + q.toUpperCase() + '”</span>';
+    return;
+  }
+  $("#list").innerHTML = rows.map(i => {
+    const isTried = tried[i.cat] === i.id && !i.worn, isWorn = i.worn;
+    const chip = isWorn ? '<span class="chip" style="color:var(--dim)">WORN</span>'
+      : isTried ? '<span class="chip" style="color:var(--acc2)">TRY-ON</span>' : "";
+    return '<button class="row' + (isTried ? " tried" : "") + '" data-id="' + i.id + '">' +
+      '<span class="nm">' + i.name + "</span>" + chip + '<span class="pr">' + F(i.price) + "</span></button>";
+  }).join("");
+  [...$("#list").children].forEach(b => b.onclick = () => {
+    const i = shop.items.find(x => x.id === b.dataset.id);
+    tried[i.cat] = i.id; sel = i.id;
+    AP.call("cTry", [i.id]).then(r => {
+      if (r.ok === false) return say("cTry refused — " + (r.msg || "").toUpperCase(), true);
+      say("cTry — " + i.name.toUpperCase() + " EQUIPPED FOR PREVIEW");
+    });
+    renderList(); renderFoot();
+  });
+}
+function renderFoot() {
+  const ids = outfit();
+  const total = ids.reduce((t, id) => t + shop.items.find(i => i.id === id).price, 0);
+  const item = sel && shop.items.find(i => i.id === sel);
+  $("#itemPrice").textContent = item ? F(item.price) : "—";
+  $("#outfitTotal").textContent = F(total);
+  $("#wornLine").textContent = ids.length ? ids.length + " TRY-ON ITEM" + (ids.length > 1 ? "S" : "") + " · NOT YOURS YET" : "WEARING YOUR OWN CLOTHES";
+  const b = $("#buyBtn");
+  b.textContent = !ids.length ? "NOTHING TO BUY" : total > cash ? "NOT ENOUGH CASH" : "BUY OUTFIT — " + F(total);
+  b.disabled = !ids.length || total > cash;
+  b.onclick = () => AP.call("cBuy", [ids]).then(r => {
+    if (r.ok === false) return say("cBuy refused — " + (r.msg || "").toUpperCase(), true);
+    tried = {};
+    say("cBuy ok — OUTFIT IS YOURS, " + F(r.receipt));
+  });
+}
+$("#q").addEventListener("input", renderList);
+$("#qx").onclick = () => { $("#q").value = ""; renderList(); };
+$("#cancelBtn").onclick = () => AP.call("cCancel", []).then(() => {
+  tried = {}; sel = null;
+  say("cCancel — OLD LOADOUT RESTORED");
+  renderList(); renderFoot();
+});
+$("#visionBtn").onclick = () => AP.call("cVision", []).then(() => say("cVision — NV / THERMAL PREVIEW TOGGLED"));
+AP.on("cshop", v => {
+  shop = v; cash = v.cash;
+  $("#shopName").textContent = v.name;
+  $("#cash").textContent = F(cash);
+  if (!cat || !v.cats.includes(cat)) cat = v.cats[0];
+  Object.keys(tried).forEach(c => { if (tried[c] === wornOf(c)) delete tried[c]; });
+  renderCats(); renderList(); renderFoot();
+});
+AP.on("cash", n => { cash = n; $("#cash").textContent = F(cash); renderFoot(); });
+</script>
+<style>
+/* __WINFIT__ (installer): windowed control -- no letterbox slab, rem follows the control */
+
+/* windowed: the card IS the control; the mannequin zone belongs to the game world */
+#shop{position:fixed!important;inset:0!important;width:auto!important}
+.world{display:none!important}
+/* owner deviation: wider card -- let names + [ARMOR n] breathe */
+.row .nm{white-space:normal!important;line-height:1.25}
+
+/* flair: APD amber, NG green -- the payload's word, applied by the shim */
+body[data-flair="tal"]{--gold:#f5a623;--acc:#f5a623;--acc2:#54b0ff;--line:rgba(245,166,35,.15);
+  --panel:#0c1622;--panel2:#0e1a28;--scr2:#0a121c;--ink:#dbe6f2;--dim:#7d8b9e;--faint:#3c4a5c}
+body[data-flair="med"]{--gold:#7ad06d;--acc:#7ad06d;--line:rgba(122,208,109,.16)}
+html,body{background:transparent!important}
+#stage{background:transparent!important}
+#frame{width:100%!important;height:100%!important;aspect-ratio:auto!important}
+</style>
+<script>
+/* WHEEL SHIM: scroll the nearest scrollable ancestor by hand. Native wheel
+   scrolling has not proven itself in a WINDOWED control; this is deterministic
+   either way, and preventDefault stops any double-scroll where native works. */
+document.addEventListener("wheel", function (e) {
+  var el = e.target;
+  while (el && el !== document.body) {
+    var st = getComputedStyle(el);
+    if (/(auto|scroll)/.test(st.overflowY) && el.scrollHeight > el.clientHeight + 1) {
+      el.scrollTop += e.deltaY;
+      e.preventDefault();
+      return;
+    }
+    el = el.parentElement;
+  }
+}, { passive: false });
+(function __winfit(){
+  function fit(){
+    var w = window.innerWidth, h = window.innerHeight;
+    document.documentElement.style.fontSize = Math.max(9, Math.min(w/24, h/36)) + "px";
+  }
+  window.addEventListener("resize", fit); fit();
+})();
+</script>
+</body></html>

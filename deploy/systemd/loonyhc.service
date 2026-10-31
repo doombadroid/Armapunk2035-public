@@ -1,0 +1,14 @@
+[Unit]
+Description=Armapunk 2035 Headless Client (autopilot driver)
+
+[Service]
+Type=simple
+WorkingDirectory=/home/timb/.local/share/Steam/steamapps/common/Arma 3 Server
+Environment=HOME=/home/timb
+Environment=LD_LIBRARY_PATH=/home/timb/.local/share/Steam/steamapps/common/Arma 3 Server
+ExecStart="/home/timb/.local/share/Steam/steamapps/common/Arma 3 Server/arma3server_x64" -client -connect=127.0.0.1 -port=2302 -profiles=/home/timb/arma3server/profiles_hc -name=loonyhc -filePatching
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,183 @@
+# Alert rules, evaluated every 30 s against VictoriaMetrics (datasource uid armapunk-vm).
+# Each rule = one instant query (A, optionally B for the annotation) + one threshold expression (C).
+# Thresholds are the first guess (2026-09-09); tune here, redeploy, Grafana re-reads in 30 s.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: armapunk-telemetry
+    folder: Armapunk
+    interval: 30s
+    rules:
+      - uid: ap-server-fps-low
+        title: Server FPS low
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: armapunk-vm
+            model: { refId: A, expr: 'avg_over_time(ap_server_fps[2m])', instant: true, range: false, intervalMs: 30000, maxDataPoints: 100 }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: A, conditions: [ { evaluator: { type: lt, params: [20] } } ] }
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        labels: { severity: warning, source: telemetry }
+        annotations:
+          summary: 'Server FPS {{ printf "%.0f" $values.A.Value }} (2-min average) — under 20 for 2 min'
+
+      - uid: ap-server-fps-critical
+        title: Server FPS critical
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: armapunk-vm
+            model: { refId: A, expr: 'avg_over_time(ap_server_fps[1m])', instant: true, range: false, intervalMs: 30000, maxDataPoints: 100 }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: A, conditions: [ { evaluator: { type: lt, params: [12] } } ] }
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels: { severity: critical, source: telemetry }
+        annotations:
+          summary: 'Server FPS {{ printf "%.0f" $values.A.Value }} (1-min average) — under 12, players are lagging'
+
+      # absent_over_time, not a bare instant query: VictoriaMetrics answers an instant query with the
+      # last sample for ~5 min after data stops (measured on the smoke stack), so "no data" on
+      # `ap_server_fps` would arrive 5 min late. absent_over_time returns 1 the moment the 3-min
+      # window is empty and nothing (-> OK) while data flows.
+      - uid: ap-telemetry-silent
+        title: Telemetry silent
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: armapunk-vm
+            model: { refId: A, expr: 'absent_over_time(ap_server_fps[3m])', instant: true, range: false, intervalMs: 30000, maxDataPoints: 100 }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: A, conditions: [ { evaluator: { type: gt, params: [0] } } ] }
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels: { severity: critical, source: telemetry }
+        annotations:
+          summary: 'No server telemetry for 3 min — server down, restarting, or the pysqfd → VictoriaMetrics path is dead'
+
+      - uid: ap-entities-spike
+        title: Entity spike
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: armapunk-vm
+            model: { refId: A, expr: 'delta(ap_entities{kind="mission_objects"}[10m])', instant: true, range: false, intervalMs: 30000, maxDataPoints: 100 }
+          - refId: B
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: armapunk-vm
+            model: { refId: B, expr: 'ap_entities{kind="mission_objects"}', instant: true, range: false, intervalMs: 30000, maxDataPoints: 100 }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: A, conditions: [ { evaluator: { type: gt, params: [500] } } ] }
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels: { severity: warning, source: telemetry }
+        annotations:
+          summary: '+{{ printf "%.0f" $values.A.Value }} mission objects in 10 min (now {{ printf "%.0f" $values.B.Value }}) — something is spawning'
+
+      - uid: ap-class-spike
+        title: Object class spike
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: armapunk-vm
+            model: { refId: A, expr: 'max by (class) (delta(ap_objects{class!="_other"}[10m]))', instant: true, range: false, intervalMs: 30000, maxDataPoints: 100 }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: A, conditions: [ { evaluator: { type: gt, params: [300] } } ] }
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels: { severity: warning, source: telemetry }
+        annotations:
+          summary: '{{ $labels.class }}: +{{ printf "%.0f" $values.A.Value }} in 10 min — the "1200 rockets" alert'
+
+      - uid: ap-vehicles-spike
+        title: Vehicle spike
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: armapunk-vm
+            model: { refId: A, expr: 'delta(ap_entities{kind="vehicles"}[10m])', instant: true, range: false, intervalMs: 30000, maxDataPoints: 100 }
+          - refId: B
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: armapunk-vm
+            model: { refId: B, expr: 'ap_entities{kind="vehicles"}', instant: true, range: false, intervalMs: 30000, maxDataPoints: 100 }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: A, conditions: [ { evaluator: { type: gt, params: [50] } } ] }
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels: { severity: warning, source: telemetry }
+        annotations:
+          summary: '+{{ printf "%.0f" $values.A.Value }} vehicles in 10 min (now {{ printf "%.0f" $values.B.Value }})'
+
+      - uid: ap-entities-high
+        title: Mission objects high
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: armapunk-vm
+            model: { refId: A, expr: 'ap_entities{kind="mission_objects"}', instant: true, range: false, intervalMs: 30000, maxDataPoints: 100 }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: A, conditions: [ { evaluator: { type: gt, params: [3000] } } ] }
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels: { severity: warning, source: telemetry }
+        annotations:
+          summary: '{{ printf "%.0f" $values.A.Value }} mission objects on the server for 5 min (threshold 3000)'
+
+      - uid: ap-groups-leak
+        title: Empty groups leaking
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 2400, to: 0 }
+            datasourceUid: armapunk-vm
+            model: { refId: A, expr: 'delta(ap_groups_empty[30m])', instant: true, range: false, intervalMs: 30000, maxDataPoints: 100 }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: A, conditions: [ { evaluator: { type: gt, params: [50] } } ] }
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels: { severity: warning, source: telemetry }
+        annotations:
+          summary: '+{{ printf "%.0f" $values.A.Value }} empty groups in 30 min — a spawner is not deleting its groups'
+
+      - uid: ap-clients-fps-low
+        title: Client FPS low fleet-wide
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: armapunk-vm
+            model: { refId: A, expr: 'count(ap_client_fps{machine="client"} < 20) or vector(0)', instant: true, range: false, intervalMs: 30000, maxDataPoints: 100 }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: A, conditions: [ { evaluator: { type: gt, params: [2] } } ] }
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels: { severity: warning, source: telemetry }
+        annotations:
+          summary: '{{ printf "%.0f" $values.A.Value }} players under 20 FPS for 5 min — check weather, entity census, scripts'

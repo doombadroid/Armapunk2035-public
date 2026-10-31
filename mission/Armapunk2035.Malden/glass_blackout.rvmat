@@ -1,0 +1,42 @@
+// Luxe Suites curtain wall -- BLACKOUT pane (exterior).
+//
+// Exists because a3\structures_f_exp\data\glass\glass.rvmat, which build_lux.py
+// had been pointing the glass at, IS NOT IN ANY ARMA 3 PBO. Scanned every addon
+// in Addons/ and Expansion/Addons/ on 2026-08-08: no such file. With no material
+// to load the engine falls back to a default, which ignored the near-black
+// diffuse and rendered the tower as glossy grey glass ("the outside windows
+// aren't blacked out").
+//
+// Modelled on the mission's own neon_*.rvmat, the combination already proven to
+// ship and render here. diffuse 1,1,1,1 means the assigned texture governs the
+// colour -- the pane's tint comes from its procedural
+// #(argb,8,8,3)color(0.043,0.067,0.086,0.50,ca), which is the v21 drop's authored
+// value (0x0b1116 at alpha 0.50).
+//
+// WHY THE ALPHA IS NOT THE ONE-WAY DIAL (owner, 2026-08-19: "see through on the
+// outside and too dark on the inside"). Alpha is symmetric -- lowering it lets you
+// see BOTH ways, raising it blinds BOTH ways. We were on 0.94, which is why the
+// interior could not see out; but simply raising it further would black out the
+// suites rather than the street.
+//
+// The exterior read comes from SPECULAR. A raised specular makes the pane throw
+// the sky back at a viewer outside, so the glass reflects instead of revealing the
+// room, while someone inside -- looking the other way, out of a darker space --
+// still sees through. That is how real reflective glazing behaves and it is the
+// dial to turn if the balance is still off: raise these three numbers for a more
+// mirrored exterior, lower them for more transparency.
+//
+// forcedDiffuse and emmisive are ZERO: any lift there is what turns a blackout
+// pane back into grey glass under a bright sky.
+ambient[]={1,1,1,1};
+diffuse[]={1,1,1,1};
+forcedDiffuse[]={0,0,0,0};
+emmisive[]={0,0,0,1};
+specular[]={0.30,0.34,0.40,1};
+specularPower=140;
+PixelShaderID="Normal";
+VertexShaderID="Basic";
+class StageTI
+{
+	texture="a3\data_f\default_vehicle_ti_ca.paa";
+};

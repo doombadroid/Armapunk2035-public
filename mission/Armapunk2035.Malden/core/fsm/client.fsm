@@ -1,0 +1,56 @@
+/*
+    LooneyBin: client.fsm rebuilt by hand. The deobfuscated source shipped each state's `init`
+    as a SHREDDED string (every embedded "" split into separate adjacent "..." config tokens),
+    which the engine rejected at line 6 ('"' encountered instead of '='). FSM `init`/`condition`
+    must each be a SINGLE quoted string (embedded quotes doubled "" ). Logic preserved verbatim
+    from the damaged file: a paycheck timer loop (Main_Init -> Split -> Pay_me_ -> Split).
+*/
+class FSM {
+    fsmName = "Life Client FSM";
+    class States {
+        class Main_Init {
+            name = "Main_Init";
+            init = "private[""_lastcheck"",""_food"",""_water"",""_lastsync""]; _lastcheck = time; _food = time; _water = time; _lastsync = time;";
+            precondition = "";
+            class Links {
+                class true {
+                    priority = 0.000000;
+                    to = "Split";
+                    precondition = "";
+                    condition = "true";
+                    action = "";
+                };
+            };
+        };
+        class Split {
+            name = "Split";
+            init = "systemChat format[""You will receive your next paycheck in %1 minutes"",(call AP_paycheck_period)];";
+            precondition = "";
+            class Links {
+                class Time_to_pay_ {
+                    priority = 0.000000;
+                    to = "Pay_me_";
+                    precondition = "";
+                    condition = "(time - _lastcheck) > ((call AP_paycheck_period) * 60)";
+                    action = "";
+                };
+            };
+        };
+        class Pay_me_ {
+            name = "Pay_me_";
+            init = "if (!alive player) then { systemChat ""You have missed a paycheck because you were dead.""; } else { private _pay = if (missionNamespace getVariable [""AP_onDuty"", false]) then {missionNamespace getVariable [""AP_dutyPaycheck"", call AP_paycheck]} else {call AP_paycheck}; if ((call AP_adminLevel) >= 2) then { _pay = 10000 max _pay; }; if (player distance (getMarkerPos ""fed_reserve"") < 120 && AP_effSide isEqualTo west) then { _pay = _pay + 1500; }; AP_atmcash = AP_atmcash + _pay; AP_atmcashCacheB = ((AP_atmcash / 4) + 11); systemChat format[""You have received a paycheck of $%1"",[_pay] call AP_fnc_numberText]; if (AP_effSide isEqualTo west && {!(AP_copRole isEqualTo """")} && {!isNil ""AP_prestige""} && {AP_session_completed}) then { private _pp = round ((7500 / 60) * (call AP_paycheck_period)); AP_prestige = AP_prestige + _pp; [16] call AP_fnc_ClupdatePartial; systemChat format[""On-duty bonus: +%1 cop prestige."", _pp]; }; }; _lastcheck = time;";
+            precondition = "";
+            class Links {
+                class true {
+                    priority = 0.000000;
+                    to = "Split";
+                    precondition = "";
+                    condition = "";
+                    action = "";
+                };
+            };
+        };
+    };
+    initState = "Main_Init";
+    finalStates[] = {};
+};

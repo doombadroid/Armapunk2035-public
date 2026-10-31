@@ -1,0 +1,199 @@
+# pgmigrate — the four decisions
+
+Four product decisions gate the carry-over. **Three are answered (2026-08-15); decision 4, the freeze, is still open.** Each one is cheap to change while it is a line in
+`rules.py` and expensive to change once player data has landed. This file exists so they are
+**recorded rather than remembered**: an answer nobody wrote down gets re-litigated at 2am on
+beta night by whoever is holding the terminal.
+
+Rules:
+
+- The ETL refuses to run while any answer below is `UNDECIDED`. That is deliberate — no
+  defaults, because a default here is a policy nobody chose. `rules.validate()` is the gate;
+  `rules.check()` lists what is still open without raising, and `rules.open_questions()` prints
+  every table still marked `DECIDE`.
+- Fill in **Answer**, **Decided by** and **Date** together. An answer with no name and no date
+  is a suggestion.
+- Encoding the answer in `rules.py` is part of making the decision, not a follow-up task.
+- Changing an answer after the run is not a config change, it is a data migration with players
+  attached. Note any change as a new dated line rather than editing the old one.
+
+Context for all four: `postgres_plan.md` §9 and §12.
+
+---
+
+## 1. What carries?
+
+The map changes, so anything anchored to the old map cannot come across. Everything else is a
+choice.
+
+**Fixed by the map change (not up for decision):** `houses.worldspace` (×3 columns),
+`storage.worldspace` / `houseworldspace`, `players.position` (reset to spawn),
+`vehicle_mem.worldspace` / `dir`, turf, cartels, capture points, suites, and anything anchored
+to a world object.
+
+**Carries cleanly:** money and bank, licences, exp/levels/talents/prestige, gear and loadouts,
+stats and achievements, bans, Discord links, gang identity/membership/bank.
+
+**Needs a decision:**
+
+| Item | Options |
+|---|---|
+| Vehicles | Carry with `active = 0` forced (the rows are non-spatial while garaged) / do not carry |
+| Gang bases | Identity + bank carry, plot does not / gangs disband at launch |
+| Wanted levels and bounties | Carry / general amnesty at launch |
+| Rigs, skimmers and other world-anchored property | Refund route only (see decision 2) / do not carry |
+
+> **Answer:**
+>
+> | Item | Answer |
+> |---|---|
+> | Vehicles | **Carry**, with `active = 0` forced. A garaged row is non-spatial, so it survives the map change intact. |
+> | Gang bases | **Identity and bank carry; the plot does not.** A gang is its people and its money; the plot is a map coordinate. |
+> | Wanted levels and bounties | **Carry.** No amnesty — a player keeps the record they earned, and the bounties players paid for stay funded. |
+> | Rigs, skimmers and other world-anchored property | **Refund route** (decision 2). The objects cannot come across; the money does. |
+> | Open Exchange listings | **Returned to their sellers** — see below. |
+> | Open sportsbook bets | **Void, no refund** — see below. |
+>
+> **Open Exchange listings** go back to the player who listed them, through the game's own
+> retract path (`APS_fnc_exchangeSystemSRV` mode 4) rather than a migration-only rule: item
+> listings become Exchange Storage rows the seller withdraws on the new map, vehicle listings
+> release the car back to the garage. Rows already at `active = 2` are goods bought or retracted
+> and not yet collected — they are property, and they carry untouched.
+>
+> **Open sportsbook bets are void with no refund.** The events they were placed on never resolve.
+> This is the only answer in the set that takes money from players and gives nothing back, so it
+> is the one that must be **announced before the freeze**, not explained after it.
+>
+> **Encoded in:** `rules.CARRY_POLICY` — every table in the dump needs an explicit
+> disposition (`CARRY_AS_IS`, `CARRY_TRANSFORM`, `DROP`, or `DECIDE`); an unlisted table is an
+> error, not a skip. Anything still on `DECIDE` when the run starts blocks it, and
+> `rules.open_questions()` lists exactly those. It now returns empty.
+>
+> **Decided by:** owner  **Date:** 2026-08-15
+
+---
+
+## 2. Compensation policy
+
+Players who own property **will** lose it. There is no version of this where they do not.
+What replaces it is a choice, and the ETL implements whatever is chosen.
+
+| Option | Consequence |
+|---|---|
+| Refund at purchase price | Cheapest to compute, feels stingy for anything bought long ago |
+| Refund at current market value | Feels fair, injects the most currency into a new economy |
+| Flat credit / voucher redeemable on the new map | Decouples the refund from the old economy, needs a redemption feature to exist |
+| Nothing | Defensible only if announced loudly and early |
+
+Interacts with decision 3: a refund is applied **before or after** scaling, and the two orders
+give different numbers. State which.
+
+> **Answer: refund at purchase price.**
+>
+> Prices come from the game's own config, not from numbers chosen for this migration:
+> `tools/pgmigrate/prices.py` is GENERATED by `gen_prices.py` from `fn_houseConfig.sqf`,
+> `fn_virtItemCfg.sqf`, `AP_keyUpgradeCosts` and `fn_upgradeProperty.sqf`, and a test fails if it
+> goes stale. A house refunds its config buy price plus the storage tiers, aging/greenhouse/lead
+> upgrades and key slots the row actually holds; a storage crate refunds its shop price; a
+> skimmer refunds $50,000; a mining rig refunds its eight components (which is very little, and
+> is the honest answer — a rig cost time, not money); a suite refunds nothing, which is what the
+> live game already pays a tenant who ends a lease.
+>
+> Three things are deliberately **not** recovered, because no column records them per row:
+> government tax paid on a house purchase, the HOMESTEADER talent discounts, and whatever a
+> player paid another player for a house on the open market. The refund therefore errs slightly
+> high for discounted buyers and slightly low for anyone who paid tax — stated here rather than
+> papered over.
+>
+> **Applied before / after balance scaling:** **before scaling.** Inert while the factor is 1:1,
+> recorded anyway so that it is not silently chosen later by whoever changes the factor.
+>
+> **Encoded in:** `rules.set_compensation_policy(rules.purchase_price)` and
+> `rules.set_compensation_order(rules.BEFORE_SCALING)` — both, because a
+> refund with no stated order is two different numbers. The auditor re-derives every credit from
+> the source dump under the same policy (`rules.reconcile_spec()` builds a
+> `reconcile.CompensationRule`), so an ETL that pays the wrong amount fails reconciliation
+> instead of balancing against its own arithmetic.
+>
+> **Decided by:** owner  **Date:** 2026-08-15
+
+---
+
+## 3. Do balances carry at 1:1, or scaled?
+
+This project overhauls the economy. Carrying balances forward at 1:1 imports the old economy's
+inflation into the new one.
+
+Constraints on any answer:
+
+- The factor is **exact** — a `fractions.Fraction`, a `decimal.Decimal`, an int, or a string
+  that parses to one; never a binary float. Money is exact end to end, and
+  `rules.set_balance_scale()` refuses a float precisely so this decision cannot be recorded in
+  a lossy form. There is exactly one implementation of the scaling itself
+  (`rules.scale_currency`), because a second one would round differently from the one
+  reconciliation checks its totals against.
+- The **rounding direction is part of the decision**, not an implementation detail: floor or
+  round-half-up. `rules.BALANCE_ROUNDING` starts `UNDECIDED` and any value that does not scale
+  to a whole unit refuses until it is set; reconciliation checks totals against whatever is
+  chosen, so it has to be written down.
+- It applies to every currency store consistently: cash, bank, gang bank, and any compensation
+  paid under decision 2.
+
+> **Answer (factor, exact):**  **1** — `Fraction(1, 1)`, no scaling. Balances carry across
+> unchanged, and that is a choice: the new economy is calibrated against the old one's numbers
+> rather than resetting them.
+>
+> **Rounding:** **deliberately still `UNDECIDED`.** Nothing rounds at 1:1, so choosing a
+> direction here would record an answer nobody was asked for — and would silently apply to
+> whoever changes the factor later. Leaving it open means that change hits the gate instead.
+>
+> **Encoded in:** `rules.set_balance_scale(Fraction(1, 1), rounding=rules.ROUND_FLOOR_MODE)`
+> — note that 1:1 is not the absence of a decision. Scaling defaults to 1:1 so the mechanism
+> stays testable, but `rules.BALANCE_SCALE_CONFIRMED` starts `UNDECIDED` and blocks the run
+> until someone says out loud that 1:1 is what they want. Set here as
+> `rules.set_balance_scale(Fraction(1, 1))` with `BALANCE_SCALE_CONFIRMED = True`.
+>
+> **Decided by:** owner  **Date:** 2026-08-15
+
+---
+
+## 4. When is the freeze, and is there a maintenance window?
+
+> **STILL OPEN — and now the only thing blocking the run.** Decisions 1-3 are answered and
+> encoded; `rules.FREEZE` is the last `UNDECIDED` sentinel, and `validate()` refuses until it is
+> set. Nothing else needs an answer before a rehearsal.
+
+Live keeps running while this is built. At beta the final dump is taken, and anything players
+do on live after that instant is lost. This is the only part of the plan players experience
+directly.
+
+| Option | Consequence |
+|---|---|
+| Maintenance window — live goes read-only or down, dump, then open | No lost progress, needs downtime and a schedule players trust |
+| Accept a known delta — dump while live runs, announce the cut-off | No downtime, some players lose hours of play; must be announced *beforehand*, not explained afterwards |
+
+Also needed: the announcement date (before the freeze, not on it), and whether the live box
+keeps running afterwards.
+
+> **Answer:**
+>
+> **Freeze timestamp (UTC):**
+>
+> **Maintenance window:** yes / no — duration:
+>
+> **Announced on:**
+>
+> **Encoded in:** `rules.set_freeze(rules.Freeze(dump_taken_utc=..., maintenance_window=...,
+> announced_on=...))`
+>
+> **Decided by:**  **Date:**
+
+---
+
+## Change log
+
+Record later changes here rather than editing the answers above.
+
+| Date | Decision # | Change | Who |
+|---|---|---|---|
+| 2026-08-15 | 1, 2, 3 | First answers recorded and encoded in `rules.py`. | owner |

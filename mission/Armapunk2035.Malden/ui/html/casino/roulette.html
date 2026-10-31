@@ -1,0 +1,643 @@
+<!doctype html>
+<!-- CASINO — ROULETTE. Self-contained, game-ready: inline CSS/JS, no libs, no
+     network, no storage. AP stub behind a guard.
+
+     CONTRACT
+       AP.on("casino", { balance, chips:[amounts], limits:[min,max], gate })
+       AP.on("casResult", { game:"roulette", payload })
+         payload = [spin, isRed, isGreen, win, bet, ret, net, betType]
+                   // spin 0–37, 37 is 00
+       AP.call("casPlay", ["roulette","play",[bet, betType, betVal]])
+         betType: red|black|odd|even|low|high|dozen1|dozen2|dozen3|straight
+         betVal:  only read for straight (0–37)
+     Outside pays 2×, dozens 3×, a straight number 36×. The ball rolls until
+     casResult arrives, then a deceleration is planned that drops it into the
+     server's pocket. The page never picks a number.
+
+     WHEEL: real American order, 38 pockets, 0 and 00 green.
+
+     WHAT ANIMATES: a spin is ~8–10s of simulated physics — rim run under
+     friction, spiral through the stator diamonds (real deflections), pocket
+     skips, then the wheel coasts on after the ball seats. The wheel canvas
+     (~55% of surface) redraws per frame for that window, then every rAF
+     stops. Idle cost zero. Audio: pocket ticks scaled to ball speed, clacks
+     on deflector hits and skips, win sting; SND toggle. -->
+<html><head><meta charset="utf-8"><title>CASINO — roulette</title>
+<script>
+/* ---- BRIDGE SHIM (installed by tools/install_casino_pages.py) --------------
+   window.WEBUI does not exist while this page's own script runs; the bridge is
+   INJECTED afterwards. Anything that touches it at load is silently deaf, which
+   is how the first web shop shipped.
+
+   AP is defined here, synchronously, before the page's script -- so its
+   `if (typeof AP === "undefined")` dev stub never installs, and every on()/call()
+   made before the bridge lands is queued and flushed when it does. -------- */
+(function () {
+  var subs = {}, queued = [], W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  /* Instrumentation for AP_fnc_casinoDiag. The browser console is unreachable
+     in game -- Esc opens it and closes the dialog -- so a deaf page has to be
+     able to say why on its own surface. */
+  window.__apSubs = subs;
+  /* A throw inside a channel handler is CAUGHT by webui.js and console.error'd,
+     and the console is unreachable in game -- so a payload the page cannot read
+     looks exactly like a payload that never arrived. Wrapping every handler
+     records the first failure where the diagnostic can print it. */
+  function guard(n, f) {
+    return function (v) {
+      try { return f(v); }
+      catch (e) { if (!window.__apHandlerErr) window.__apHandlerErr = n + ": " + e; throw e; }
+    };
+  }
+  window.AP = {
+    __shim: true,
+    on: function (n, f) {
+      (subs[n] = subs[n] || []).push(guard(n, f));
+      if (W) W.on(n, subs[n][subs[n].length - 1]);
+    },
+    call: function (n, a) {
+      if (W) return W.call(n, a || [], 20000);
+      return new Promise(function (res, rej) { queued.push([n, a || [], res, rej]); });
+    },
+    handle: function (n, f) { if (W) W.handle(n, f); }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    W.on("casino", function () { window.__apGotCasino = true; });
+    queued.forEach(function (q) { W.call(q[0], q[1], 20000).then(q[2], q[3]); });
+    queued = [];
+  });
+  /* A <script src> cannot work here -- the page has no resolvable base URL and
+     the src quietly resolves to nothing. SQF injects the same file too and
+     webui.js is idempotent, so whichever lands first wins. */
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else {
+    window.__apBootErr = "no A3API on this page";
+  }
+})();
+</script>
+<style>
+:root{
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --scr:#050b09; --scr2:#0a1310; --panel:#0c1712; --panel2:#0e1a15;
+  --acc:#c9e21a; --acc2:#33ffbb; --danger:#ff5a3c; --amber:#ffb020; --magenta:#ff3d81;
+  --ink:#dcefe0; --dim:#7f938a; --faint:#465a51; --line:rgba(201,226,26,.15);
+  --felt:#0d2a1e; --red:#c8342c; --blk:#11181c;
+}
+html,body{margin:0;height:100%;background:#07090a;font-family:var(--mono)}
+#stage{position:fixed;inset:0;display:grid;place-items:center}
+#frame{width:min(96vw,192vh);aspect-ratio:2/1;position:relative}
+#screen{position:absolute;inset:0;border-radius:.6rem;overflow:hidden;display:flex;flex-direction:column;
+  background:var(--scr);box-shadow:inset 0 0 0 1px #000,0 30px 80px rgba(0,0,0,.7)}
+#gl{position:absolute;inset:0;width:100%;height:100%}
+#screen::after{content:"";position:absolute;inset:0;z-index:40;pointer-events:none;opacity:.26;
+  background:repeating-linear-gradient(180deg,transparent 0 2px,rgba(0,0,0,.2) 2px 3px)}
+.hdr{position:relative;z-index:2;flex:none;display:flex;align-items:center;gap:.8rem;padding:.55rem 1.1rem;
+  background:rgba(10,19,16,.78);border-bottom:1px solid var(--line)}
+.led{width:.5rem;height:.5rem;border-radius:50%;background:var(--danger);box-shadow:0 0 .55rem rgba(255,90,60,.55);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+a.back{color:var(--dim);text-decoration:none;font-size:.6rem;letter-spacing:.14em}
+a.back:hover{color:var(--acc)}
+.bal{margin-left:auto;display:flex;align-items:baseline;gap:.45rem;font-size:.7rem;color:var(--dim)}
+.bal b{color:#eef4ee;font-size:.85rem;font-variant-numeric:tabular-nums}
+.snd{border:1px solid var(--line);background:transparent;color:var(--dim);border-radius:.35rem;
+  font-family:var(--mono);font-size:.54rem;letter-spacing:.12em;padding:.24rem .5rem;cursor:pointer}
+.snd:hover{color:var(--acc)}
+.body{position:relative;z-index:2;flex:1;min-height:0;display:flex}
+.pit{flex:1;min-width:0;display:grid;place-items:center;position:relative}
+#wheel{width:min(92%,27.5rem);aspect-ratio:1;filter:drop-shadow(0 14px 34px rgba(0,0,0,.65))}
+.panel{flex:none;width:22rem;border-left:1px solid var(--line);background:rgba(10,19,16,.8);
+  display:flex;flex-direction:column;min-height:0;padding:.6rem .7rem;gap:.45rem}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:.55rem;padding:.5rem .6rem;display:flex;flex-direction:column;gap:.32rem}
+.lbl{font-size:.54rem;letter-spacing:.18em;color:var(--faint)}
+.kv{display:flex;justify-content:space-between;align-items:baseline;font-size:.6rem;color:var(--dim)}
+.kv b{color:var(--ink);font-variant-numeric:tabular-nums}
+.chips{display:flex;gap:.28rem;flex-wrap:wrap}
+.chip{flex:1;min-width:2.9rem;height:1.8rem;border-radius:1rem;border:1px solid var(--line);background:var(--panel2);
+  color:var(--dim);font-family:var(--mono);font-size:.58rem;font-weight:700;cursor:pointer;letter-spacing:.04em}
+.chip:hover{color:var(--acc);border-color:rgba(201,226,26,.4)}
+.chip.on{color:#0a1005;background:var(--acc);border-color:var(--acc)}
+.betrow{display:flex;align-items:center;gap:.4rem;background:var(--scr2);border:1px solid var(--line);
+  border-left:2px solid var(--acc2);border-radius:.45rem;padding:.35rem .5rem}
+.betrow input{flex:1;min-width:0;font-family:var(--mono);font-size:.8rem;font-weight:700;color:var(--acc2);
+  background:none;border:none;outline:none;font-variant-numeric:tabular-nums}
+.board{display:grid;grid-template-columns:repeat(3,1fr);gap:.28rem}
+.bt{height:1.9rem;border-radius:.4rem;border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+  font-family:var(--mono);font-size:.56rem;font-weight:700;letter-spacing:.06em;cursor:pointer;display:flex;
+  align-items:center;justify-content:center;gap:.3rem}
+.bt small{color:var(--faint);font-size:.48rem;font-weight:600}
+.bt:hover{border-color:rgba(201,226,26,.4)}
+.bt.on{border-color:rgba(255,61,129,.65);background:rgba(255,61,129,.16)}
+.bt .sw{width:.5rem;height:.5rem;border-radius:.15rem;flex:none}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:.22rem;max-height:8.2rem;overflow-y:auto;padding-right:.15rem}
+.num{height:1.55rem;border-radius:.32rem;border:1px solid rgba(0,0,0,.6);color:#eef4ee;font-family:var(--mono);
+  font-size:.58rem;font-weight:700;cursor:pointer;font-variant-numeric:tabular-nums}
+.num.r{background:var(--red)}.num.b{background:var(--blk)}.num.g{background:#0f5c33}
+.num.on{outline:2px solid var(--magenta);outline-offset:1px}
+.go{height:2.7rem;border-radius:.55rem;border:1px solid rgba(255,90,60,.55);background:rgba(255,90,60,.14);
+  color:#ff8a70;font-family:var(--mono);font-size:.74rem;font-weight:800;letter-spacing:.16em;cursor:pointer}
+.go:hover{background:rgba(255,90,60,.22)}
+.go:disabled{border-color:rgba(70,90,81,.35);background:transparent;color:#33453c;cursor:not-allowed}
+.big{font-size:1.5rem;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums;text-shadow:0 0 1.4rem rgba(201,226,26,.25);min-height:1.9rem}
+.sess{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:.25rem}
+.sess .row{display:flex;gap:.45rem;font-size:.56rem;align-items:baseline}
+.sess .t{color:var(--faint)}
+.sess .l{flex:1;color:var(--ink);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess .n{font-variant-numeric:tabular-nums}
+.status{position:relative;z-index:2;flex:none;display:flex;align-items:center;height:1.8rem;padding:0 1.1rem;
+  border-top:1px solid var(--line);background:rgba(10,19,16,.78);font-size:.56rem;letter-spacing:.08em;color:var(--faint)}
+*::-webkit-scrollbar{width:5px}*::-webkit-scrollbar-thumb{background:#22332a;border-radius:3px}
+</style></head><body>
+<div id="stage"><div id="frame"><div id="screen" data-screen-label="Roulette">
+  <canvas id="gl"></canvas>
+  <div class="hdr">
+    <span class="led"></span>
+    <span style="color:#ff8a70;font-weight:800;font-size:.95rem;letter-spacing:.3em">ROULETTE</span>
+    <span style="color:var(--faint);font-size:.62rem;letter-spacing:.24em">// 38 POCKETS · TWO GREENS · THE HOUSE LIVES IN BOTH</span>
+    <a class="back" href="#" onclick="AP.call('casTable',['landing']);return false;">⟵ FLOOR</a>
+    <span class="bal">BANK <b id="bal">—</b></span>
+    <button class="snd" id="snd">SND ON</button>
+  </div>
+  <div class="body">
+    <div class="pit"><canvas id="wheel"></canvas></div>
+    <div class="panel">
+      <div class="card">
+        <span class="lbl">BET — CLAMPS <span id="clamp">10K–500K</span></span>
+        <div class="chips" id="chips"></div>
+        <div class="betrow"><span style="color:var(--faint);font-size:.65rem">$</span><input id="betIn" inputmode="numeric" value="50,000"><button class="chip" id="betMax" style="flex:none;min-width:2.5rem">MAX</button></div>
+      </div>
+      <div class="card">
+        <span class="lbl">PLACE IT</span>
+        <div class="board" id="board"></div>
+        <div class="grid" id="grid" style="display:none"></div>
+      </div>
+      <button class="go" id="go">SPIN</button>
+      <div class="card">
+        <span class="lbl" id="resLbl">READY</span>
+        <span class="big" id="resBig">—</span>
+        <div class="kv"><span>LAST SPIN</span><b id="lastR">—</b></div>
+      </div>
+      <div class="card" style="flex:1;min-height:0">
+        <span class="lbl">THIS SESSION</span>
+        <div class="sess" id="sess"><span style="font-size:.56rem;color:var(--faint)">NO SPINS YET</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="status" id="status"></div>
+</div></div></div>
+
+<script>
+const REDS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+/* ---- AP stub (dev only — the real bridge replaces it) ---- */
+if (typeof AP === "undefined") window.AP = (function () {
+  const subs = {}, last = {};
+  const push = (n, v) => { last[n] = v; (subs[n] || []).forEach(f => f(v)); };
+  const st = { balance:1240000, chips:[10000,50000,100000,250000,500000], limits:[10000,500000], gate:"" };
+  push("casino", JSON.parse(JSON.stringify(st)));
+  let busy = false;
+  return {
+    on(n, f) { (subs[n] = subs[n] || []).push(f); if (n in last) f(last[n]); },
+    call(name, a) {
+      if (name !== "casPlay" || a[0] !== "roulette") return Promise.resolve({ ok:true });
+      if (busy) return Promise.resolve({ ok:false, msg:"ball is rolling" });
+      const args = a[2], bet = Math.max(st.limits[0], Math.min(st.limits[1], args[0] | 0));
+      const type = args[1], val = args[2] | 0;
+      if (bet > st.balance) return Promise.resolve({ ok:false, msg:"not enough in the bank" });
+      busy = true;
+      st.balance -= bet; push("casino", JSON.parse(JSON.stringify(st)));
+      setTimeout(() => {
+        const spin = Math.floor(Math.random() * 38);           // 37 = 00
+        const isGreen = spin === 0 || spin === 37;
+        const isRed = !isGreen && REDS.includes(spin);
+        let mult = 0;
+        if (type === "red") mult = isRed ? 2 : 0;
+        else if (type === "black") mult = (!isGreen && !isRed) ? 2 : 0;
+        else if (type === "odd") mult = (!isGreen && spin % 2 === 1) ? 2 : 0;
+        else if (type === "even") mult = (!isGreen && spin % 2 === 0) ? 2 : 0;
+        else if (type === "low") mult = (spin >= 1 && spin <= 18) ? 2 : 0;
+        else if (type === "high") mult = (spin >= 19 && spin <= 36) ? 2 : 0;
+        else if (type === "dozen1") mult = (spin >= 1 && spin <= 12) ? 3 : 0;
+        else if (type === "dozen2") mult = (spin >= 13 && spin <= 24) ? 3 : 0;
+        else if (type === "dozen3") mult = (spin >= 25 && spin <= 36) ? 3 : 0;
+        else if (type === "straight") mult = spin === val ? 36 : 0;
+        const ret = bet * mult;
+        st.balance += ret; push("casino", JSON.parse(JSON.stringify(st)));
+        push("casResult", { game:"roulette", payload:[spin, isRed, isGreen, mult > 0, bet, ret, ret - bet, type] });
+        busy = false;
+      }, 800 + Math.random() * 700);
+      return Promise.resolve({ ok:true, msg:"sent" });
+    },
+    _push:push
+  };
+})();
+
+const $ = s => document.querySelector(s);
+function fit() { document.documentElement.style.fontSize = Math.max(9, $("#frame").getBoundingClientRect().width / 75) + "px"; sizeWheel(); }
+window.addEventListener("resize", fit);
+const F = n => "$" + Math.round(n).toLocaleString();
+
+/* ---- WebGL felt (same shader as the landing) ---- */
+function feltGL(canvas) {
+  const gl = canvas.getContext("webgl", { antialias:false, alpha:false, powerPreference:"low-power" });
+  if (!gl) { canvas.style.background = "radial-gradient(ellipse at 50% 30%,#0d2a1e,#050b09 75%)"; return { kick(){} }; }
+  const V = "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
+  const Fs = "precision mediump float;uniform vec2 R;uniform float T;" +
+    "float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}" +
+    "float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);" +
+    "return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}" +
+    "void main(){vec2 uv=gl_FragCoord.xy/R;vec2 q=uv*vec2(R.x/R.y,1.);" +
+    "float weave=n(q*150.)*.6+n(q*300.+7.)*.4;" +
+    "float fb=n(q*3.2+T*.008);" +
+    "vec3 c=vec3(.045,.155,.11)*(.8+.3*fb)+(weave-.5)*.045;" +
+    "vec2 lp=vec2(.42+.2*sin(T*.045),.30+.12*cos(T*.033));" +
+    "float d=distance(q,lp*vec2(R.x/R.y,1.));" +
+    "c+=vec3(1.,.66,.16)*.085*exp(-d*d*5.5);" +
+    "float e=max(abs(uv.x-.5),abs(uv.y-.5))*2.;" +
+    "c+=vec3(.75,.85,.12)*.035*pow(e,3.);" +
+    "float m=smoothstep(.992,1.,n(q*20.+vec2(T*.018,-T*.011)));" +
+    "c+=vec3(.75,.85,.45)*m*.28;" +
+    "c*=1.-.5*pow(e,3.5);" +
+    "gl_FragColor=vec4(c,1.);}";
+  function sh(t, s) { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; }
+  const pr = gl.createProgram();
+  gl.attachShader(pr, sh(gl.VERTEX_SHADER, V)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, Fs));
+  gl.linkProgram(pr); gl.useProgram(pr);
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(pr, "p");
+  gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const uR = gl.getUniformLocation(pr, "R"), uT = gl.getUniformLocation(pr, "T");
+  let until = 0, raf = 0, lastF = 0;
+  function size() {
+    const r = canvas.getBoundingClientRect();
+    canvas.width = Math.round(r.width); canvas.height = Math.round(r.height);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+  window.addEventListener("resize", () => { size(); draw(performance.now()); });
+  function draw(t) { gl.uniform2f(uR, canvas.width, canvas.height); gl.uniform1f(uT, t / 1000); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+  function frame(t) {
+    raf = 0;
+    if (t > until) { draw(t); return; }
+    if (t - lastF >= 33) { lastF = t; draw(t); }
+    raf = requestAnimationFrame(frame);
+  }
+  size();
+  return { kick(ms) { until = performance.now() + (ms || 9000); if (!raf) raf = requestAnimationFrame(frame); } };
+}
+const felt = feltGL($("#gl"));
+
+/* ---- audio ---- */
+let sndOn = true, ac = null;
+function beep(f, dur, gain, type) {
+  if (!sndOn) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || "square"; o.frequency.value = f;
+    g.gain.setValueAtTime(gain || .03, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + dur);
+    o.connect(g); g.connect(ac.destination);
+    o.start(); o.stop(ac.currentTime + dur);
+  } catch (e) {}
+}
+const rattle = () => beep(240, .05, .05, "sawtooth");
+const winSting = () => { beep(660, .12, .05, "triangle"); setTimeout(() => beep(990, .18, .05, "triangle"), 110); setTimeout(() => beep(1320, .3, .05, "triangle"), 240); };
+$("#snd").onclick = () => { sndOn = !sndOn; $("#snd").textContent = "SND " + (sndOn ? "ON" : "OFF"); };
+
+/* ---- wheel (American order) ---- */
+const ORDER = [0,28,9,26,30,11,7,20,32,17,5,22,34,15,3,24,36,13,1,37,27,10,25,29,12,8,19,31,18,6,21,33,16,4,23,35,14,2];
+const SEG = Math.PI * 2 / 38;
+const IDX = {}; ORDER.forEach((n, i) => IDX[n] = i);
+const numLbl = n => n === 37 ? "00" : String(n);
+const numCol = n => (n === 0 || n === 37) ? "#20b46a" : REDS.includes(n) ? "#ff6a58" : "#c6d3cc";
+const cv = $("#wheel"), cx = cv.getContext("2d");
+let W = 0;
+function sizeWheel() {
+  const r = cv.getBoundingClientRect();
+  if (!r.width) return;
+  W = cv.width = cv.height = Math.round(r.width);
+  draw();
+}
+let thW = 0;                  // wheel angle
+let ball = { a:-Math.PI / 2, r:.94, on:false };
+let litIdx = -1;
+function draw() {
+  if (!W) return;
+  const c = W / 2, R = W * .47;
+  cx.clearRect(0, 0, W, W);
+  cx.save(); cx.translate(c, c);
+  const rim = cx.createLinearGradient(-R, -R, R, R);
+  rim.addColorStop(0, "#3a463f"); rim.addColorStop(.5, "#141a17"); rim.addColorStop(1, "#2c3833");
+  cx.beginPath(); cx.arc(0, 0, R, 0, 7); cx.fillStyle = rim; cx.fill();
+  cx.strokeStyle = "#000"; cx.lineWidth = 2; cx.stroke();
+  // ball track
+  cx.beginPath(); cx.arc(0, 0, R * .935, 0, 7); cx.strokeStyle = "rgba(0,0,0,.55)"; cx.lineWidth = W * .022; cx.stroke();
+  cx.save(); cx.rotate(thW);
+  for (let i = 0; i < 38; i++) {
+    const a0 = -Math.PI / 2 + i * SEG - SEG / 2, a1 = a0 + SEG, n = ORDER[i];
+    cx.beginPath(); cx.moveTo(0, 0); cx.arc(0, 0, R * .88, a0, a1); cx.closePath();
+    cx.fillStyle = (n === 0 || n === 37) ? "#0f5c33" : REDS.includes(n) ? "#a02821" : "#131a1e";
+    cx.fill();
+    cx.strokeStyle = "rgba(0,0,0,.7)"; cx.lineWidth = 1; cx.stroke();
+    if (i === litIdx) {
+      cx.save(); cx.shadowColor = numCol(n); cx.shadowBlur = W * .03;
+      cx.strokeStyle = numCol(n); cx.lineWidth = 2; cx.stroke(); cx.restore();
+    }
+  }
+  for (let i = 0; i < 38; i++) {
+    const mid = -Math.PI / 2 + i * SEG, n = ORDER[i];
+    cx.save(); cx.rotate(mid + Math.PI / 2);
+    cx.translate(0, -R * .8);
+    cx.fillStyle = i === litIdx ? "#fff" : numCol(n);
+    cx.font = "700 " + Math.round(W * .026) + "px ui-monospace,Menlo,monospace";
+    cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.fillText(numLbl(n), 0, 0);
+    cx.restore();
+  }
+  // frets — metallic pocket separators
+  for (let i = 0; i < 38; i++) {
+    const a = -Math.PI / 2 + i * SEG - SEG / 2;
+    cx.save(); cx.rotate(a);
+    cx.beginPath(); cx.moveTo(0, -R * .655); cx.lineTo(0, -R * .875);
+    cx.strokeStyle = "rgba(185,200,190,.4)"; cx.lineWidth = Math.max(1, W * .0022); cx.stroke();
+    cx.restore();
+  }
+  cx.restore();
+  // stator diamonds — fixed deflectors the ball really strikes
+  for (const da of DIAMONDS) {
+    cx.save(); cx.rotate(da); cx.translate(0, -R * .905); cx.rotate(Math.PI / 4);
+    const dsz = W * .011;
+    const dg = cx.createLinearGradient(-dsz, -dsz, dsz, dsz);
+    dg.addColorStop(0, "#aab6ae"); dg.addColorStop(1, "#4e5a54");
+    cx.fillStyle = dg; cx.fillRect(-dsz, -dsz, dsz * 2, dsz * 2);
+    cx.strokeStyle = "rgba(0,0,0,.6)"; cx.lineWidth = 1; cx.strokeRect(-dsz, -dsz, dsz * 2, dsz * 2);
+    cx.restore();
+  }
+  // cone + hub
+  const hub = cx.createRadialGradient(0, -W * .02, W * .01, 0, 0, W * .34);
+  hub.addColorStop(0, "#1c2621"); hub.addColorStop(1, "#0a100d");
+  cx.beginPath(); cx.arc(0, 0, W * .335, 0, 7); cx.fillStyle = hub; cx.fill();
+  cx.strokeStyle = "rgba(201,226,26,.25)"; cx.lineWidth = 1.5; cx.stroke();
+  if (litIdx >= 0) {
+    const n = ORDER[litIdx];
+    cx.fillStyle = numCol(n);
+    cx.font = "800 " + Math.round(W * .11) + "px ui-monospace,Menlo,monospace";
+    cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.shadowColor = numCol(n); cx.shadowBlur = W * .04;
+    cx.fillText(numLbl(n), 0, -W * .012);
+    cx.shadowBlur = 0;
+    cx.fillStyle = "rgba(220,239,224,.7)";
+    cx.font = "700 " + Math.round(W * .028) + "px ui-monospace,Menlo,monospace";
+    cx.fillText((n === 0 || n === 37) ? "GREEN" : REDS.includes(n) ? "RED" : "BLACK", 0, W * .07);
+  } else {
+    cx.fillStyle = "rgba(127,147,138,.6)";
+    cx.font = "800 " + Math.round(W * .042) + "px ui-monospace,Menlo,monospace";
+    cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.fillText("38 POCKETS", 0, 0);
+  }
+  // ball
+  if (ball.on) {
+    for (let i = trail.length - 1; i > 0; i--) {
+      const p = trail[i];
+      cx.beginPath(); cx.arc(Math.cos(p.a) * R * p.r, Math.sin(p.a) * R * p.r, W * .014 * (1 - i / 8), 0, 7);
+      cx.fillStyle = "rgba(238,244,238," + (.22 * (1 - i / 6)).toFixed(3) + ")"; cx.fill();
+    }
+    const bx = Math.cos(ball.a) * R * ball.r, by = Math.sin(ball.a) * R * ball.r;
+    cx.beginPath(); cx.ellipse(bx + W * .004, by + W * .008, W * .013, W * .008, 0, 0, 7);
+    cx.fillStyle = "rgba(0,0,0,.4)"; cx.fill();
+    const bg = cx.createRadialGradient(bx - W * .005, by - W * .005, W * .002, bx, by, W * .014);
+    bg.addColorStop(0, "#ffffff"); bg.addColorStop(1, "#b9c4bd");
+    cx.beginPath(); cx.arc(bx, by, W * .014, 0, 7);
+    cx.fillStyle = bg; cx.shadowColor = "rgba(238,244,238,.7)"; cx.shadowBlur = W * .015; cx.fill();
+    cx.shadowBlur = 0;
+  }
+  cx.restore();
+}
+
+/* ---- physics: rim run under friction → spiral through the stator diamonds
+   → pocket skips → seated, wheel coasts on. The run is honestly simulated;
+   ONLY the final skip sequence is steered so the ball comes to rest in the
+   SERVER's pocket — the page still never picks a number. ---- */
+const TAU = Math.PI * 2;
+const norm = a => ((a % TAU) + TAU) % TAU;
+const DIAMONDS = Array.from({ length:8 }, (_, k) => k * TAU / 8 + TAU / 16);
+let spin = null, result = null, lastTickIdx = -1, trail = [];
+function loop(t) {
+  if (!spin) { draw(); return; }
+  const dt = Math.min(.05, (t - (spin.t || t)) / 1000); spin.t = t;
+  thW += spin.wv * dt;
+  spin.wv *= Math.exp(-dt / 26);                       // wheel has its own friction
+  if (spin.phase === "rim") {
+    spin.bv *= Math.exp(-dt / 3.6);
+    if (!result && spin.bv < 1.7) spin.bv = 1.7;       // hold the run until the server answers
+    ball.a -= spin.bv * dt;
+    if (result && spin.bv <= 1.65) spin.phase = "spiral";
+  } else if (spin.phase === "spiral") {
+    spin.bv *= Math.exp(-dt / 2.8);
+    ball.a -= spin.bv * dt;
+    ball.r -= dt * .105;
+    if (ball.r < .925 && ball.r > .86) {               // deflector band
+      const ba = norm(ball.a);
+      for (const da of DIAMONDS) {
+        if (Math.abs(norm(ba - da + Math.PI) - Math.PI) < spin.bv * dt * .6 && t - (spin.lastHit || 0) > 260) {
+          spin.lastHit = t; spin.bv *= .86; ball.r -= .018; rattle();
+        }
+      }
+    }
+    if (ball.r <= .72) planSkips();
+  } else if (spin.phase === "skip") {
+    const P = spin.plan, hop = P.hops[P.i];
+    const q = Math.min(1, (t - P.t0) / hop.dur);
+    P.rel = hop.a0 - hop.d * (q - .12 * Math.sin(q * Math.PI));
+    ball.r = .685 + hop.h * Math.sin(q * Math.PI);
+    ball.a = thW + P.rel;
+    if (q >= 1) {
+      rattle(); P.i++;
+      if (P.i >= P.hops.length) seat();
+      else { P.hops[P.i].a0 = P.rel; P.t0 = t; }
+    }
+  } else if (spin.phase === "seated") {
+    spin.wv *= Math.exp(-dt / 2.5);                    // brake the wheel once the ball is home
+    ball.a = thW + spin.rel;
+    ball.r = .672 + .006 * Math.max(0, 1 - (t - spin.seatT) / 250) * Math.sin((t - spin.seatT) / 18);
+    if (spin.wv < .15 && t - spin.seatT > 1200) { spin = null; trail = []; draw(); return; }
+  }
+  if (spin && spin.phase !== "seated") {
+    trail.unshift({ a:ball.a, r:ball.r });
+    if (trail.length > 6) trail.pop();
+    const ri = Math.floor(norm(ball.a - thW) / SEG);
+    if (ri !== lastTickIdx) {
+      lastTickIdx = ri;
+      if (t - (spin.lastSnd || 0) > 50) { spin.lastSnd = t; beep(1250, .015, Math.min(.022, .006 + spin.bv * .003)); }
+    }
+  } else trail = [];
+  draw();
+  requestAnimationFrame(loop);
+}
+function planSkips() {
+  spin.targetIdx = IDX[result.spin];
+  const pocketA = -Math.PI / 2 + spin.targetIdx * SEG;
+  const rel = norm(ball.a - thW);
+  let d = norm(rel - pocketA);                         // ball travels in the negative direction
+  if (d < 1.1) d += TAU;                               // enough distance for real skips
+  spin.plan = { i:0, t0:spin.t, rel,
+    hops:[.42, .27, .18, .13].map((p, i) => ({ a0:rel, d:d * p, dur:Math.max(200 + i * 60, d * p / 5.5 * 1000), h:.05 - i * .011 })) };
+  spin.phase = "skip";
+}
+function seat() {
+  spin.phase = "seated";
+  spin.rel = -Math.PI / 2 + spin.targetIdx * SEG;
+  spin.seatT = spin.t;
+  ball.r = .672;
+  revealResult();
+}
+function revealResult() {
+  const r = result;
+  litIdx = IDX[r.spin];
+  const colName = r.isGreen ? "GREEN" : r.isRed ? "RED" : "BLACK";
+  if (r.win) {
+    winSting();
+    countUp(r.ret);
+    say("// " + numLbl(r.spin) + " " + colName + " — CREDITED " + F(r.ret) + " · SERVER SETTLED", "good");
+  } else {
+    setRes(numLbl(r.spin) + " " + colName, "NO WIN — " + BETS[r.betType].nm.toUpperCase(), "var(--dim)");
+    say("// " + numLbl(r.spin) + " " + colName + " — HOUSE KEEPS " + F(r.bet), "bad");
+  }
+  $("#lastR").textContent = numLbl(r.spin) + " " + colName + " · " + BETS[r.betType].nm + (r.win ? " — " + F(r.ret) : " — LOST");
+  $("#lastR").style.color = r.win ? "var(--acc)" : "var(--dim)";
+  logSpin(r, colName);
+  result = null;
+  syncGo();
+  felt.kick(4000);
+}
+function countUp(n) {
+  const el = $("#resBig"); el.style.color = "var(--acc)";
+  $("#resLbl").textContent = "YOU WIN";
+  const t0 = performance.now();
+  (function step(t) {
+    const p = Math.min(1, (t - t0) / 900), e = 1 - Math.pow(1 - p, 2);
+    el.textContent = F(n * e);
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+}
+function setRes(big, lbl, col) { $("#resBig").textContent = big; $("#resBig").style.color = col; $("#resLbl").textContent = lbl; }
+
+/* ---- bet board ---- */
+const BETS = {
+  red:{ nm:"Red", x:"2×", sw:"var(--red)" }, black:{ nm:"Black", x:"2×", sw:"#2a353b" },
+  odd:{ nm:"Odd", x:"2×" }, even:{ nm:"Even", x:"2×" },
+  low:{ nm:"1–18", x:"2×" }, high:{ nm:"19–36", x:"2×" },
+  dozen1:{ nm:"1st 12", x:"3×" }, dozen2:{ nm:"2nd 12", x:"3×" }, dozen3:{ nm:"3rd 12", x:"3×" },
+  zero:{ nm:"0", x:"36×", sw:"#0f5c33" }, dzero:{ nm:"00", x:"36×", sw:"#0f5c33" },
+  straight:{ nm:"Straight", x:"36×" }
+};
+let selChip = "red", betType = "red", betVal = 17;
+function betLabel() {
+  if (selChip === "zero") return "0 · STRAIGHT";
+  if (selChip === "dzero") return "00 · STRAIGHT";
+  return betType === "straight" ? "STRAIGHT " + numLbl(betVal) : BETS[betType].nm.toUpperCase();
+}
+function renderBoard() {
+  $("#board").innerHTML = Object.keys(BETS).map(k => {
+    const b = BETS[k];
+    return '<button class="bt' + (selChip === k ? " on" : "") + '" data-k="' + k + '">' +
+      (b.sw ? '<span class="sw" style="background:' + b.sw + '"></span>' : "") + b.nm.toUpperCase() + " <small>" + b.x + "</small>" +
+      (k === "straight" ? ' <small style="color:var(--magenta)">' + numLbl(betVal) + "</small>" : "") + "</button>";
+  }).join("");
+  [...$("#board").children].forEach(el => el.onclick = () => {
+    selChip = el.dataset.k;
+    if (selChip === "zero") { betType = "straight"; betVal = 0; }
+    else if (selChip === "dzero") { betType = "straight"; betVal = 37; }
+    else betType = selChip;
+    $("#grid").style.display = selChip === "straight" ? "" : "none";
+    renderBoard(); renderGrid(); syncGo(); felt.kick(2000);
+  });
+  $("#grid").style.display = selChip === "straight" ? "" : "none";
+}
+function renderGrid() {
+  const cells = [0, 37].concat(Array.from({ length:36 }, (_, i) => i + 1));
+  $("#grid").innerHTML = cells.map(n =>
+    '<button class="num ' + ((n === 0 || n === 37) ? "g" : REDS.includes(n) ? "r" : "b") + (betVal === n ? " on" : "") + '" data-n="' + n + '">' + numLbl(n) + "</button>").join("");
+  [...$("#grid").children].forEach(el => el.onclick = () => { betVal = +el.dataset.n; selChip = "straight"; betType = "straight"; renderGrid(); renderBoard(); syncGo(); });
+}
+
+/* ---- bet bar ---- */
+let cas = null, bet = 50000;
+function setBet(n, fromInput) {
+  if (cas) n = Math.max(cas.limits[0], Math.min(cas.limits[1], n || cas.limits[0]));
+  bet = n;
+  if (!fromInput) $("#betIn").value = bet.toLocaleString();
+  [...$("#chips").children].forEach(c => c.classList.toggle("on", +c.dataset.v === bet));
+  syncGo();
+}
+function renderChips() {
+  $("#chips").innerHTML = cas.chips.map(v =>
+    '<button class="chip" data-v="' + v + '">' + (v >= 1000000 ? v / 1000000 + "M" : v / 1000 + "K") + "</button>").join("");
+  [...$("#chips").children].forEach(c => c.onclick = () => { setBet(+c.dataset.v); felt.kick(2000); });
+  $("#clamp").textContent = cas.limits[0] / 1000 + "K–" + cas.limits[1] / 1000 + "K";
+}
+$("#betIn").addEventListener("input", e => { const n = +e.target.value.replace(/[^\d]/g, ""); if (n) setBet(n, true); });
+$("#betIn").addEventListener("blur", () => setBet(bet));
+$("#betIn").addEventListener("keydown", e => { if (e.key === "Enter") { setBet(bet); $("#go").click(); } });
+$("#betMax").onclick = () => setBet(cas ? Math.min(cas.limits[1], cas.balance) : 500000);
+
+/* ---- wiring ---- */
+let statusT = null;
+function say(m, tone) {
+  const el = $("#status");
+  el.textContent = m;
+  el.style.color = tone === "bad" ? "var(--danger)" : tone === "good" ? "var(--acc)" : tone === "warn" ? "var(--amber)" : "var(--faint)";
+  clearTimeout(statusT);
+  statusT = setTimeout(() => { el.textContent = defaultStatus(); el.style.color = "var(--faint)"; }, 3600);
+}
+function defaultStatus() {
+  return cas && cas.gate ? "// TABLE CLOSED TO YOU — " + cas.gate.toUpperCase()
+    : "// OUTSIDE 2× · DOZENS 3× · STRAIGHT 36× — THE SERVER SPINS · ESC LEAVES";
+}
+function syncGo() {
+  const b = $("#go");
+  b.textContent = spin && spin.phase !== "seated" ? "BALL ROLLING…" : "SPIN — " + F(bet) + " ON " + betLabel();
+  b.disabled = (spin && spin.phase !== "seated") || !cas || !!cas.gate || cas.balance < bet;
+  if (cas && cas.gate) say("// " + cas.gate.toUpperCase(), "bad");
+}
+$("#go").onclick = () => {
+  if (spin && spin.phase !== "seated") return;
+  AP.call("casPlay", ["roulette", "play", [bet, betType, betVal]]).then(r => {
+    if (r && r.ok === false) { say("// REFUSED — " + (r.msg || "").toUpperCase(), "bad"); return; }
+    litIdx = -1; result = null; trail = [];
+    setRes("—", "NO MORE BETS", "var(--dim)");
+    ball.on = true; ball.r = .94; ball.a = Math.random() * TAU;
+    spin = { phase:"rim", wv:.95 + Math.random() * .25, bv:5.2 + Math.random() * .6, t:0 };
+    felt.kick(12000);
+    syncGo();
+    requestAnimationFrame(loop);
+  });
+};
+function logSpin(r, colName) {
+  const box = $("#sess");
+  if (box.firstChild && box.firstChild.tagName === "SPAN") box.innerHTML = "";
+  const d = new Date(), tm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  const row = document.createElement("div");
+  row.className = "row";
+  row.innerHTML = '<span class="t">' + tm + '</span><span class="l">' + numLbl(r.spin) + " " + colName + " · " + BETS[r.betType].nm.toUpperCase() +
+    '</span><span class="n" style="color:' + (r.net >= 0 ? "var(--acc)" : "var(--danger)") + '">' + (r.net >= 0 ? "+" : "−") + F(Math.abs(r.net)).slice(1) + "</span>";
+  box.prepend(row);
+  while (box.children.length > 12) box.removeChild(box.lastChild);
+}
+AP.on("casino", v => { cas = v; $("#bal").textContent = F(v.balance); if (!$("#chips").children.length) renderChips(); setBet(bet); });
+AP.on("casResult", r => {
+  if (r.game !== "roulette") return;
+  if (!spin || spin.phase !== "rim" || result) return;   // bridge replays the last value on subscribe — accept only during a live rim run
+  const p = r.payload;
+  result = { spin:p[0], isRed:p[1], isGreen:p[2], win:p[3], bet:p[4], ret:p[5], net:p[6], betType:p[7] };
+});
+renderBoard(); renderGrid();
+fit(); sizeWheel(); draw(); felt.kick(6000);
+$("#status").textContent = defaultStatus();
+</script>
+</body></html>

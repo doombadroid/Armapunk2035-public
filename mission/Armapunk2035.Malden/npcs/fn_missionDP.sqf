@@ -1,0 +1,14 @@
+params["_obj_main", "_stance", "_dpID"];
+if (_obj_main isKindOf "CAManBase") then {};
+_obj_main addAction["<t color='#FF0000'>Complete Delivery</t>", {[(_this select 3), (_this select 0)] spawn AP_fnc_finishDPMission;
+}, _dpID, 4, false, false, "", 'AP_delivery_inProg && !(AP_effSide isEqualTo west) && AP_dp_end == _target', 5];
+_obj_main addAction["Get Delivery Mission (Small Parcel)", {[(_this select 3), 3, (_this select 0)] spawn AP_fnc_getDPMission;
+}, _dpID, 3, false, false, "", '!AP_delivery_inProg && AP_effSide isEqualTo civilian', 5];
+_obj_main addAction["Get Delivery Mission (Ground Cargo Shipment)", {[(_this select 3), 1, (_this select 0)] spawn AP_fnc_getDPMission;
+}, _dpID, 3, false, false, "", '!AP_delivery_inProg && AP_effSide isEqualTo civilian', 5];
+_obj_main addAction["Get Delivery Mission (Air Cargo Shipment)", {[(_this select 3), 2, (_this select 0)] spawn AP_fnc_getDPMission;
+}, _dpID, 3, false, false, "", '!AP_delivery_inProg && AP_effSide isEqualTo civilian', 5];
+_obj_main addAction["Get Delivery Mission (Organ Transport)", {[(_this select 3), 4, (_this select 0)] spawn AP_fnc_getDPMission;
+}, _dpID, 3, false, false, "", '!AP_delivery_inProg && AP_effSide isEqualTo independent', 5];
+_obj_main addAction["Gas Station", AP_fnc_weaponShopMenu, "delivery", 1.5, false, false, "", 'AP_effSide isEqualTo civilian && 126 in AP_side_talents', 5];
+_obj_main addAction["Delivery Market", AP_fnc_virtualShopMenu, "delivery", 1.5, false, false, "", 'AP_effSide isEqualTo civilian && 126 in AP_side_talents', 5];

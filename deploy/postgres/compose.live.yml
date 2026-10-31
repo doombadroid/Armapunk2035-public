@@ -1,0 +1,17 @@
+# Live overrides for compose.yml on the .96 box (MIGRATION_96.md §3). Same image, volume and loopback port;
+# quieter logs (log_statement=all is deafening in production), bigger shared_buffers, UTC.
+#   cd deploy/postgres && set -a && . ./.env && set +a && docker compose -p armapunk-live -f compose.yml -f compose.live.yml up -d
+services:
+  postgres:
+    command:
+      - postgres
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - work_mem=16MB
+      - -c
+      - max_connections=50
+      - -c
+      - log_min_duration_statement=500
+      - -c
+      - timezone=UTC

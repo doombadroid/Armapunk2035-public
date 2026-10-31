@@ -1,0 +1,51 @@
+# Telemetry stack on .96 (TELEMETRY_SPEC.md): VictoriaMetrics + Grafana, loopback-bound, Grafana
+# published through the armapunk cloudflared tunnel as grafana.armapunk.com.
+#
+#   deploy/telemetry/up.sh            # sources ~/.config/armapunk/telemetry.env, then compose up -d
+#
+# Env (telemetry.env, 0600): GRAFANA_ADMIN_PASSWORD (required), TELEMETRY_DATA (default
+# /home/timb/telemetry), VM_PORT (8428), GRAFANA_PORT (3000), GRAFANA_ROOT_URL
+# (https://grafana.armapunk.com), PUID (1000 -- Grafana runs as this uid so the bind mount it
+# writes is plain user-owned; the image's own uid 472 cannot write a directory timb created).
+#
+# -search.latencyOffset=1s: VictoriaMetrics hides the newest 30 s by default, which on a 5 s
+# sampling cadence means every "current" panel reads half a minute stale. Measured 2026-09-09.
+services:
+  vm:
+    image: victoriametrics/victoria-metrics:v1.151.0
+    container_name: armapunk-vm
+    restart: unless-stopped
+    user: "${PUID:-1000}"
+    ports: ["127.0.0.1:${VM_PORT:-8428}:8428"]
+    command:
+      - -storageDataPath=/victoria-metrics-data
+      - -retentionPeriod=90d
+      - -search.latencyOffset=1s
+      - -httpListenAddr=:8428
+    volumes:
+      - ${TELEMETRY_DATA:-/home/timb/telemetry}/vm:/victoria-metrics-data
+  grafana:
+    image: grafana/grafana-oss:13.0.2
+    container_name: armapunk-grafana
+    restart: unless-stopped
+    user: "${PUID:-1000}"
+    depends_on: [vm]
+    ports: ["127.0.0.1:${GRAFANA_PORT:-3000}:3000"]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set in ~/.config/armapunk/telemetry.env}
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://grafana.armapunk.com}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/armapunk-server.json
+      # Discord alerts (grafana/provisioning/alerting): the webhook lives in telemetry.env. The
+      # placeholder keeps provisioning valid when it is unset; delivery then fails in the log.
+      DISCORD_ALERT_WEBHOOK: ${DISCORD_ALERT_WEBHOOK:-https://discord.com/api/webhooks/0/unset}
+    volumes:
+      - ${TELEMETRY_DATA:-/home/timb/telemetry}/grafana:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro

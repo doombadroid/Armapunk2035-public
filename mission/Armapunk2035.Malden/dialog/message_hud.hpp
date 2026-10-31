@@ -1,0 +1,14 @@
+class AP_message_hud {idd = 245000;
+    name = "AP_message_hud";
+    duration = 1e+007;
+    movingEnable = 0;
+    fadein = 0;
+    fadeout = 0;
+    onLoad = "uiNamespace setVariable ['AP_message_hud', _this select 0]";
+    onUnload = "uiNamespace setVariable ['AP_message_hud', nil]";
+    class controls {class MessageContainer: AP_RscControlsGroupNoScrollbars {idc = 245001;
+            x = 0.8220 * safezoneW + safezoneX;
+            y = 0.0960 * safezoneH + safezoneY;
+            w = 0.1700 * safezoneW;
+            h = 0.8875 * safezoneH;
+            class controls {};};};};

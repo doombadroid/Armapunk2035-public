@@ -1,0 +1,11 @@
+# deploy/pbo_exclude.txt -- mission files that never ship in the PBO (mapdb.md D7).
+# One path per line, relative to mission/Armapunk2035.Malden/, forward slashes, matched exactly
+# (case-insensitive) by deploy/pack_pbo.py --exclude-list. tools/map_pbo_gate.py fails the build
+# if a listed path does not exist in the tree, so a typo here cannot silently ship the file.
+#
+# dev-only round-trip payload; never read at runtime
+mapImportAll_data.sqf
+mapImportAll.sqf
+mapExportAll.sqf
+edenDraw.sqf
+mapBaseline_ids.sqf

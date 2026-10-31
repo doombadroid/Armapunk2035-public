@@ -1,0 +1,21 @@
+// Luxe Suites curtain wall -- INTERIOR lining (the pane 8 cm inboard).
+//
+// Same reason as glass_blackout.rvmat: the path the builder used for glass does
+// not exist in any Arma 3 PBO, so both curtain-wall materials needed a real one.
+//
+// This is the faint tint a tenant sees from inside their suite, so it is a
+// near-flat surface: barely any specular, no emission, colour entirely from its
+// procedural #(argb,8,8,3)color(0.812,0.886,0.918,0.16,ca). At 16% alpha it must
+// not catch highlights, or it reads as a second sheet of glass instead of a tint.
+ambient[]={1,1,1,1};
+diffuse[]={1,1,1,1};
+forcedDiffuse[]={0,0,0,0};
+emmisive[]={0,0,0,1};
+specular[]={0.03,0.03,0.04,1};
+specularPower=40;
+PixelShaderID="Normal";
+VertexShaderID="Basic";
+class StageTI
+{
+	texture="a3\data_f\default_vehicle_ti_ca.paa";
+};

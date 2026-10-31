@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Kabuki Electronics — sign options A–D</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js",
+    "three/addons/exporters/OBJExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js",
+    "three/addons/exporters/GLTFExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js"
+  },
+  "integrity": {
+    "https://unpkg.com/three@0.184.0/build/three.module.js": "sha384-8FCZ1eVO6it4+pbec2aDtnTrwjWXZLJRC+MAGCIPDgsYnUrl/E0A2YlF8ioMKI/J",
+    "https://unpkg.com/three@0.184.0/build/three.core.js": "sha384-dw2ooPewaEIrAgl6oFDBmmBWCE9oW9LxRGcfwZ0hLvEprzo202wXl7vCYHRlSnOT",
+    "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js": "sha384-4rziNxOBZKQ69i+w+f89KJ55TCYquwchVbByQwmaOeIOXdOU2PLDn3kOfXHwIJC9",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js": "sha384-nbwtoZENJD3Vq+ACK0CuGQdPMuDWHkamC2KJD70EV5nfg6jQjfppKOea07YJN+N3",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js": "sha384-VofkvpG6HERhFCYbsUOHeNXBCqID2nfqkQqnVzE1jc/oPcz+qJ13ADdXH08hE+cQ"
+  }
+}
+</script>
+<style>
+  html, body { margin: 0; height: 100%; background: #1c1e24; }
+  three-d-stage:not(:defined) { visibility: hidden; }
+  .cap { position: fixed; left: 16px; bottom: 14px; max-width: 680px;
+         font: 12px/1.65 ui-monospace, Menlo, monospace; color: #b8bcc4;
+         background: rgba(24,26,32,.9); padding: 9px 13px;
+         border: 1px solid #3a3e48; border-radius: 8px; pointer-events: none; }
+  .cap b { color: #ff5cb0; font-weight: 600; }
+  .cap .m { color: #7f8593; }
+</style>
+</head>
+<body>
+<three-d-stage name="kabuki_options" background="#1c1e24"></three-d-stage>
+<div class="cap">
+<b>KABUKI ELECTRONICS</b> — hack-chip vendor, four styles, left to right<br>
+<b>A</b> PCB Silkscreen (green board, gold traces, "chips for brains") · <b>B</b> Chrome '85 (sunset chip — "JACK IN") ·
+<b>C</b> Hinomaru Stall (red disc poster, stock board) · <b>D</b> ICE Terminal (black/cyan, "WARNING: ICE AHEAD")<br>
+<span class="m">Art: textures/signs/kabuki_{a-d}_{front,side}.png · front 512×1536, side 512×1024 —
+convert straight to .paa. Tell me the letter (styles can be mixed).</span>
+</div>
+<script src="./three-d-stage.js"></script>
+<script type="module">
+  import * as THREE from 'three';
+  const stage = document.querySelector('three-d-stage');
+  await stage.ready;
+  const { buildVending } = await import('./vending.js');
+  const TL = new THREE.TextureLoader();
+  const tx = p => { const t = TL.load(p); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
+  const all = new THREE.Group(); all.name = 'kabuki_options';
+  const opts = ['a', 'b', 'c', 'd'];
+  opts.forEach((o, i) => {
+    const m = buildVending();
+    m.position.x = (i - 1.5) * 1.35;
+    const front = tx(`textures/signs/kabuki_${o}_front.png`);
+    const side = tx(`textures/signs/kabuki_${o}_side.png`);
+    m.traverse(node => {
+      if (!node.isMesh) return;
+      const nm = node.material.name;
+      if (nm === 'LOGO_front_ca' || nm === 'LOGO_side_l_ca' || nm === 'LOGO_side_r_ca') {
+        const t = nm === 'LOGO_front_ca' ? front : side;
+        node.material = new THREE.MeshStandardMaterial({
+          name: `${nm}_${o}`, map: t, emissive: 0xffffff, emissiveMap: t,
+          emissiveIntensity: nm === 'LOGO_front_ca' ? .85 : .45, roughness: .4 });
+      }
+    });
+    // floating label
+    const lc = document.createElement('canvas'); lc.width = 128; lc.height = 128;
+    const lg = lc.getContext('2d');
+    lg.fillStyle = '#ff2e9a'; lg.beginPath(); lg.arc(64, 64, 56, 0, Math.PI * 2); lg.fill();
+    lg.fillStyle = '#fff'; lg.font = '900 72px sans-serif'; lg.textAlign = 'center'; lg.textBaseline = 'middle';
+    lg.fillText(o.toUpperCase(), 64, 70);
+    const st = new THREE.CanvasTexture(lc); st.colorSpace = THREE.SRGBColorSpace;
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: st, depthTest: false }));
+    spr.name = 'label_' + o; spr.position.set(m.position.x, 2.15, 0); spr.scale.set(.28, .28, 1);
+    all.add(m, spr);
+  });
+  stage.setObject(all);
+</script>
+</body>
+</html>

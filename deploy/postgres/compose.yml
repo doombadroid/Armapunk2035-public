@@ -1,0 +1,86 @@
+# Dev PostgreSQL for the database migration (postgres_plan.md).
+#
+# WHY A CONTAINER
+#   This box already has a host `postgres` process of unclear provenance and a
+#   containerised MariaDB (`looneybin-db`). Putting this in a container matches
+#   the pattern that already works here, keeps it off the host's package
+#   manager, and makes "throw it away and start again" a one-liner -- which it
+#   will be, repeatedly, while the ETL is being rehearsed.
+#
+#   Image is pinned to 18 because the psql client on this box is 18.4 and a
+#   client/server major skew produces confusing dump/restore failures.
+#
+# NOT FOR PRODUCTION. Bound to loopback, trivial to reset, no backups, no
+# tuning. When there is a real deployment target this file is the starting
+# point, not the answer.
+#
+#   cd deploy/postgres && docker compose up -d
+#   docker compose logs -f          # watch it come up
+#   docker compose down             # stop, keep data
+#   docker compose down -v          # stop, DESTROY data
+
+name: armapunk-dev
+
+services:
+  postgres:
+    image: postgis/postgis:18-3.6
+    container_name: armapunk-pg
+    restart: unless-stopped
+
+    # Loopback ONLY. This has no business being reachable from the network, and
+    # binding 0.0.0.0 by accident is how a dev database becomes an incident.
+    ports:
+      - "127.0.0.1:5432:5432"
+
+    environment:
+      POSTGRES_DB: ${PGDATABASE:-armapunk}
+      POSTGRES_USER: ${PGUSER:-armapunk}
+      POSTGRES_PASSWORD: ${PGPASSWORD:?set PGPASSWORD in deploy/postgres/.env}
+      # Deterministic collation. The default depends on the image's locale, and
+      # a collation change silently reorders every text index -- which is a
+      # miserable thing to discover after loading real data.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+
+    volumes:
+      # MUST be /var/lib/postgresql, NOT /var/lib/postgresql/data.
+      #
+      # The 18+ images changed this and refuse to start on the old layout, with
+      # a long message that reads like a corruption warning. They now keep data
+      # in a major-version subdirectory so `pg_upgrade --link` does not have to
+      # cross a mount boundary. Every pre-18 compose file on the internet has
+      # the old path, so this will bite anyone copying one.
+      #   docker-library/postgres#1259
+      - pgdata:/var/lib/postgresql
+      # Anything dropped in here runs ONCE, on first init of an empty volume.
+      # Re-running it means `docker compose down -v` first.
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      # `pg_isready` returns true slightly before the server is actually
+      # accepting writes, so this runs a real query instead.
+      test: ["CMD-SHELL", "psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} -c 'select 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+    # Dev-sized. The defaults are tuned for a 1990s machine and the ETL
+    # rehearsal loads the whole schema repeatedly.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - work_mem=16MB
+      - -c
+      - max_connections=50
+      # Every statement to the log. Deafening in production, exactly what you
+      # want while porting 539 SQL literals off a different dialect.
+      - -c
+      - log_statement=all
+      - -c
+      - log_min_duration_statement=0
+
+volumes:
+  pgdata:
+    name: armapunk_pg_data

@@ -1,0 +1,4 @@
+// Roadway material for the custom buildings. A roadway LOD is never rendered, so this carries only
+// the surface link. Path must be the FULL mission path: the material string inside a .p3d gets no
+// getMissionPath prefix, and a bare filename fails with "Cannot load material file".
+surfaceInfo = "mpmissions\__cur_mp.Malden\roadway_concrete.bisurf";

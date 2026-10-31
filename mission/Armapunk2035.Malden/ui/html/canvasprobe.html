@@ -1,0 +1,116 @@
+<!doctype html>
+<!-- CANVAS / WEBGL PROBE. Answers one question: are HTML5 GAMES viable in this
+     control, and are they DOM games or canvas games?
+
+     Every test READS BACK. A context that exists but never rasterises would
+     otherwise report as a pass -- getContext returning an object proves nothing,
+     so 2D draws and re-reads a pixel, and WebGL clears and readPixels. -->
+<html><head><meta charset="utf-8"><title>canvas probe</title>
+<script>
+window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+  A3API.RequestFile("webui\\ui\\webui.js").then(function (s) { (0, eval)(s); }).catch(function(){});
+}
+</script>
+<style>
+html,body{margin:0;height:100%;background:#050b09;color:#dcefe0;
+  font-family:ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;font-size:13px}
+#out{padding:.6rem .8rem;line-height:1.55}
+.k{color:#7f938a;display:inline-block;min-width:15rem}
+.y{color:#c9e21a} .n{color:#ff5a3c} .i{color:#33ffbb}
+h1{font-size:.95rem;letter-spacing:.2em;color:#c9e21a;margin:.2rem 0 .6rem}
+canvas{position:absolute;left:-9999px;top:-9999px}
+</style></head>
+<body>
+<div id="out"><h1>CANVAS / WEBGL PROBE</h1>running…</div>
+<canvas id="c2" width="64" height="64"></canvas>
+<canvas id="c3" width="64" height="64"></canvas>
+<script>
+var L = [];
+function row(k, v, cls){ L.push('<div><span class="k">' + k + '</span><span class="' + (cls||'') + '">' + v + '</span></div>'); }
+function paint(){ document.getElementById("out").innerHTML = '<h1>CANVAS / WEBGL PROBE</h1>' + L.join(""); }
+
+/* ---- 2D: draw a known colour, read it back ---- */
+var c2ok = false, c2msg = "no context";
+try {
+  var c2 = document.getElementById("c2"), x = c2.getContext("2d");
+  if (x){
+    x.fillStyle = "rgb(12,34,56)"; x.fillRect(0,0,64,64);
+    var d = x.getImageData(10,10,1,1).data;
+    c2ok = (d[0]===12 && d[1]===34 && d[2]===56);
+    c2msg = c2ok ? "draws and reads back" : "context but pixel was " + d[0]+","+d[1]+","+d[2];
+  }
+} catch(e){ c2msg = "threw: " + e.message; }
+row("canvas 2D", c2msg, c2ok ? "y" : "n");
+
+/* ---- WebGL: clear to a known colour, readPixels ---- */
+var glv = "none", glok = false, glrend = "";
+try {
+  var c3 = document.getElementById("c3"), gl = null;
+  var names = ["webgl2","webgl","experimental-webgl"];
+  for (var i=0;i<names.length && !gl;i++){ try { gl = c3.getContext(names[i]); if (gl) glv = names[i]; } catch(e){} }
+  if (gl){
+    gl.clearColor(0.2,0.4,0.6,1); gl.clear(gl.COLOR_BUFFER_BIT);
+    var px = new Uint8Array(4); gl.readPixels(1,1,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px);
+    glok = (px[0]>45 && px[0]<57 && px[2]>145 && px[2]<160);
+    glv += glok ? " — clears and reads back" : " — context but pixel " + px[0]+","+px[1]+","+px[2];
+    var dbg = gl.getExtension("WEBGL_debug_renderer_info");
+    if (dbg) glrend = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || "";
+    if (!glrend) glrend = gl.getParameter(gl.RENDERER) || "";
+  }
+} catch(e){ glv = "threw: " + e.message; }
+row("WebGL", glv, glok ? "y" : "n");
+if (glrend) row("  renderer", glrend, "i");
+
+/* ---- capability flags a game would ask for ---- */
+row("OffscreenCanvas", (typeof OffscreenCanvas !== "undefined") ? "yes" : "no",
+    (typeof OffscreenCanvas !== "undefined") ? "y" : "n");
+row("createImageBitmap", (typeof createImageBitmap === "function") ? "yes" : "no",
+    (typeof createImageBitmap === "function") ? "y" : "n");
+row("AudioContext", (typeof AudioContext !== "undefined" || typeof webkitAudioContext !== "undefined") ? "yes" : "no",
+    (typeof AudioContext !== "undefined" || typeof webkitAudioContext !== "undefined") ? "y" : "n");
+row("pointerLock API", (typeof document.body.requestPointerLock === "function") ? "present" : "absent",
+    (typeof document.body.requestPointerLock === "function") ? "y" : "n");
+row("Gamepad API", (typeof navigator.getGamepads === "function") ? "present" : "absent",
+    (typeof navigator.getGamepads === "function") ? "y" : "n");
+row("devicePixelRatio", String(window.devicePixelRatio), "i");
+row("viewport", innerWidth + " x " + innerHeight, "i");
+row("hardwareConcurrency", String(navigator.hardwareConcurrency || "?"), "i");
+paint();
+
+/* ---- the number that decides DOM vs canvas: sustained canvas draw rate ----
+   A busy 2D scene every frame for 3s. Frame delivery here is dirty-driven, so
+   this is measuring the whole pipeline, not just JS. */
+var f = 0, t0 = performance.now(), c2b = document.getElementById("c2"), ctx = c2b.getContext("2d");
+c2b.width = 320; c2b.height = 180;
+function loop(){
+  var t = performance.now();
+  if (t - t0 > 3000){
+    var fps = f / ((t - t0) / 1000);
+    row("canvas draw rate", fps.toFixed(1) + " fps over 3s (" + f + " frames)", fps > 25 ? "y" : "n");
+    row("verdict", fps > 45 ? "canvas games viable"
+              : fps > 20 ? "canvas fine for turn-based / low motion"
+              : "DOM games only", fps > 20 ? "y" : "n");
+    paint();
+    if (window.WEBUI) {
+      WEBUI.call("log", ["CANVASPROBE 2d=" + c2ok + " webgl=" + glok + " (" + glv + ")" +
+        " renderer=" + (glrend || "?") +
+        " offscreen=" + (typeof OffscreenCanvas !== "undefined") +
+        " audioctx=" + (typeof AudioContext !== "undefined") +
+        " dpr=" + window.devicePixelRatio +
+        " canvasFps=" + fps.toFixed(1)]).catch(function(){});
+    }
+    return;
+  }
+  ctx.fillStyle = "#050b09"; ctx.fillRect(0,0,320,180);
+  for (var i=0;i<120;i++){
+    ctx.fillStyle = "hsl(" + ((f+i*3)%360) + ",70%,50%)";
+    ctx.fillRect((i*7 + f) % 320, (i*11 + f*2) % 180, 6, 6);
+  }
+  f++;
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body></html>

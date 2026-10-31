@@ -1,0 +1,90 @@
+upstream: https://github.com/doombadroid/ArmaQuest
+commit:   6d8cbdc3b82d82339f826c9fd3e9364f330af451
+files:    59
+tree:     sha256:f0b25aaca6d9b4eccba6295f17d4bc75f3353c0b5f2fd3a851a0cdeb07382493
+
+Do not edit this tree. Change the library upstream and re-run
+scratchpad/vendor_armaquest.py.
+
+KNOWN LOCAL EDITS -- this tree is NOT byte-identical to the commit above.
+These files carry changes that exist only here (every 2026-09-26 security patch
+is marked "LOCAL PATCH" in its file):
+
+    server/fn_storeSql.sqf   native PostgreSQL. Upstream's declared dialect is
+                             MariaDB (it has to be: extDB3 hosts still exist),
+                             so upstream writes SELECT QUOTE(data) and
+                             ON DUPLICATE KEY UPDATE. This host ripped MariaDB
+                             out on 2026-08-20 and speaks PostgreSQL only, where
+                             those are a double-quoted value and a syntax error.
+    server/fn_srvInit.sqf    the HandleDisconnect flush is spawn-and-carry. The
+                             handler is unscheduled, the store's save is a mode-2
+                             read-back, and apdb refuses mode 2 outside a
+                             scheduled context -- so upstream's inline call loses
+                             the leaver's progress silently on this transport.
+
+    SECURITY, 2026-09-26 (compileFinal audit). Any client's publicVariable replaces
+    a missionNamespace global on every machine, the server included, so a plain code
+    global -- or a hashmap of CODE -- there is remote code execution.
+    config/profile_default.sqf   the eleven aq_life_fnc_* stubs are compileFinal and
+                             guarded by isFinal, not isNil: a host definition still
+                             wins, but only a compileFinal'd one.
+    functions/fn_preInit.sqf aq_fnc_ctx compileFinal.
+    functions/fn_journal.sqf aq_fnc_journalPayload compileFinal, assigned once.
+    aq_types, aq_triggers, aq_worlds (CODE registries) and aq_quests (holds teardown
+    handles, which may be CODE) live in localNamespace in every reader and writer:
+      functions/  fn_preInit fn_registerType fn_registerTrigger fn_registerWorld
+                  fn_armObjective fn_disarmObjective fn_event fn_task fn_journal
+                  fn_sync fn_abandon fn_cfgQuest fn_postInit
+      server/     fn_srvAccept fn_srvBoard fn_srvFact fn_srvInit
+      diagnostics/ fn_validate fn_reachability fn_dumpState
+    Upstream needs the same change; tools/test_compilefinal.py now scans this tree.
+
+
+    SECURITY PATCHES (audit 2026-09-26). Clients can remoteExec any whitelisted
+    function with any arguments, and upstream trusts more than that allows:
+    server/fn_srvFail.sqf    a remote caller's 4th argument (uid) is ignored and
+                             the owner is derived from its own unit. Upstream let
+                             [player, quest, "abandoned", victimUid] end -- and
+                             for once-only quests retire -- anyone's quest.
+    server/fn_srvFact.sqf    facts named in AQ_Settings >> serverFacts[] are
+                             dropped unless the caller declared the local
+                             _aqServerFact (host: APS_fnc_aqFact). Upstream let a
+                             client complete any action objective in one call.
+    server/fn_srvBoard.sqf   a remote caller may only use "offers", and "take"
+                             only for a quest it now holds (srvAccept's own call).
+                             Upstream let any client clear or re-roll the boards.
+    server/fn_srvAccept.sqf  one live instance per radiant template (refused as
+                             "alreadyActive"). srvFact offers a fact to every
+                             active quest, so upstream let ten copies of one
+                             template turn one witnessed fact into ten payouts.
+    functions/fn_sync.sqf    refuse a remoteExec that did not come from the
+    functions/fn_journal.sqf server (owner 2). Both are whitelisted
+                             server->client, which lets any client target any
+                             other client with forged quest state or dialogs.
+
+    SERVER STATE, 2026-09-26 (audit r2aq). The server's own quest state was still in
+    missionNamespace, which any client's publicVariable overwrites on the server:
+    aq_srvReady=false switched every srv* entry point off, a moved aq_srvEpochBase
+    shifted every deadline and cooldown, a reset aq_srvFactRate lifted the fact rate
+    limit, and a forged aq_srvBoard offer carried its own objectives and rewards into
+    srvAccept. aq_srvReady, aq_srvEpochBase, aq_srvPlayers, aq_srvBoard, aq_srvSeq,
+    aq_srvFactRate, aq_srvStoreDirty and aq_storeSqlEscMode now live in localNamespace
+    in every reader and writer:
+      server/      fn_srvInit fn_srvBoard fn_srvAccept fn_srvFact fn_srvFail
+                   fn_srvComplete fn_srvStore fn_storeSql
+      diagnostics/ fn_dumpState
+    aq_cfg (the settings/profile root) moved too, on every machine: a forged
+    non-CONFIG entry breaks aq_fnc_setting's read (a type error, or the [] default
+    for serverFacts[]), and either way the serverFacts gate above lets the fact in.
+      functions/   fn_preInit fn_setting fn_profile fn_journal
+    tools/test_authstate.py scans this tree for all nine names. Upstream needs the
+    same change.
+
+THE TWO NON-SECURITY EDITS WERE REVERTED BY A ROUTINE RE-VENDOR ON 2026-08-30 and restored from git.
+The banner above did not prevent it and the tree hash did not either, because a
+hash nobody compares is a comment. vendor_armaquest.py now diffs this tree
+against the recorded commit and REFUSES to overwrite local edits without
+--force, so the next re-vendor names every file above instead of eating it.
+
+The standing fix is to make the store dialect-aware upstream so this host needs
+no local edits at all. Until then, treat every entry above as load-bearing.

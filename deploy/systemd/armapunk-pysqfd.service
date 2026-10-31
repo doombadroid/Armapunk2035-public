@@ -1,0 +1,18 @@
+[Unit]
+Description=Armapunk 2035 PySQF daemon (PostgreSQL transport + UI page serving)
+Documentation=file:///home/timb/Armapunk2035/deploy/openrc/pysqfd
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/timb/PySQF/python
+EnvironmentFile=/home/timb/.config/armapunk/pysqfd.env
+ExecStartPre=/usr/bin/timeout 120 /bin/bash -c 'until (echo > /dev/tcp/127.0.0.1/5432) 2>/dev/null; do sleep 2; done'
+ExecStart=/home/timb/pysqf-venv/bin/python pysqfd.py --modules pysqf.db,apdb,webpages,telemetry
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

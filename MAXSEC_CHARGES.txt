@@ -1,0 +1,89 @@
+LooneyBin — MaxSec Charge Sheet (pulled from fn_wantedChargesConfig.sqf, 2026-06-10)
+==============================================================================
+
+ ID  Charge                                          Bounty     Jail  Manual
+------------------------------------------------------------------------------
+  1  Suicide Bomber                               $  40,000    5 min  no
+  2  Explosive Terrorism                          $  40,000    5 min  no
+  3  Possession of Explosives                     $   5,000    1 min  yes
+  4  Bank Robbery                                 $  10,000    4 min  yes
+  5  Federal Reserve Robbery                      $  10,000    4 min  no
+  6  Unauthorized Parking                         $     300  0.5 min  yes
+  7  Attempted Bank Robbery                       $   7,500    2 min  yes
+  8  Bounty Hunter Execution                      $   7,500    4 min  no
+  9  Execution                                    $   7,500    4 min  no
+ 10  Hit and Run                                  $   1,000  0.5 min  yes
+ 11  Gang Homicide                                $   2,500    1 min  no
+ 12  Manslaughter                                 $   5,000    3 min  no
+ 13  Escaping Jail                                $  10,000    5 min  no
+ 14  Prison Break                                 $  10,000   40 min  yes
+ 15  Prison Conspiring                            $  10,000    4 min  no
+ 16  Attempted Auto Theft                         $     500  0.3 min  yes
+ 17  Attempted Manslaughter                       $   2,500    2 min  yes
+ 18  Robbery                                      $   5,000    2 min  no
+ 19  Kidnapping                                   $  12,500    3 min  yes
+ 20  Unlawful Detainment                          $   1,500  0.5 min  no
+ 21  Grand Theft                                  $   1,500  0.8 min  yes
+ 22  Landing Within City Limits                   $     250  0.5 min  yes
+ 23  Insurance Fraud                              $     500  0.5 min  yes
+ 24  Aiding escape from custody                   $     500  0.5 min  no
+ 25  Identity Fraud                               $       5  0.1 min  yes
+ 26  Harassment                                   $      50    5 min  yes
+ 27  Disobeying an order from an officer          $     500    1 min  yes
+ 28  Possession of Police Equipment               $   2,500    1 min  yes
+ 29  Public Intoxication                          $     100  0.5 min  yes
+ 30  Manipulation of Police Gates                 $   1,000    1 min  yes
+ 31  Evading Arrest                               $   2,500    1 min  yes
+ 32  Possession of Reggie Weed/Stems              $   2,500    1 min  yes
+ 33  Possession of Heroin                         $   5,000    1 min  yes
+ 34  Possession of Cocaine                        $   7,500    1 min  yes
+ 35  Possession of Meth                           $  10,000    1 min  yes
+ 36  Possession of Reserve Gold                   $  15,000    1 min  yes
+ 37  Possession of Turtle Meat                    $  12,500    1 min  yes
+ 38  Terrorism                                    $  15,000    4 min  yes
+ 39  Threatening an Officer                       $   2,500    1 min  yes
+ 40  Speeding                                     $     100  0.5 min  yes
+ 41  Driving Without A License                    $      50  0.5 min  yes
+ 42  Reckless Driving                             $      50  0.5 min  yes
+ 43  Driving Unregistered Vehicle                 $     250  0.5 min  yes
+ 44  Failure to Stop                              $     250  0.5 min  yes
+ 45  Failure to Headlight                         $     100  0.5 min  yes
+ 46  Driving an Illegal Vehicle                   $   2,500    1 min  yes
+ 47  Possession of Illegal Firearm                $   2,500    1 min  yes
+ 48  Possession of Illegal Liquor                 $   2,000    1 min  yes
+ 49  Possession of PCP                            $   9,000    1 min  yes
+ 50  Money Laundering                             $   5,000    2 min  yes
+ 51  Discharge Within City                        $     500  0.5 min  yes
+ 52  Trafficking Weapons (3+)                     $   1,000    1 min  yes
+ 53  Second-degree Murder                         $   3,000    1 min  no
+ 54  Organ Theft                                  $   4,000    3 min  no
+ 55  Cannabalism                                  $   4,000    3 min  yes
+ 56  Raiding the Evidence Lockup                  $  15,000    4 min  yes
+ 57  Admin Jailed                                 $ 999,999   30 min  no
+ 58  Destruction of Property                      $  12,500  1.5 min  yes
+ 59  Drug Trafficking                             $  10,000    2 min  yes
+ 60  Possession of Uranium                        $   8,500    1 min  yes
+ 61  Possession of Barley                         $   2,000    1 min  yes
+ 62  Possession of Heisenberg Meth                $  15,000    1 min  yes
+ 63  Possession of Cocaine Bricks                 $  10,500    1 min  yes
+ 64  Theft of Cargo                               $  15,000    4 min  yes
+ 65  Possession of Oysters                        $   5,000    1 min  no
+ 66  Possession of Fried Oysters                  $   9,000    1 min  no
+ 67  Possession of Golden Wax                     $  13,000    1 min  yes
+ 68  Possession of High Potency Cannabis          $   7,000    1 min  yes
+ 69  Possession of Dark Fungi                     $   5,000    1 min  yes
+ 70  Possession of LSD Pills                      $   7,000    1 min  yes
+ 71  Possession of Purifed LSD/PCP Sheets         $  13,000    1 min  yes
+ 72  Possession of Element 115                    $  20,000    1 min  yes
+ 73  Possession of Drug Paraphernalia             $     420  0.6 min  yes
+ 74  Loony Bin Robbery                            $  15,000    5 min  yes
+ 75  Possession of Patient Remains                $  35,000    2 min  yes
+ 76  Jewelry Emporium Robbery                     $   7,500    4 min  yes
+ 77  Excessive Speeding                           $     500    1 min  yes
+ 78  Intent to commit Arson                       $  10,000  1.5 min  yes
+ 79  Arson                                        $  12,500    4 min  no
+ 80  Abuse of Bounty Hunter Weapon                $   7,500    1 min  yes
+ 81  Possessing Illegal Firearm Accessories       $   2,000    1 min  yes
+------------------------------------------------------------------------------
+81 charges. Bounty = added to the wanted value; Jail = sentence time added.
+Manual = a cop can apply it by hand from the charge menu (no = system-applied only).

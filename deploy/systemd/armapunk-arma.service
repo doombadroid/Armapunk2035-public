@@ -1,0 +1,20 @@
+[Unit]
+Description=Armapunk 2035 live Arma server
+After=network-online.target armapunk-pysqfd.service
+Wants=armapunk-pysqfd.service armapunk-hc.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/timb/arma3server_live
+# [a]rma bracket is load-bearing (2026-07-24 outage: the guard matched its own bash -c and blocked every boot).
+ExecStartPre=/bin/bash -c '! pgrep -f "[a]rma3server_x64 -config=server.cfg" >/dev/null'
+ExecStartPre=/usr/bin/timeout 120 /bin/bash -c 'until (echo > /dev/tcp/127.0.0.1/5432) 2>/dev/null; do sleep 2; done'
+ExecStartPre=/usr/bin/timeout 60 /bin/bash -c 'until [ -S /run/user/1000/pysqf.sock ]; do sleep 1; done'
+ExecStart=/bin/bash /home/timb/arma3server_live/run-live.sh
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,542 @@
+<!doctype html>
+<!-- CASINO — COIN FLIP. Self-contained, game-ready: inline CSS/JS, no libs,
+     no network, no storage. AP stub behind a guard.
+
+     CONTRACT
+       AP.on("casino", { balance, chips:[amounts], limits:[min,max], gate })
+       AP.on("casResult", { game:"coinflip", payload })
+         payload = [win, pick, face, bet, ret, net]   // pick/face: 0 heads, 1 tails
+       AP.call("casPlay", ["coinflip","play",[bet, pick]])   // reply = SENT, not settled
+     Win probability is 0.46 and pays 2× — the house edge lives in the coin
+     (spec: don't hide it, don't print it). `face` is the side the player
+     experiences: it equals their pick on a win, the other side on a loss.
+     The coin tumbles until casResult arrives, then a landing is planned that
+     comes to rest on the SERVER's face. The page never flips anything.
+
+     WHAT ANIMATES: the coin canvas (~40% of surface) redraws per frame for
+     ~2.5–4s a flip (tumble, fall, two bounces, settle), then every rAF stops.
+     The backdrop is a PERSPECTIVE table — a ray-projected felt ground plane
+     with distance fog, a drifting key-light pool, a padded near rail and a
+     dark room past the horizon — same one-triangle shader, same hot/still
+     budget. Idle cost zero. Audio: half-turn ticks, bounce clacks, win
+     sting; SND toggle. -->
+<html><head><meta charset="utf-8"><title>CASINO — coin flip</title>
+<script>
+/* ---- BRIDGE SHIM (installed by tools/install_casino_pages.py) --------------
+   window.WEBUI does not exist while this page's own script runs; the bridge is
+   INJECTED afterwards. Anything that touches it at load is silently deaf, which
+   is how the first web shop shipped.
+
+   AP is defined here, synchronously, before the page's script -- so its
+   `if (typeof AP === "undefined")` dev stub never installs, and every on()/call()
+   made before the bridge lands is queued and flushed when it does. -------- */
+(function () {
+  var subs = {}, queued = [], W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  /* Instrumentation for AP_fnc_casinoDiag. The browser console is unreachable
+     in game -- Esc opens it and closes the dialog -- so a deaf page has to be
+     able to say why on its own surface. */
+  window.__apSubs = subs;
+  /* A throw inside a channel handler is CAUGHT by webui.js and console.error'd,
+     and the console is unreachable in game -- so a payload the page cannot read
+     looks exactly like a payload that never arrived. Wrapping every handler
+     records the first failure where the diagnostic can print it. */
+  function guard(n, f) {
+    return function (v) {
+      try { return f(v); }
+      catch (e) { if (!window.__apHandlerErr) window.__apHandlerErr = n + ": " + e; throw e; }
+    };
+  }
+  window.AP = {
+    __shim: true,
+    on: function (n, f) {
+      (subs[n] = subs[n] || []).push(guard(n, f));
+      if (W) W.on(n, subs[n][subs[n].length - 1]);
+    },
+    call: function (n, a) {
+      if (W) return W.call(n, a || [], 20000);
+      return new Promise(function (res, rej) { queued.push([n, a || [], res, rej]); });
+    },
+    handle: function (n, f) { if (W) W.handle(n, f); }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    W.on("casino", function () { window.__apGotCasino = true; });
+    queued.forEach(function (q) { W.call(q[0], q[1], 20000).then(q[2], q[3]); });
+    queued = [];
+  });
+  /* A <script src> cannot work here -- the page has no resolvable base URL and
+     the src quietly resolves to nothing. SQF injects the same file too and
+     webui.js is idempotent, so whichever lands first wins. */
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else {
+    window.__apBootErr = "no A3API on this page";
+  }
+})();
+</script>
+<style>
+:root{
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --scr:#050b09; --scr2:#0a1310; --panel:#0c1712; --panel2:#0e1a15;
+  --acc:#c9e21a; --acc2:#33ffbb; --danger:#ff5a3c; --amber:#ffb020; --magenta:#ff3d81;
+  --ink:#dcefe0; --dim:#7f938a; --faint:#465a51; --line:rgba(201,226,26,.15);
+  --felt:#0d2a1e;
+}
+html,body{margin:0;height:100%;background:#07090a;font-family:var(--mono)}
+#stage{position:fixed;inset:0;display:grid;place-items:center}
+#frame{width:min(96vw,192vh);aspect-ratio:2/1;position:relative}
+#screen{position:absolute;inset:0;border-radius:.6rem;overflow:hidden;display:flex;flex-direction:column;
+  background:var(--scr);box-shadow:inset 0 0 0 1px #000,0 30px 80px rgba(0,0,0,.7)}
+#gl{position:absolute;inset:0;width:100%;height:100%}
+#screen::after{content:"";position:absolute;inset:0;z-index:40;pointer-events:none;opacity:.26;
+  background:repeating-linear-gradient(180deg,transparent 0 2px,rgba(0,0,0,.2) 2px 3px)}
+.hdr{position:relative;z-index:2;flex:none;display:flex;align-items:center;gap:.8rem;padding:.55rem 1.1rem;
+  background:rgba(10,19,16,.78);border-bottom:1px solid var(--line)}
+.led{width:.5rem;height:.5rem;border-radius:50%;background:var(--acc);box-shadow:0 0 .55rem rgba(201,226,26,.55);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+a.back{color:var(--dim);text-decoration:none;font-size:.6rem;letter-spacing:.14em}
+a.back:hover{color:var(--acc)}
+.bal{margin-left:auto;display:flex;align-items:baseline;gap:.45rem;font-size:.7rem;color:var(--dim)}
+.bal b{color:#eef4ee;font-size:.85rem;font-variant-numeric:tabular-nums}
+.snd{border:1px solid var(--line);background:transparent;color:var(--dim);border-radius:.35rem;
+  font-family:var(--mono);font-size:.54rem;letter-spacing:.12em;padding:.24rem .5rem;cursor:pointer}
+.snd:hover{color:var(--acc)}
+.body{position:relative;z-index:2;flex:1;min-height:0;display:flex}
+.pit{flex:1;min-width:0;display:grid;place-items:center;position:relative}
+#coin{width:min(92%,26rem);aspect-ratio:1.35;filter:drop-shadow(0 14px 34px rgba(0,0,0,.5))}
+.panel{flex:none;width:20.5rem;border-left:1px solid var(--line);background:rgba(10,19,16,.8);
+  display:flex;flex-direction:column;min-height:0;padding:.7rem .75rem;gap:.5rem}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:.55rem;padding:.55rem .65rem;display:flex;flex-direction:column;gap:.35rem}
+.lbl{font-size:.54rem;letter-spacing:.18em;color:var(--faint)}
+.kv{display:flex;justify-content:space-between;align-items:baseline;font-size:.6rem;color:var(--dim)}
+.kv b{color:var(--ink);font-variant-numeric:tabular-nums}
+.big{font-size:1.7rem;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums;text-shadow:0 0 1.4rem rgba(201,226,26,.25);min-height:2.1rem}
+.picks{display:flex;gap:.4rem}
+.pick{flex:1;height:3.4rem;border-radius:.55rem;border:1px solid var(--line);background:var(--panel2);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;
+  font-family:var(--mono);font-weight:800;letter-spacing:.18em;color:var(--dim);font-size:.72rem}
+.pick small{font-size:.5rem;font-weight:600;letter-spacing:.1em;color:var(--faint)}
+.pick:hover{border-color:rgba(201,226,26,.4)}
+.pick.h.on{border-color:rgba(201,226,26,.65);background:rgba(201,226,26,.14);color:var(--acc)}
+.pick.t.on{border-color:rgba(255,176,32,.65);background:rgba(255,176,32,.14);color:var(--amber)}
+.chips{display:flex;gap:.3rem;flex-wrap:wrap}
+.chip{flex:1;min-width:3.1rem;height:1.9rem;border-radius:1rem;border:1px solid var(--line);background:var(--panel2);
+  color:var(--dim);font-family:var(--mono);font-size:.6rem;font-weight:700;cursor:pointer;letter-spacing:.04em}
+.chip:hover{color:var(--acc);border-color:rgba(201,226,26,.4)}
+.chip.on{color:#0a1005;background:var(--acc);border-color:var(--acc)}
+.betrow{display:flex;align-items:center;gap:.4rem;background:var(--scr2);border:1px solid var(--line);
+  border-left:2px solid var(--acc2);border-radius:.45rem;padding:.4rem .55rem}
+.betrow input{flex:1;min-width:0;font-family:var(--mono);font-size:.85rem;font-weight:700;color:var(--acc2);
+  background:none;border:none;outline:none;font-variant-numeric:tabular-nums}
+.go{height:3rem;border-radius:.55rem;border:1px solid rgba(201,226,26,.55);background:rgba(201,226,26,.16);
+  color:var(--acc);font-family:var(--mono);font-size:.78rem;font-weight:800;letter-spacing:.14em;cursor:pointer}
+.go:hover{background:rgba(201,226,26,.24)}
+.go:disabled{border-color:rgba(70,90,81,.35);background:transparent;color:#33453c;cursor:not-allowed}
+.sess{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:.25rem}
+.sess .row{display:flex;gap:.45rem;font-size:.56rem;align-items:baseline}
+.sess .t{color:var(--faint)}
+.sess .l{flex:1;color:var(--ink);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess .n{font-variant-numeric:tabular-nums}
+.status{position:relative;z-index:2;flex:none;display:flex;align-items:center;height:1.8rem;padding:0 1.1rem;
+  border-top:1px solid var(--line);background:rgba(10,19,16,.78);font-size:.56rem;letter-spacing:.08em;color:var(--faint)}
+*::-webkit-scrollbar{width:5px}*::-webkit-scrollbar-thumb{background:#22332a;border-radius:3px}
+</style></head><body>
+<div id="stage"><div id="frame"><div id="screen" data-screen-label="Coin flip">
+  <canvas id="gl"></canvas>
+  <div class="hdr">
+    <span class="led"></span>
+    <span style="color:var(--acc);font-weight:800;font-size:.95rem;letter-spacing:.3em">COIN FLIP</span>
+    <span style="color:var(--faint);font-size:.62rem;letter-spacing:.24em">// HEADS OR TAILS · PAYS 2× · THE COIN BELONGS TO THE HOUSE</span>
+    <a class="back" href="#" onclick="AP.call('casTable',['landing']);return false;">⟵ FLOOR</a>
+    <span class="bal">BANK <b id="bal">—</b></span>
+    <button class="snd" id="snd">SND ON</button>
+  </div>
+  <div class="body">
+    <div class="pit"><canvas id="coin"></canvas></div>
+    <div class="panel">
+      <div class="card">
+        <span class="lbl" id="resLbl">READY</span>
+        <span class="big" id="resBig">—</span>
+        <div class="kv"><span>LAST FLIP</span><b id="lastR">—</b></div>
+      </div>
+      <div class="card">
+        <span class="lbl">CALL IT</span>
+        <div class="picks">
+          <button class="pick h on" id="pickH">HEADS<small>THE CORE</small></button>
+          <button class="pick t" id="pickT">TAILS<small>THE HAZARD</small></button>
+        </div>
+      </div>
+      <div class="card">
+        <span class="lbl">BET — CLAMPS <span id="clamp">10K–500K</span></span>
+        <div class="chips" id="chips"></div>
+        <div class="betrow"><span style="color:var(--faint);font-size:.7rem">$</span><input id="betIn" inputmode="numeric" value="50,000"><button class="chip" id="betMax" style="flex:none;min-width:2.6rem">MAX</button></div>
+      </div>
+      <button class="go" id="go">FLIP</button>
+      <div class="card" style="flex:1;min-height:0">
+        <span class="lbl">THIS SESSION</span>
+        <div class="sess" id="sess"><span style="font-size:.56rem;color:var(--faint)">NO FLIPS YET</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="status" id="status"></div>
+</div></div></div>
+
+<script>
+/* ---- AP stub (dev only — the real bridge replaces it). 0.46 mirrors the
+   server's coin; in game the SERVER flips. ---- */
+if (typeof AP === "undefined") window.AP = (function () {
+  const subs = {}, last = {};
+  const push = (n, v) => { last[n] = v; (subs[n] || []).forEach(f => f(v)); };
+  const st = { balance:1240000, chips:[10000,50000,100000,250000,500000], limits:[10000,500000], gate:"" };
+  push("casino", JSON.parse(JSON.stringify(st)));
+  let busy = false;
+  return {
+    on(n, f) { (subs[n] = subs[n] || []).push(f); if (n in last) f(last[n]); },
+    call(name, a) {
+      if (name !== "casPlay" || a[0] !== "coinflip") return Promise.resolve({ ok:true });
+      if (busy) return Promise.resolve({ ok:false, msg:"coin is in the air" });
+      const bet = Math.max(st.limits[0], Math.min(st.limits[1], a[2][0] | 0)), pick = a[2][1] ? 1 : 0;
+      if (bet > st.balance) return Promise.resolve({ ok:false, msg:"not enough in the bank" });
+      busy = true;
+      st.balance -= bet; push("casino", JSON.parse(JSON.stringify(st)));
+      setTimeout(() => {
+        const win = Math.random() < .46;
+        const face = win ? pick : 1 - pick;
+        const ret = win ? bet * 2 : 0;
+        st.balance += ret; push("casino", JSON.parse(JSON.stringify(st)));
+        push("casResult", { game:"coinflip", payload:[win, pick, face, bet, ret, ret - bet] });
+        busy = false;
+      }, 700 + Math.random() * 600);
+      return Promise.resolve({ ok:true, msg:"sent" });
+    },
+    _push:push
+  };
+})();
+
+const $ = s => document.querySelector(s);
+function fit() { document.documentElement.style.fontSize = Math.max(9, $("#frame").getBoundingClientRect().width / 75) + "px"; sizeCoin(); }
+window.addEventListener("resize", fit);
+const F = n => "$" + Math.round(n).toLocaleString();
+
+/* ---- WebGL felt (same shader as the landing) ---- */
+function feltGL(canvas) {
+  const gl = canvas.getContext("webgl", { antialias:false, alpha:false, powerPreference:"low-power" });
+  if (!gl) { canvas.style.background = "radial-gradient(ellipse at 50% 30%,#0d2a1e,#050b09 75%)"; return { kick(){} }; }
+  const V = "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
+  const Fs = "precision mediump float;uniform vec2 R;uniform float T;" +
+    "float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}" +
+    "float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);" +
+    "return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}" +
+    "void main(){vec2 uv=gl_FragCoord.xy/R;" +
+    "float hor=.58;vec3 c;" +
+    "if(uv.y<hor){" +                                   // the table: a real ground plane in perspective
+    "float t=hor-uv.y;float d=.055/max(t,.004);" +
+    "vec2 w=vec2((uv.x-.5)*(R.x/R.y)*d*6.,d*6.);" +
+    "float weave=n(w*22.)*.6+n(w*44.+7.)*.4;" +
+    "float fb=n(w*.9+T*.008);" +
+    "float fog=clamp(d*.16,0.,1.);" +
+    "vec3 felt=vec3(.05,.17,.12)*(.8+.3*fb)+(weave-.5)*.06*(1.-fog);" +
+    "vec2 lp=vec2(.3*sin(T*.045),2.1+.5*cos(T*.033));" +
+    "float ld=distance(w,lp);" +
+    "felt+=vec3(1.,.66,.16)*.14*exp(-ld*ld*.22);" +
+    "felt=mix(felt,vec3(.012,.03,.024),fog);" +
+    "c=felt;" +
+    "float rail=smoothstep(.085,.0,uv.y);" +            // padded rail at the near edge
+    "vec3 railC=vec3(.05,.082,.065)*(.9+.2*n(vec2(uv.x*40.,2.)));" +
+    "c=mix(c,railC,rail);" +
+    "c+=vec3(.5,.6,.3)*.05*smoothstep(.02,.0,abs(uv.y-.085));" +
+    "}else{" +                                          // the room behind the table
+    "float a=(uv.y-hor)/(1.-hor);" +
+    "c=mix(vec3(.02,.045,.036),vec3(.004,.01,.008),a);" +
+    "float m=smoothstep(.992,1.,n(uv*vec2(R.x/R.y,1.)*20.+vec2(T*.018,-T*.011)));" +
+    "c+=vec3(.75,.85,.45)*m*.22;" +
+    "}" +
+    "c+=vec3(.85,.75,.25)*.05*exp(-abs(uv.y-hor)*26.);" + // horizon glow
+    "float e=max(abs(uv.x-.5),abs(uv.y-.5))*2.;" +
+    "c*=1.-.45*pow(e,3.);" +
+    "gl_FragColor=vec4(c,1.);}";
+  function sh(t, s) { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; }
+  const pr = gl.createProgram();
+  gl.attachShader(pr, sh(gl.VERTEX_SHADER, V)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, Fs));
+  gl.linkProgram(pr); gl.useProgram(pr);
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(pr, "p");
+  gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const uR = gl.getUniformLocation(pr, "R"), uT = gl.getUniformLocation(pr, "T");
+  let until = 0, raf = 0, lastF = 0;
+  function size() {
+    const r = canvas.getBoundingClientRect();
+    canvas.width = Math.round(r.width); canvas.height = Math.round(r.height);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+  window.addEventListener("resize", () => { size(); draw(performance.now()); });
+  function draw(t) { gl.uniform2f(uR, canvas.width, canvas.height); gl.uniform1f(uT, t / 1000); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+  function frame(t) {
+    raf = 0;
+    if (t > until) { draw(t); return; }
+    if (t - lastF >= 33) { lastF = t; draw(t); }
+    raf = requestAnimationFrame(frame);
+  }
+  size();
+  return { kick(ms) { until = performance.now() + (ms || 9000); if (!raf) raf = requestAnimationFrame(frame); } };
+}
+const felt = feltGL($("#gl"));
+
+/* ---- audio ---- */
+let sndOn = true, ac = null;
+function beep(f, dur, gain, type) {
+  if (!sndOn) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || "square"; o.frequency.value = f;
+    g.gain.setValueAtTime(gain || .03, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + dur);
+    o.connect(g); g.connect(ac.destination);
+    o.start(); o.stop(ac.currentTime + dur);
+  } catch (e) {}
+}
+const clack = () => beep(210, .06, .05, "sawtooth");
+const winSting = () => { beep(660, .12, .05, "triangle"); setTimeout(() => beep(990, .18, .05, "triangle"), 110); setTimeout(() => beep(1320, .3, .05, "triangle"), 240); };
+$("#snd").onclick = () => { sndOn = !sndOn; $("#snd").textContent = "SND " + (sndOn ? "ON" : "OFF"); };
+
+/* ---- the coin ---- */
+const cv = $("#coin"), cx = cv.getContext("2d");
+let W = 0, H = 0;
+function sizeCoin() {
+  const r = cv.getBoundingClientRect();
+  if (!r.width) return;
+  W = cv.width = Math.round(r.width); H = cv.height = Math.round(r.height);
+  drawCoin();
+}
+/* Low-angle 3D: the coin tumbles end-over-end TOWARD the camera and comes to
+   rest LYING FLAT on the felt (foreshortened), never standing upright. The
+   camera elevation bakes in as a phase offset: apparent squash
+   s = cos(th − TILT); at rest (th = kπ) s = ±0.30 — a properly flat ellipse.
+   s ≥ 0 shows the HEADS side, s < 0 the TAILS side. y: 0 felt … 1 apex. */
+const TILT = 1.266;                    // ≈72.5° — camera ~17° above the felt
+let th = 0, y = 0, flip = null;
+function drawFace(side, R) {
+  // drawn in unsquashed coin space, caller has scaled ctx
+  if (side === 0) {          // HEADS — the core
+    cx.strokeStyle = "#c9e21a"; cx.fillStyle = "#c9e21a";
+    cx.lineWidth = R * .07; cx.shadowColor = "rgba(201,226,26,.8)"; cx.shadowBlur = R * .3;
+    cx.beginPath(); cx.arc(0, 0, R * .58, 0, 7); cx.stroke();
+    cx.beginPath(); cx.arc(0, 0, R * .2, 0, 7); cx.fill();
+    for (let k = 0; k < 4; k++) {
+      const a = k * Math.PI / 2 + Math.PI / 4;
+      cx.beginPath(); cx.moveTo(Math.cos(a) * R * .66, Math.sin(a) * R * .66);
+      cx.lineTo(Math.cos(a) * R * .82, Math.sin(a) * R * .82); cx.stroke();
+    }
+    cx.shadowBlur = 0;
+    cx.font = "800 " + Math.round(R * .3) + "px ui-monospace,Menlo,monospace";
+    cx.textAlign = "center"; cx.textBaseline = "middle";
+  } else {                   // TAILS — the hazard
+    cx.strokeStyle = "#ffb020"; cx.fillStyle = "#ffb020";
+    cx.lineWidth = R * .07; cx.shadowColor = "rgba(255,176,32,.8)"; cx.shadowBlur = R * .3;
+    cx.save();
+    cx.beginPath(); cx.arc(0, 0, R * .62, 0, 7); cx.clip();
+    cx.lineWidth = R * .13;
+    for (let k = -3; k <= 3; k++) {
+      cx.beginPath(); cx.moveTo(k * R * .32 - R, R); cx.lineTo(k * R * .32 + R, -R); cx.stroke();
+    }
+    cx.restore();
+    cx.lineWidth = R * .07;
+    cx.beginPath(); cx.arc(0, 0, R * .62, 0, 7); cx.stroke();
+    cx.shadowBlur = 0;
+  }
+}
+function drawCoin() {
+  if (!W) return;
+  cx.clearRect(0, 0, W, H);
+  const cX = W / 2, R = W * .21;
+  const gy = H * .8;
+  const air = y;
+  // felt shadow — hugs the coin as a contact shadow when it lies flat
+  const shY = gy + R * .14 - (1 - air) * R * .3;
+  cx.beginPath();
+  cx.ellipse(cX, shY, R * (1.06 - .38 * air), R * (.34 - .18 * air), 0, 0, 7);
+  cx.fillStyle = "rgba(0,0,0," + (.42 * (1 - .5 * air)).toFixed(3) + ")"; cx.fill();
+  const cy = gy - R * .2 - air * H * .5;
+  const s = Math.cos(th - TILT), absS = Math.max(.06, Math.abs(s));
+  const side = s >= 0 ? 0 : 1;
+  cx.save(); cx.translate(cX, cy);
+  const near = 1 + .13 * air;          // the toss comes toward the camera
+  cx.scale(near, near);
+  // edge band
+  const edge = R * .1 * (1 - Math.abs(s));
+  const eg = cx.createLinearGradient(0, -R, 0, R);
+  eg.addColorStop(0, "#5a665f"); eg.addColorStop(.5, "#2b3531"); eg.addColorStop(1, "#4a564f");
+  cx.beginPath(); cx.ellipse(0, edge, R, R * absS, 0, 0, 7);
+  cx.fillStyle = eg; cx.fill();
+  // face disc
+  const fg = cx.createRadialGradient(-R * .3, -R * .3 * absS, R * .1, 0, 0, R);
+  fg.addColorStop(0, "#242e29"); fg.addColorStop(1, "#101713");
+  cx.beginPath(); cx.ellipse(0, 0, R, R * absS, 0, 0, 7);
+  cx.fillStyle = fg; cx.fill();
+  cx.strokeStyle = "rgba(0,0,0,.7)"; cx.lineWidth = 2; cx.stroke();
+  // face art, squashed
+  cx.save();
+  cx.beginPath(); cx.ellipse(0, 0, R * .94, R * .94 * absS, 0, 0, 7); cx.clip();
+  cx.translate(0, -R * .05 * (1 - absS));   // far half compresses — cheap perspective, not just a skewed circle
+  cx.scale(1, absS * (s < 0 ? -1 : 1));
+  drawFace(side, R * .96);
+  cx.restore();
+  // rim light
+  cx.beginPath(); cx.ellipse(0, 0, R, R * absS, 0, Math.PI * 1.1, Math.PI * 1.9);
+  cx.strokeStyle = "rgba(255,255,255,.18)"; cx.lineWidth = Math.max(1.5, R * .03); cx.stroke();
+  cx.restore();
+  // caption under the coin when settled
+  if (!flip && lastFace >= 0) {
+    cx.fillStyle = lastFace === 0 ? "rgba(201,226,26,.85)" : "rgba(255,176,32,.85)";
+    cx.font = "800 " + Math.round(W * .045) + "px ui-monospace,Menlo,monospace";
+    cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.fillText(lastFace === 0 ? "HEADS" : "TAILS", cX, gy + R * .55);
+  }
+}
+let lastFace = -1, lastHalf = 0;
+function loop(t) {
+  if (!flip) { drawCoin(); return; }
+  const dt = Math.min(.05, (t - (flip.t || t)) / 1000); flip.t = t;
+  if (flip.phase === "spin") {
+    th += flip.om * dt;
+    y = Math.min(1, y + dt * 2.6);
+    flip.hang = (flip.hang || 0) + dt;
+    if (flip.hang > .38) y = 1 - .04 * Math.sin((flip.hang - .38) * 5);   // apex bob
+    if (flip.res != null && flip.hang > .55) {
+      // plan the landing: ≥2 more full tumbles, come to rest LYING FLAT on the server's face
+      let k = Math.ceil((th + Math.PI * 4) / Math.PI);
+      if (((k % 2) + 2) % 2 !== flip.res) k++;
+      flip.phase = "land"; flip.t0 = t; flip.dur = 950;
+      flip.th0 = th; flip.thF = k * Math.PI; flip.y0 = y;
+    }
+  } else if (flip.phase === "land") {
+    const q = Math.min(1, (t - flip.t0) / flip.dur);
+    const e = 1 - Math.pow(1 - q, 2.4);
+    th = flip.th0 + (flip.thF - flip.th0) * e;
+    if (q < .55) y = flip.y0 * (1 - Math.pow(q / .55, 2));
+    else if (q < .8) { if (!flip.b1) { flip.b1 = 1; clack(); } y = .1 * Math.sin(Math.PI * (q - .55) / .25); }
+    else { if (!flip.b2) { flip.b2 = 1; clack(); } y = .028 * Math.sin(Math.PI * (q - .8) / .2); }
+    if (q >= 1) { th = flip.thF; y = 0; landed(); return; }
+  }
+  const half = Math.floor(th / Math.PI);
+  if (half !== lastHalf) { lastHalf = half; beep(1100, .015, .014); }
+  drawCoin();
+  requestAnimationFrame(loop);
+}
+function landed() {
+  const r = flip.result;
+  flip = null;
+  lastFace = r.face;
+  drawCoin();
+  const fname = r.face === 0 ? "HEADS" : "TAILS";
+  if (r.win) {
+    winSting();
+    countUp(r.ret);
+    say("// " + fname + " — CREDITED " + F(r.ret) + " · SERVER SETTLED", "good");
+  } else {
+    setRes(fname, "YOU CALLED " + (r.pick === 0 ? "HEADS" : "TAILS") + " — HOUSE TAKES IT", "var(--dim)");
+    say("// " + fname + " — HOUSE TAKES " + F(r.bet), "bad");
+  }
+  $("#lastR").textContent = fname + " · CALLED " + (r.pick === 0 ? "HEADS" : "TAILS") + (r.win ? " — " + F(r.ret) : " — LOST");
+  $("#lastR").style.color = r.win ? "var(--acc)" : "var(--dim)";
+  logFlip(r, fname);
+  syncGo();
+  felt.kick(3000);
+}
+function countUp(n) {
+  const el = $("#resBig"); el.style.color = "var(--acc)";
+  $("#resLbl").textContent = "YOU WIN";
+  const t0 = performance.now();
+  (function step(t) {
+    const p = Math.min(1, (t - t0) / 900), e = 1 - Math.pow(1 - p, 2);
+    el.textContent = F(n * e);
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+}
+function setRes(big, lbl, col) { $("#resBig").textContent = big; $("#resBig").style.color = col; $("#resLbl").textContent = lbl; }
+
+/* ---- picks + bet bar ---- */
+let pick = 0;
+$("#pickH").onclick = () => { pick = 0; $("#pickH").classList.add("on"); $("#pickT").classList.remove("on"); syncGo(); };
+$("#pickT").onclick = () => { pick = 1; $("#pickT").classList.add("on"); $("#pickH").classList.remove("on"); syncGo(); };
+let cas = null, bet = 50000;
+function setBet(n, fromInput) {
+  if (cas) n = Math.max(cas.limits[0], Math.min(cas.limits[1], n || cas.limits[0]));
+  bet = n;
+  if (!fromInput) $("#betIn").value = bet.toLocaleString();
+  [...$("#chips").children].forEach(c => c.classList.toggle("on", +c.dataset.v === bet));
+  syncGo();
+}
+function renderChips() {
+  $("#chips").innerHTML = cas.chips.map(v =>
+    '<button class="chip" data-v="' + v + '">' + (v >= 1000000 ? v / 1000000 + "M" : v / 1000 + "K") + "</button>").join("");
+  [...$("#chips").children].forEach(c => c.onclick = () => { setBet(+c.dataset.v); felt.kick(2000); });
+  $("#clamp").textContent = cas.limits[0] / 1000 + "K–" + cas.limits[1] / 1000 + "K";
+}
+$("#betIn").addEventListener("input", e => { const n = +e.target.value.replace(/[^\d]/g, ""); if (n) setBet(n, true); });
+$("#betIn").addEventListener("blur", () => setBet(bet));
+$("#betIn").addEventListener("keydown", e => { if (e.key === "Enter") { setBet(bet); $("#go").click(); } });
+$("#betMax").onclick = () => setBet(cas ? Math.min(cas.limits[1], cas.balance) : 500000);
+
+/* ---- wiring ---- */
+let statusT = null;
+function say(m, tone) {
+  const el = $("#status");
+  el.textContent = m;
+  el.style.color = tone === "bad" ? "var(--danger)" : tone === "good" ? "var(--acc)" : tone === "warn" ? "var(--amber)" : "var(--faint)";
+  clearTimeout(statusT);
+  statusT = setTimeout(() => { el.textContent = defaultStatus(); el.style.color = "var(--faint)"; }, 3600);
+}
+function defaultStatus() {
+  return cas && cas.gate ? "// TABLE CLOSED TO YOU — " + cas.gate.toUpperCase()
+    : "// PAYS 2× — BUT THE COIN IS THE HOUSE'S, AND IT LANDS THE HOUSE'S WAY MORE OFTEN THAN NOT · ESC LEAVES";
+}
+function syncGo() {
+  const b = $("#go");
+  b.textContent = flip ? "IN THE AIR…" : "FLIP — " + F(bet) + " ON " + (pick === 0 ? "HEADS" : "TAILS");
+  b.disabled = !!flip || !cas || !!cas.gate || cas.balance < bet;
+  if (cas && cas.gate) say("// " + cas.gate.toUpperCase(), "bad");
+}
+$("#go").onclick = () => {
+  if (flip) return;
+  AP.call("casPlay", ["coinflip", "play", [bet, pick]]).then(r => {
+    if (r && r.ok === false) { say("// REFUSED — " + (r.msg || "").toUpperCase(), "bad"); return; }
+    lastFace = -1;
+    setRes("—", "IN THE AIR", "var(--dim)");
+    flip = { phase:"spin", om:19, res:null, t:0 };
+    y = 0;
+    felt.kick(7000);
+    syncGo();
+    requestAnimationFrame(loop);
+  });
+};
+function logFlip(r, fname) {
+  const box = $("#sess");
+  if (box.firstChild && box.firstChild.tagName === "SPAN") box.innerHTML = "";
+  const d = new Date(), tm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  const row = document.createElement("div");
+  row.className = "row";
+  row.innerHTML = '<span class="t">' + tm + '</span><span class="l">' + fname + " · CALLED " + (r.pick === 0 ? "H" : "T") +
+    '</span><span class="n" style="color:' + (r.net >= 0 ? "var(--acc)" : "var(--danger)") + '">' + (r.net >= 0 ? "+" : "−") + F(Math.abs(r.net)).slice(1) + "</span>";
+  box.prepend(row);
+  while (box.children.length > 12) box.removeChild(box.lastChild);
+}
+AP.on("casino", v => { cas = v; $("#bal").textContent = F(v.balance); if (!$("#chips").children.length) renderChips(); setBet(bet); });
+AP.on("casResult", r => {
+  if (r.game !== "coinflip") return;
+  if (!flip || flip.phase !== "spin" || flip.res != null) return;   // bridge replay guard
+  const p = r.payload;
+  flip.res = p[2];
+  flip.result = { win:p[0], pick:p[1], face:p[2], bet:p[3], ret:p[4], net:p[5] };
+});
+fit(); sizeCoin(); drawCoin(); felt.kick(6000);
+$("#status").textContent = defaultStatus();
+</script>
+</body></html>

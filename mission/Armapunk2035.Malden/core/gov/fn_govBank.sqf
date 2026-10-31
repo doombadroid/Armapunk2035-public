@@ -1,0 +1,27 @@
+#include "..\..\macro.h"
+if (scriptAvailable(8)) exitWith {["You cannot access the governor bank account so soon.", "basic"] spawn AP_fnc_handleMessage;
+    closeDialog 0};
+params[["_target", objNull, [objNull]], ["_caller", objNull, [objNull]], ["_actionId", -1, [-1]], ["_arguments", "", [""]]];
+if !(getPlayerUID player isEqualTo(SRV_governorData param[0, "GovUID"])) exitWith {closeDialog 0;};
+if !(AP_use_atm) exitWith {["Because you robbed a store you can't use the ATM for 5 minutes.", "basic"] spawn AP_fnc_handleMessage;};
+if !(dialog) then {["govBank"] call AP_fnc_createDialog;};
+if (player getVariable["AP_restrained", false]) exitWith {};
+if (player getVariable["AP_surrendered", false]) exitWith {};
+if (AP_gfunds_active) exitWith {closeDialog 0;
+    ["There is a transaction in progress. Please wait until it is complete.", "basic"] spawn AP_fnc_handleMessage};
+private _gangID = 50000;
+AP_gangfund_ready = false;
+AP_gang_funds = -1; [[0, _gangID, player], "APS_fnc_gangBank", false, false] spawn AP_fnc_MP;
+disableSerialization;
+private _display = findDisplay 251000;
+private _text = _display displayCtrl 251001;
+_text ctrlSetStructuredText parseText format["<img size='1.7' image='icons\bank.paa'/> %1<br/><img size='1.6' image='icons\money.paa'/> $%2", "Loading...", [AP_cash] call AP_fnc_numberText];
+ctrlEnable[251003, false];
+[] spawn {waitUntil {uiSleep 0.3;
+        AP_gangfund_ready};
+    uiSleep 0.5;
+    disableSerialization;
+    private _display = findDisplay 251000;
+    private _text = _display displayCtrl 251001;
+    _text ctrlSetStructuredText parseText format["<img size='1.7' image='icons\bank.paa'/> $%1<br/><img size='1.6' image='icons\money.paa'/> $%2", [AP_gang_funds] call AP_fnc_numberText, [AP_cash] call AP_fnc_numberText];
+    ctrlEnable[251003, true];};

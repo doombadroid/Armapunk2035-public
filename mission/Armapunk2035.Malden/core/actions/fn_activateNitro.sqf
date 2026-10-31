@@ -1,0 +1,10 @@
+params[["_vehicle", objNull, [objNull]]];
+if (isNull _vehicle || _vehicle isEqualTo player || !(driver _vehicle isEqualTo player) || _vehicle isKindOf "Air" || _vehicle getVariable["AP_nitro", 0] < 1) exitWith {};
+if ((speed _vehicle) <= 10) exitWith {systemChat "You must be moving at over 10km/h to activate Nitro.";};
+if (_vehicle getVariable["AP_timeTrialVehicle", false]) exitWith {systemChat "Nitro is not allowed during time trials"};
+_vehicle setVariable["AP_nitro", (_vehicle getVariable["AP_nitro", 0]) - 1, true];
+systemChat "Nitro engaged.";
+private _vel = velocity _vehicle;
+private _dir = direction _vehicle;
+private _speed = 20;
+_vehicle setVelocity[(_vel select 0) + (sin _dir * _speed), (_vel select 1) + (cos _dir * _speed), _vel select 2];

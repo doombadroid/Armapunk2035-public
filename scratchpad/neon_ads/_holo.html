@@ -1,0 +1,32 @@
+<!doctype html><html><head><meta charset="utf-8">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <style>
+    html,body { margin:0; width:1024px; height:1024px; overflow:hidden; background:transparent; }
+    .wrap { position:absolute; inset:0; opacity:0.82;
+      /* scanlines must CUT alpha, not paint black, so they live in a mask */
+      -webkit-mask-image:repeating-linear-gradient(0deg, #000 0 12px, rgba(0,0,0,.78) 12px 16px);
+      mask-image:repeating-linear-gradient(0deg, #000 0 12px, rgba(0,0,0,.78) 12px 16px); }
+    .ring { position:absolute; left:112px; top:112px; width:800px; height:800px;
+      border-radius:50%; border:14px solid #05d9e8;
+      box-shadow:0 0 54.400000000000006px #05d9e8, 0 0 144px #05d9e8, inset 0 0 54.400000000000006px #05d9e8; opacity:.95; }
+    .ring2 { position:absolute; left:172px; top:172px; width:680px; height:680px;
+      border-radius:50%; border:3px dashed #ff2a6d; opacity:.6; }
+    .tick { position:absolute; left:52px; top:502px; width:920px; height:26px;
+      background:repeating-linear-gradient(90deg, #05d9e8 0 7px, transparent 7px 46px); opacity:.7; }
+    .glyph { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      font-family:Michroma; font-size:470px; color:#ffffff; -webkit-text-stroke:8px #ffffff; clip-path:polygon(0 0,100% 0,100% 38%,3% 38%,3% 42%,100% 42%,100% 100%,0 100%);transform:translateX(8px);
+      text-shadow:0 0 6px #ffffff, 0 0 38.400000000000006px #05d9e8, 0 0 96px #05d9e8, 0 0 192px #05d9e8; text-shadow:-6px 0 #05d9e8,6px 0 #ff2a6d,0 0 44.800000000000004px #05d9e8; }
+    .label { position:absolute; left:0; right:0; top:836px; text-align:center;
+      font-family:'Space Mono',monospace; font-size:58px; font-weight:bold; letter-spacing:16px; color:#ffffff;
+      text-shadow:0 0 4px #fff, 0 0 32px #05d9e8, 0 0 76.80000000000001px #05d9e8; }
+    .sub { position:absolute; left:0; right:0; top:118px; text-align:center;
+      font-family:'Space Mono',monospace; font-size:34px; letter-spacing:10px; color:#ff2a6d;
+      text-shadow:0 0 19.200000000000003px #ff2a6d; }
+  </style></head><body>
+  <div class="wrap">
+    <div class="ring"></div><div class="ring2"></div><div class="tick"></div>
+    <div class="glyph">&#10013;</div>
+    <div class="sub">RIPPERDOC CERT.</div>
+    <div class="label">CHROME UP</div>
+  </div>
+  </body></html>

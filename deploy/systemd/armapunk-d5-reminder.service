@@ -1,0 +1,6 @@
+[Unit]
+Description=D5 daily reminder: live runs verifySignatures=0 until the client addon ships (MIGRATION_96.md D5)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/timb/Armapunk2035/deploy/live/d5_reminder.sh

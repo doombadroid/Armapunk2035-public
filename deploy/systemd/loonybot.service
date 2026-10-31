@@ -1,0 +1,22 @@
+# LoonyBot — LooneyBin Altis Life Discord bot.
+# systemd translation of the OpenRC supervise-daemon service (respawn-forever).
+# Install: sudo install -m0755 deploy/systemd/loonybot-launch.sh /usr/local/bin/loonybot
+#          sudo install -m0644 deploy/systemd/loonybot.service /etc/systemd/system/
+#          sudo systemctl enable --now loonybot
+[Unit]
+Description=LoonyBot (LooneyBin Altis Life Discord bot)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=timb
+Group=timb
+ExecStart=/usr/local/bin/loonybot
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

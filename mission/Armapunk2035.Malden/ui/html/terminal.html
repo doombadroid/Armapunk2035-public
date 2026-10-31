@@ -1,0 +1,118 @@
+<!-- TERMINAL BREACH — type each command exactly, fast, before the trace lands.
+     Replaces dialog cyberdeck_term (941000) and its baked cyan deck.
+     FIRST PASS: the game is right, the look is deliberately plain. -->
+<meta charset="utf-8">
+<title>TERMINAL BREACH</title>
+<script>
+window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+  A3API.RequestFile("webui\\ui\\webui.js").then(function (s) { (0, eval)(s); })
+    .catch(function (e) { console.error("bridge self-load failed", e); });
+}
+</script>
+<style>
+:root{--scr:#04080f;--panel:#081422;--cyan:#54b0ff;--hot:#ff4d4d;--amber:#ffb020;
+  --ink:#cfdfe9;--dim:#6d7f8f;--faint:#3a4a5c;--line:rgba(84,176,255,.16);
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:transparent;font-family:var(--mono);overflow:hidden;color:var(--ink)}
+#w{position:fixed;inset:0;display:flex;flex-direction:column;padding:1.1rem 1.4rem;gap:.6rem;
+  background:radial-gradient(ellipse at 50% 0%,#081626 0%,var(--scr) 72%);
+  border:1px solid var(--line);border-radius:.6rem}
+#w:after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.16;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.55) 0 1px,transparent 1px 3px)}
+h1{flex:none;margin:0;font-size:.72rem;letter-spacing:.22em;color:var(--cyan);font-weight:700}
+h1 span{color:var(--faint);letter-spacing:.14em;margin-left:.8rem;font-weight:400}
+#clock{position:absolute;top:.9rem;right:1.4rem;font-size:1.6rem;color:var(--cyan);font-variant-numeric:tabular-nums}
+#clock.low{color:var(--hot)}
+#bar{flex:none;height:5px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden}
+#bar i{display:block;height:100%;background:var(--cyan);transition:width .08s linear}
+#bar.low i{background:var(--hot)}
+#log{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;
+  gap:.15rem;font-size:.8rem;line-height:1.5}
+.done{color:var(--cyan);opacity:.75} .done:before{content:"$ ";color:var(--faint)}
+.ok{color:var(--faint);font-size:.68rem;padding-left:1rem}
+#now{flex:none;font-size:1.05rem;color:var(--amber);letter-spacing:.02em}
+#now:before{content:"TYPE: ";color:var(--faint);font-size:.7rem;letter-spacing:.14em}
+#in{flex:none;display:flex;align-items:center;gap:.5rem;border-top:1px solid var(--line);padding-top:.5rem}
+#in b{color:var(--cyan);font-weight:400}
+#typed{flex:1;font-size:1.05rem;white-space:pre;min-height:1.4em}
+#typed i{font-style:normal;color:var(--hot);text-decoration:underline}
+#caret{width:.55rem;height:1.15rem;background:var(--cyan);animation:bl .9s steps(2,end) infinite}
+@keyframes bl{50%{opacity:0}}
+#verdict{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+  font-size:2.2rem;letter-spacing:.22em;background:rgba(2,8,8,.85);text-align:center;padding:2rem}
+#verdict.on{display:flex} #verdict.ok{color:var(--cyan)} #verdict.no{color:var(--hot)}
+</style>
+<div id="w">
+  <h1>TERMINAL BREACH<span id="sub">ICEBREAKER // ROOT</span></h1>
+  <div id="clock">0.00</div>
+  <div id="bar"><i></i></div>
+  <div id="log"></div>
+  <div id="now"></div>
+  <div id="in"><b>root@target:~#</b><div id="typed"></div><div id="caret"></div></div>
+  <div id="verdict"></div>
+</div>
+<script>
+var S={cmds:[],idx:0,typed:"",deadline:0,limit:0,over:false,AP:null};
+var el=function(i){return document.getElementById(i)};
+function paint(){
+  el("log").innerHTML = S.cmds.slice(0,S.idx).map(function(c){
+    return '<div class="done">'+c+'</div><div class="ok">// accepted</div>'}).join("");
+  el("now").textContent = S.cmds[S.idx] || "";
+  var want=S.cmds[S.idx]||"", bad=false, out="";
+  for (var i=0;i<S.typed.length;i++){
+    var ch=S.typed[i], good=want[i]===ch;
+    if(!good) bad=true;
+    out += good ? ch.replace(/</g,"&lt;") : '<i>'+ch.replace(/</g,"&lt;")+'</i>';
+  }
+  el("typed").innerHTML = out;
+  return bad;
+}
+function finish(r){
+  if(S.over) return; S.over=true;
+  var v=el("verdict");
+  v.textContent = r===1 ? "ROOT ACCESS GRANTED" : "TRACE LOCKED — CONNECTION DROPPED";
+  v.className = "on "+(r===1?"ok":"no");
+  if(S.AP) S.AP.call("breachDone",[r]);
+}
+document.addEventListener("keydown",function(ev){
+  if(S.over) return;
+  if(ev.key==="Backspace"){ S.typed=S.typed.slice(0,-1); paint(); ev.preventDefault(); return; }
+  if(ev.key==="Enter"){
+    if(S.typed===S.cmds[S.idx]){ S.idx++; S.typed=""; paint();
+      if(S.idx>=S.cmds.length) finish(1); }
+    else { S.deadline-=1.5; el("typed").style.color="var(--hot)";
+      setTimeout(function(){el("typed").style.color=""},140); }
+    ev.preventDefault(); return;
+  }
+  if(ev.key.length===1){ S.typed+=ev.key; paint(); ev.preventDefault(); }
+});
+function tick(){
+  if(S.over) return;
+  var rem=S.deadline-Date.now()/1000;
+  if(rem<=0){ finish(0); return; }
+  var low=rem<5;
+  el("clock").textContent=rem.toFixed(2); el("clock").className=low?"low":"";
+  el("bar").className=low?"low":"";
+  el("bar").firstElementChild.style.width=Math.max(0,Math.min(1,rem/S.limit))*100+"%";
+  requestAnimationFrame(tick);
+}
+WEBUIReady.then(function(AP){
+  S.AP=AP;
+  AP.on("breach",function(v){
+    if(!v||S.over) return;
+    S.cmds=v.cmds||[]; S.limit=v.time; S.idx=0; S.typed="";
+    S.deadline=Date.now()/1000+v.time;
+    el("sub").textContent="ICEBREAKER // "+S.cmds.length+" COMMANDS";
+    paint(); requestAnimationFrame(tick);
+  });
+});
+if(typeof A3API==="undefined"){
+  setTimeout(function(){
+    S.cmds=["nmap -sS 10.0.0.1","chmod 777 /etc/keys","cat /etc/shadow"];
+    S.limit=26; S.deadline=Date.now()/1000+26; paint(); requestAnimationFrame(tick);
+  },50);
+}
+</script>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="./fonts-local.css">
+<style>
+  html, body { margin: 0; padding: 0; background: #050302; overflow: hidden; }
+</style>
+<script>
+  // render.mjs injects window.__HARNESS_CFG via addInitScript before load.
+  (function () {
+    var hc = window.__HARNESS_CFG || {};
+    window.ARMAPUNK_BG_ONLY = !!hc.bgOnly;
+    window.OM_SCENES = '[{"name":"Boot","dur":3},{"name":"Logo","dur":3},{"name":"Menu","dur":4},{"name":"Idle","dur":5}]';
+    window.OM_PLAYBACK = '{"mode":"loop"}';
+    window.TWEAK_DEFAULTS = {
+      palette: ['#ff2a6d', '#05d9e8'],
+      aspect: hc.aspect || '16:9',
+      res: hc.res || '1080p',
+      scanlines: true,
+      glitch: 1,
+      motionEditor: false,
+    };
+  })();
+</script>
+<script src="../node_modules/react/umd/react.production.min.js"></script>
+<script src="../node_modules/react-dom/umd/react-dom.production.min.js"></script>
+<script src="../node_modules/@babel/standalone/babel.min.js"></script>
+<script src="./stage.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script src="./loader.js"></script>
+</body>
+</html>

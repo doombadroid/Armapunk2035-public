@@ -1,0 +1,864 @@
+<!doctype html>
+<!-- CASINO — BLACKJACK · DEALERBOT'S TABLE. Self-contained, game-ready: inline
+     CSS/JS, no libs, no network, no storage. AP stub behind a guard.
+
+     THE DESIGN (signed off in the form rounds):
+     · SHARED TABLE — 5 seats, every seat's hands, bets and states visible.
+     · POWERUPS — 7 consumable chips, NO CAP on plays, stack what you own.
+       PvP chips (Siphon, Ghost) are ALWAYS LIVE.
+     · Powerups are AWARDED ON MONEY WINS, randomly (server rolls the drop).
+     · 20s shot clock per action; timeout auto-stands.
+     · Splits stack to FOUR hands per seat; multi-hand seats render compact.
+     · One table, min bet from payload (high-roller tier is a config knob).
+     · Dealer: DEALERBOT — a glitchy deck spirit with two voices that disagree.
+
+     CONTRACT (page defines it; SQF implements; server owns EVERYTHING)
+       AP.on("casino",   { balance, chips:[...], limits, gate })
+       AP.on("bj.table", { phase:"betting"|"dealing"|"acting"|"dealer"|"payout",
+         round, minBet, clock:{ seat, secs },
+         dealer:{ cards:[c|-1...], total, hole },        // -1 = face-down hole
+         seats:[{ seat, name, you, ghost, bet, chips,    // chips = powerup count
+                  hands:[{ cards:[c...], total, bet,
+                           state:""|"stood"|"bust"|"blackjack"|"win"|"lose"|"push" }],
+                  activeHand, state:"empty"|"idle"|"bet"|"acting",
+                  actions:["hit","stand","double","split"] }] })   // YOUR legal moves — the UI law
+       AP.on("bj.you",   { seat, wallet:[{ id, name, n }] })
+       AP.on("bj.event", { kind, seat, text, ... })      // deal ticker + DEALERBOT's lines
+       AP.call("bjSit",[seat]) · bjLeave · bjBet,[amt] · bjAct,[action] · bjChip,[chipId, targetSeat]
+     Cards 0–51 (suit=floor(c/13) C D H S, rank=c%13), -1 face-down. 6-deck shoe.
+
+     POWERUPS — 26 chips, tiered drops (common / rare / LEGENDARY), no carry
+     cap, awarded randomly on money wins (pity guarantees a drop by the 3rd
+     dropless win; server owns the roll, ~40% stub). PvP chips ALWAYS live.
+     Server validates every phase + target; the page only offers. Roster:
+     Peek · Scramble · Overclock · Firewall · Siphon · Ghost · Jackpot ·
+     Nudge · Hard Nudge · Stand.19 · Eject · Brick · FLATLINE · House Swap ·
+     Handshake · Mirror · GIFT.EXE · Backstab · Feed · Rewire · Spite ·
+     MARTYR · Ace.Inject · CASCADE · Purge · Chip Swap (CAPS = legendary).
+
+     BONUS ROUNDS — DEALERBOT randomly declares a one-round table modifier
+     (~28% of rounds in the stub): PAYDAY wins +50% · HOT SHOE blackjack 3× ·
+     FREE DOUBLE · GLASS HOUSE dealer plays face-up · CHIP RAIN every win
+     drops. Pushed as bj.event {kind:"bonus"}; a banner renders by the dealer.
+
+     WHAT ANIMATES: DOM only — card deals (~.3s each), chip clinks, the shot
+     clock bar, the felt while hot. Between rounds the page is still; no
+     persistent rAF. Audio: deal snaps, your-turn ping, DEALERBOT's two-tone
+     glitch, win sting, bust thud, drop fanfare; SND toggle. -->
+<html><head><meta charset="utf-8"><title>CASINO — blackjack</title>
+<script>
+/* ---- BRIDGE SHIM (installed by tools/install_casino_pages.py) --------------
+   window.WEBUI does not exist while this page's own script runs; the bridge is
+   INJECTED afterwards. Anything that touches it at load is silently deaf, which
+   is how the first web shop shipped.
+
+   AP is defined here, synchronously, before the page's script -- so its
+   `if (typeof AP === "undefined")` dev stub never installs, and every on()/call()
+   made before the bridge lands is queued and flushed when it does. -------- */
+(function () {
+  var subs = {}, queued = [], W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  /* Instrumentation for AP_fnc_casinoDiag. The browser console is unreachable
+     in game -- Esc opens it and closes the dialog -- so a deaf page has to be
+     able to say why on its own surface. */
+  window.__apSubs = subs;
+  /* A throw inside a channel handler is CAUGHT by webui.js and console.error'd,
+     and the console is unreachable in game -- so a payload the page cannot read
+     looks exactly like a payload that never arrived. Wrapping every handler
+     records the first failure where the diagnostic can print it. */
+  function guard(n, f) {
+    return function (v) {
+      try { return f(v); }
+      catch (e) { if (!window.__apHandlerErr) window.__apHandlerErr = n + ": " + e; throw e; }
+    };
+  }
+  window.AP = {
+    __shim: true,
+    on: function (n, f) {
+      (subs[n] = subs[n] || []).push(guard(n, f));
+      if (W) W.on(n, subs[n][subs[n].length - 1]);
+    },
+    call: function (n, a) {
+      if (W) return W.call(n, a || [], 20000);
+      return new Promise(function (res, rej) { queued.push([n, a || [], res, rej]); });
+    },
+    handle: function (n, f) { if (W) W.handle(n, f); }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    W.on("casino", function () { window.__apGotCasino = true; });
+    queued.forEach(function (q) { W.call(q[0], q[1], 20000).then(q[2], q[3]); });
+    queued = [];
+  });
+  /* A <script src> cannot work here -- the page has no resolvable base URL and
+     the src quietly resolves to nothing. SQF injects the same file too and
+     webui.js is idempotent, so whichever lands first wins. */
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else {
+    window.__apBootErr = "no A3API on this page";
+  }
+})();
+</script>
+<style>
+:root{
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --scr:#050b09; --scr2:#0a1310; --panel:#0c1712; --panel2:#0e1a15;
+  --acc:#c9e21a; --acc2:#33ffbb; --danger:#ff5a3c; --amber:#ffb020; --magenta:#ff3d81;
+  --ink:#dcefe0; --dim:#7f938a; --faint:#465a51; --line:rgba(201,226,26,.15);
+}
+html,body{margin:0;height:100%;background:#07090a;font-family:var(--mono)}
+#stage{position:fixed;inset:0;display:grid;place-items:center}
+#frame{width:min(96vw,192vh);aspect-ratio:2/1;position:relative}
+#screen{position:absolute;inset:0;border-radius:.6rem;overflow:hidden;display:flex;flex-direction:column;
+  background:var(--scr);box-shadow:inset 0 0 0 1px #000,0 30px 80px rgba(0,0,0,.7)}
+#gl{position:absolute;inset:0;width:100%;height:100%}
+#screen::after{content:"";position:absolute;inset:0;z-index:40;pointer-events:none;opacity:.26;
+  background:repeating-linear-gradient(180deg,transparent 0 2px,rgba(0,0,0,.2) 2px 3px)}
+.hdr{position:relative;z-index:3;flex:none;display:flex;align-items:center;gap:.8rem;padding:.55rem 1.1rem;
+  background:rgba(10,19,16,.78);border-bottom:1px solid var(--line)}
+.led{width:.5rem;height:.5rem;border-radius:50%;background:var(--magenta);box-shadow:0 0 .55rem rgba(255,61,129,.55);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+a.back{color:var(--dim);text-decoration:none;font-size:.6rem;letter-spacing:.14em}
+a.back:hover{color:var(--acc)}
+.bal{margin-left:auto;display:flex;align-items:baseline;gap:.45rem;font-size:.7rem;color:var(--dim)}
+.bal b{color:#eef4ee;font-size:.85rem;font-variant-numeric:tabular-nums}
+.snd{border:1px solid var(--line);background:transparent;color:var(--dim);border-radius:.35rem;
+  font-family:var(--mono);font-size:.54rem;letter-spacing:.12em;padding:.24rem .5rem;cursor:pointer}
+.snd:hover{color:var(--acc)}
+.body{position:relative;z-index:2;flex:1;min-height:0;display:flex}
+.pit{flex:1;min-width:0;position:relative;overflow:hidden}
+/* dealer */
+.dealerZ{position:absolute;top:.6rem;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:.3rem}
+.split{display:flex;align-items:center;gap:.55rem}
+.head{position:relative;width:2.6rem;height:2.6rem;perspective:14rem;flex:none}
+.head::before{content:"";position:absolute;top:-.5rem;left:50%;width:1.5px;height:.5rem;background:var(--dim)}
+.head::after{content:"";position:absolute;top:-.7rem;left:50%;width:.3rem;height:.3rem;margin-left:-.08rem;border-radius:50%;background:var(--amber);box-shadow:0 0 .4rem rgba(255,176,32,.7);animation:pulse 2.4s ease-in-out infinite}
+.hin{position:relative;display:block;width:100%;height:100%;transform-style:preserve-3d;transition:transform .55s cubic-bezier(.3,.7,.25,1.15)}
+.hin.b{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;border-radius:.6rem;backface-visibility:hidden;display:grid;place-items:end center;
+  font-weight:800;font-size:1rem;padding-bottom:.25rem;border:1px solid}
+.face::before{content:"";position:absolute;top:.6rem;left:50%;width:1.5rem;height:.3rem;transform:translateX(-50%);
+  background:radial-gradient(circle at 22% 50%,currentColor .13rem,transparent .18rem),radial-gradient(circle at 78% 50%,currentColor .13rem,transparent .18rem)}
+.fa{background:linear-gradient(165deg,#12211c,#0a1310);border-color:rgba(51,255,187,.55);color:var(--acc2);box-shadow:0 0 .8rem rgba(51,255,187,.18)}
+.fb{transform:rotateY(180deg);background:linear-gradient(165deg,#211019,#130a10);border-color:rgba(255,61,129,.55);color:var(--magenta);box-shadow:0 0 .8rem rgba(255,61,129,.18)}
+
+.splitNm{font-size:.8rem;font-weight:800;letter-spacing:.3em;color:#eef4ee}
+.splitLine{min-height:1rem;font-size:.62rem;letter-spacing:.06em;text-align:center}
+.dCards{display:flex;gap:.35rem;margin-top:.2rem;min-height:5.1rem}
+.dTotal{font-size:.66rem;color:var(--dim);letter-spacing:.14em;min-height:.9rem}
+.ticker{position:absolute;top:11.2rem;left:0;right:0;text-align:center;font-size:.56rem;letter-spacing:.1em;color:var(--faint);min-height:.9rem}
+/* seats on an arc */
+.seat{position:absolute;bottom:5rem;width:9.8rem;margin-left:-4.9rem;display:flex;flex-direction:column;align-items:center;gap:.25rem;transition:transform .3s ease;z-index:1}
+.seat.you{z-index:5}
+.seat.active{z-index:6}
+.seat .cardsRow{display:flex;justify-content:center;min-height:3.9rem;align-items:flex-end}
+.hand{display:flex;align-items:flex-end}
+.hand.tight .pcard{margin-left:-1.7rem;width:2.5rem;height:3.5rem}
+.hand.tight .pcard:first-child{margin-left:0}
+.hand.tight .pcard .r{font-size:.8rem}
+.hand.tight .pcard .s{font-size:.85rem}
+.seat .pcard{margin-left:-1.1rem}
+.seat .pcard:first-child{margin-left:0}
+.plate{display:flex;align-items:center;gap:.35rem;padding:.24rem .5rem;border-radius:.4rem;background:rgba(10,19,16,.88);border:1px solid var(--line);font-size:.56rem;letter-spacing:.06em;color:var(--ink);white-space:nowrap}
+.plate .bet{color:var(--amber);font-variant-numeric:tabular-nums}
+.plate .pu{color:var(--magenta)}
+.seat.you .plate{border-color:rgba(201,226,26,.5)}
+.seat.active .plate{border-color:rgba(51,255,187,.65);box-shadow:0 0 .8rem rgba(51,255,187,.2)}
+.stateChip{font-size:.5rem;font-weight:800;letter-spacing:.12em;padding:.1rem .35rem;border-radius:.25rem;background:rgba(0,0,0,.55);min-height:.85rem}
+.playedRow{display:flex;gap:.25rem;flex-wrap:wrap;justify-content:center;max-width:10.5rem}
+.pchipB{font-size:.46rem;font-weight:800;letter-spacing:.06em;padding:.1rem .32rem;border-radius:.24rem;background:rgba(10,19,16,.88);border:1px solid var(--line);color:var(--magenta)}
+.pchipB.t1{color:var(--amber)}
+.pchipB.t2{color:var(--acc);border-color:rgba(201,226,26,.4)}
+.sitBtn{width:5.4rem;height:2.1rem;border-radius:.45rem;border:1px dashed rgba(70,90,81,.6);background:rgba(10,19,16,.6);
+  color:var(--dim);font-family:var(--mono);font-size:.56rem;letter-spacing:.14em;cursor:pointer}
+.sitBtn:hover{color:var(--acc);border-color:rgba(201,226,26,.5)}
+/* cards */
+.pcard{width:3rem;height:4.2rem;border-radius:.4rem;position:relative;perspective:40rem;flex:none}
+.pcard.big{width:3.8rem;height:5.3rem}
+.pcard .in{position:absolute;inset:0;border-radius:.4rem;transform-style:preserve-3d;transition:transform .3s cubic-bezier(.25,.7,.3,1.04)}
+.pcard.facedown .in{transform:rotateY(180deg)}
+.pcard .f,.pcard .b{position:absolute;inset:0;border-radius:.4rem;backface-visibility:hidden;overflow:hidden}
+.pcard .f{background:linear-gradient(165deg,#121e18,#0b1310 70%);border:1px solid rgba(201,226,26,.28);
+  box-shadow:0 6px 16px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0}
+.pcard .b{transform:rotateY(180deg);border:1px solid rgba(201,226,26,.3);
+  background:repeating-linear-gradient(-45deg,rgba(201,226,26,.14) 0 .3rem,transparent .3rem .7rem),#0c1712;box-shadow:0 6px 16px rgba(0,0,0,.5)}
+.pcard .r{font-size:.95rem;font-weight:800;line-height:1}
+.pcard .s{font-family:var(--sans);font-size:1.05rem;line-height:1.1}
+.pcard.big .r{font-size:1.2rem}.pcard.big .s{font-size:1.35rem}
+/* action bar + clock */
+.actions{position:absolute;bottom:.4rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:row;align-items:center;gap:.5rem;z-index:8;
+  padding:.3rem .5rem;border-radius:.55rem;background:rgba(10,19,16,.85);border:1px solid var(--line)}
+.actions:empty{display:none}
+.actRow{display:flex;gap:.4rem}
+.act{height:2.2rem;padding:0 .85rem;border-radius:.5rem;font-family:var(--mono);font-size:.66rem;font-weight:800;letter-spacing:.12em;cursor:pointer;
+  border:1px solid rgba(51,255,187,.55);background:rgba(10,19,16,.85);color:var(--acc2)}
+.act:hover{background:rgba(51,255,187,.18)}
+.act:disabled{border-color:rgba(70,90,81,.35);color:#33453c;cursor:not-allowed;background:rgba(10,19,16,.6)}
+.clock{width:7.5rem;height:.35rem;border-radius:.2rem;background:rgba(10,19,16,.8);overflow:hidden;border:1px solid rgba(255,255,255,.06)}
+.clock span{display:block;height:100%;background:var(--acc2);width:100%;transition:width 1s linear}
+.clock.low span{background:var(--danger)}
+/* powerup tray */
+.targeting.selfok .seat.you{outline:2px dashed var(--acc2);outline-offset:4px;cursor:crosshair;border-radius:.5rem}
+.bonusBan{display:flex;align-items:center;gap:.4rem;padding:.2rem .6rem;border-radius:.35rem;border:1px solid rgba(255,176,32,.55);background:rgba(255,176,32,.12);color:var(--amber);font-size:.56rem;font-weight:800;letter-spacing:.14em}
+.locker{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:.28rem}
+.lrow{display:flex;align-items:center;gap:.4rem;padding:.3rem .4rem;background:var(--panel2);border:1px solid var(--line);border-radius:.4rem;flex:none}
+.lrow .lx{flex:1;min-width:0;display:flex;flex-direction:column;gap:.08rem}
+.lrow .ln{font-size:.58rem;font-weight:800;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .ln small{color:var(--faint);font-weight:600;letter-spacing:.1em;font-size:.46rem;margin-left:.25rem}
+.lrow .ld{font-size:.5rem;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lplay{flex:none;height:1.6rem;padding:0 .5rem;border-radius:.35rem;border:1px solid var(--line);background:transparent;color:var(--acc2);font-family:var(--mono);font-size:.5rem;font-weight:800;letter-spacing:.1em;cursor:pointer}
+.lplay:hover{border-color:rgba(51,255,187,.5);background:rgba(51,255,187,.1)}
+.targeting .seat:not(.you){outline:2px dashed var(--magenta);outline-offset:4px;cursor:crosshair;border-radius:.5rem}
+.panel{flex:none;width:19rem;border-left:1px solid var(--line);background:rgba(10,19,16,.8);
+  display:flex;flex-direction:column;min-height:0;padding:.6rem .65rem;gap:.45rem;z-index:3}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:.55rem;padding:.5rem .6rem;display:flex;flex-direction:column;gap:.3rem}
+.lbl{font-size:.54rem;letter-spacing:.18em;color:var(--faint)}
+.kv{display:flex;justify-content:space-between;align-items:baseline;font-size:.6rem;color:var(--dim)}
+.kv b{color:var(--ink);font-variant-numeric:tabular-nums}
+.big{font-size:1.4rem;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums;min-height:1.8rem}
+.chips{display:flex;gap:.28rem;flex-wrap:wrap}
+.chip{flex:1;min-width:2.8rem;height:1.8rem;border-radius:1rem;border:1px solid var(--line);background:var(--panel2);
+  color:var(--dim);font-family:var(--mono);font-size:.58rem;font-weight:700;cursor:pointer}
+.chip:hover{color:var(--acc)}
+.chip.on{color:#0a1005;background:var(--acc);border-color:var(--acc)}
+.betrow{display:flex;align-items:center;gap:.4rem;background:var(--scr2);border:1px solid var(--line);
+  border-left:2px solid var(--acc2);border-radius:.45rem;padding:.35rem .5rem}
+.betrow input{flex:1;min-width:0;font-family:var(--mono);font-size:.8rem;font-weight:700;color:var(--acc2);
+  background:none;border:none;outline:none;font-variant-numeric:tabular-nums}
+.go{height:2.6rem;border-radius:.5rem;border:1px solid rgba(201,226,26,.55);background:rgba(201,226,26,.16);
+  color:var(--acc);font-family:var(--mono);font-size:.7rem;font-weight:800;letter-spacing:.14em;cursor:pointer}
+.go:hover{background:rgba(201,226,26,.24)}
+.go:disabled{border-color:rgba(70,90,81,.35);background:transparent;color:#33453c;cursor:not-allowed}
+.sess{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:.22rem}
+.sess .row{display:flex;gap:.4rem;font-size:.55rem;align-items:baseline}
+.sess .t{color:var(--faint)}
+.sess .l{flex:1;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess .n{font-variant-numeric:tabular-nums}
+.status{position:relative;z-index:3;flex:none;display:flex;align-items:center;height:1.8rem;padding:0 1.1rem;
+  border-top:1px solid var(--line);background:rgba(10,19,16,.78);font-size:.56rem;letter-spacing:.08em;color:var(--faint)}
+*::-webkit-scrollbar{width:5px}*::-webkit-scrollbar-thumb{background:#22332a;border-radius:3px}
+</style></head><body>
+<div id="stage"><div id="frame"><div id="screen" data-screen-label="Blackjack — DEALERBOT'S TABLE">
+  <canvas id="gl"></canvas>
+  <div class="hdr">
+    <span class="led"></span>
+    <span style="color:var(--magenta);font-weight:800;font-size:.95rem;letter-spacing:.3em">BLACKJACK</span>
+    <span style="color:var(--faint);font-size:.62rem;letter-spacing:.24em">// DEALERBOT'S TABLE · 5 SEATS · POWERUPS LIVE · DROPS ON WINS</span>
+    <a class="back" href="#" onclick="AP.call('casTable',['landing']);return false;">⟵ FLOOR</a>
+    <span class="bal">BANK <b id="bal">—</b></span>
+    <button class="snd" id="snd">SND ON</button>
+  </div>
+  <div class="body">
+    <div class="pit" id="pit">
+      <div class="dealerZ">
+        <div class="split"><span class="head"><span class="hin" id="headIn"><span class="face fa">A</span><span class="face fb">B</span></span></span><span class="splitNm">DEALERBOT</span></div>
+        <span class="splitLine" id="splitLine"></span>
+        <span class="bonusBan" id="bonus" style="display:none"></span>
+        <div class="dCards" id="dCards"></div>
+        <span class="dTotal" id="dTotal"></span>
+      </div>
+      <div class="ticker" id="ticker"></div>
+      <div id="seats"></div>
+      <div class="actions" id="actions"></div>
+    </div>
+    <div class="panel">
+      <div class="card">
+        <span class="lbl" id="resLbl">TABLE</span>
+        <span class="big" id="resBig">—</span>
+        <div class="kv"><span>PHASE</span><b id="phase">—</b></div>
+        <div class="kv"><span>MIN BET</span><b id="minBet">—</b></div>
+        <div class="kv"><span>LAST ROUND</span><b id="lastR">—</b></div>
+      </div>
+      <div class="card">
+        <span class="lbl">BET — CLAMPS <span id="clamp">10K–500K</span></span>
+        <div class="chips" id="chips"></div>
+        <div class="betrow"><span style="color:var(--faint);font-size:.65rem">$</span><input id="betIn" inputmode="numeric" value="50,000"><button class="chip" id="betMax" style="flex:none;min-width:2.4rem">MAX</button></div>
+        <button class="go" id="go">SIT AT THE TABLE</button>
+      </div>
+      <div class="card" style="flex:1.3;min-height:0">
+        <span class="lbl">CHIP LOCKER — <span id="puCount">0</span> HELD</span>
+        <div class="locker" id="locker"><span style="font-size:.55rem;color:var(--faint)">EMPTY — WIN HANDS, CHIPS DROP</span></div>
+      </div>
+      <div class="card" style="flex:1;min-height:0">
+        <span class="lbl">THIS SESSION</span>
+        <div class="sess" id="sess"><span style="font-size:.55rem;color:var(--faint)">NO ROUNDS YET</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="status" id="status"></div>
+</div></div></div>
+
+<script>
+/* ════ AP STUB — a whole mock table server (dev only; SQF replaces it).
+   Bots, shoe, phases, powerup effects and drop rolls all live SERVER-side. */
+if (typeof AP === "undefined") window.AP = (function () {
+  const subs = {}, last = {};
+  const push = (n, v) => { last[n] = v; (subs[n] || []).forEach(f => f(JSON.parse(JSON.stringify(v)))); };
+  const st = { balance:1240000, chips:[10000,50000,100000,250000,500000], limits:[10000,500000], gate:"" };
+  push("casino", st);
+  const PU = { peek:"PEEK.EXE", scramble:"SCRAMBLE", overclock:"OVERCLOCK", firewall:"FIREWALL", siphon:"SIPHON", ghost:"GHOST.SYS", jackpot:"JACKPOT CHIP",
+    nudge:"NUDGE", hardnudge:"HARD NUDGE", stand19:"STAND.19", eject:"EJECT", brick:"BRICK", flatline:"FLATLINE", houseswap:"HOUSE SWAP",
+    handshake:"HANDSHAKE", mirror:"MIRROR", gift:"GIFT.EXE", backstab:"BACKSTAB", feed:"FEED", rewire:"REWIRE", spite:"SPITE", martyr:"MARTYR",
+    aceinject:"ACE.INJECT", cascade:"CASCADE", purge:"PURGE", chipswap:"CHIP SWAP" };
+  const TIER = { peek:0, scramble:0, firewall:0, ghost:0, jackpot:0, nudge:0, feed:0, eject:0, purge:0,
+    overclock:1, siphon:1, hardnudge:1, stand19:1, brick:1, houseswap:1, handshake:1, mirror:1, rewire:1, spite:1, aceinject:1, chipswap:1, backstab:1,
+    flatline:2, gift:2, martyr:2, cascade:2 };
+  const POOL = [].concat(...Object.keys(TIER).map(k => Array(TIER[k] === 2 ? 1 : TIER[k] === 1 ? 3 : 6).fill(k)));
+  const BONUS = [
+    { id:"payday",     text:"PAYDAY — WINS PAY +50%",             say:"A// payday round. wins pay half again.|B// the vault weeps." },
+    { id:"hotshoe",    text:"HOT SHOE — BLACKJACK PAYS 3×",       say:"A// hot shoe. naturals pay triple.|B// the shoe was NOT consulted." },
+    { id:"freedouble", text:"FREE DOUBLE — DOUBLES COST NOTHING",  say:"A// doubles are on the house.|B// generosity. disgusting." },
+    { id:"glasshouse", text:"GLASS HOUSE — DEALER PLAYS FACE-UP",  say:"B// glass house. my cards, naked.|A// transparency builds trust." },
+    { id:"chiprain",   text:"CHIP RAIN — EVERY WIN DROPS A CHIP",  say:"A// chip rain. every win drops.|B// lock the doors." }
+  ];
+  let bonus = null;
+  const botWallets = { 1:{ feed:1, nudge:1 }, 3:{ mirror:1, backstab:1 } };
+  let shoe = [], holeCard = null;
+  const draw = () => { if (shoe.length < 52) { shoe = []; for (let d = 0; d < 6; d++) for (let c = 0; c < 52; c++) shoe.push(c); for (let i = shoe.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shoe[i], shoe[j]] = [shoe[j], shoe[i]]; } ev("shuffle", { text:"SHOE RESHUFFLED — SIX DECKS" }); } return shoe.pop(); };
+  const val = cs => { let t = 0, a = 0; cs.forEach(c => { const r = c % 13; t += r >= 9 ? 10 : (r === 12 ? 11 : r + 2); if (r === 12) a++; }); while (t > 21 && a) { t -= 10; a--; } return t; };
+  const tot = h => h.total = val(h.cards) + (h.adj || 0);
+  const T = {
+    phase:"betting", round:1, minBet:10000, clock:null,
+    dealer:{ cards:[], total:0, hole:true },
+    seats:[0,1,2,3,4].map(i => ({ seat:i, name:"", you:false, ghost:false, bet:0, chips:0, hands:[], activeHand:0, state:"empty", actions:[] }))
+  };
+  const BOTS = [{ seat:1, name:"“RIKO”" }, { seat:3, name:"V. OKAFOR" }];
+  BOTS.forEach(b => { const s = T.seats[b.seat]; s.name = b.name; s.state = "idle"; });
+  let you = { seat:-1, wallet:{ peek:1, firewall:1, nudge:1, flatline:1 }, armed:{}, jackpotBet:0, dropless:0 };
+  const wallet = () => Object.keys(you.wallet).filter(k => you.wallet[k] > 0).map(k => ({ id:k, name:PU[k], n:you.wallet[k] }));
+  const ev = (kind, extra) => push("bj.event", Object.assign({ kind }, extra));
+  const sync = () => { const s = T.seats[you.seat]; if (s) s.actions = legal(s); push("bj.table", T); };
+  const syncYou = () => push("bj.you", { seat:you.seat, wallet:wallet() });
+  function legal(s) {
+    if (T.phase !== "acting" || !s || !s.you || s.state !== "acting") return [];
+    const h = s.hands[s.activeHand]; if (!h || h.state) return [];
+    const a = ["hit", "stand"];
+    if (h.cards.length === 2 && st.balance >= h.bet) a.push("double");
+    if (h.cards.length === 2 && s.hands.length < 4 && (h.cards[0] % 13) === (h.cards[1] % 13) && st.balance >= h.bet) a.push("split");
+    return a;
+  }
+  let timers = [];
+  const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+  function startBetting() {
+    T.phase = "betting"; T.clock = null; T.dealer = { cards:[], total:0, hole:true };
+    T.seats.forEach(s => { if (s.state !== "empty") { s.state = "idle"; s.bet = 0; s.hands = []; s.ghost = false; s.played = []; } });
+    you.armed = {}; you.jackpotBet = 0;
+    bonus = Math.random() < .28 ? BONUS[Math.floor(Math.random() * BONUS.length)] : null;
+    ev("bonus", bonus ? { id:bonus.id, text:bonus.text, say:bonus.say } : { id:null });
+    ev("say", { text:"A// bets open. place them.|B// or don't. the shoe is patient." });
+    sync();
+    BOTS.forEach((b, i) => later(() => { const s = T.seats[b.seat]; if (s.state === "idle") { s.bet = [25000, 50000, 100000][Math.floor(Math.random() * 3)]; s.state = "bet"; ev("bet", { seat:b.seat, text:s.name + " BETS $" + s.bet.toLocaleString() }); sync(); } }, 1200 + i * 1400));
+    later(() => { if (T.seats.some(s => s.bet > 0)) startDealing(); else later(startBetting, 4000); }, 7000);
+  }
+  function startDealing() {
+    T.phase = "dealing"; sync();
+    const inRound = T.seats.filter(s => s.bet > 0);
+    inRound.forEach(s => { s.hands = [{ cards:[], total:0, bet:s.bet, state:"" }]; s.activeHand = 0; });
+    let q = [];
+    q.forEach((fn, i) => later(fn, 260 * (i + 1)));
+    later(() => {
+      // jackpot side bet settles off the first two cards
+      const ys = T.seats[you.seat];
+      if (you.jackpotBet && ys && ys.hands[0]) {
+        const [a, b] = ys.hands[0].cards;
+        if (a % 13 === b % 13 && Math.floor(a / 13) === Math.floor(b / 13)) { const w = you.jackpotBet * 20; st.balance += w; push("casino", st); ev("say", { text:"A// suited pair. jackpot honoured — $" + w.toLocaleString() + ".|B// ...recount. recount!" }); }
+        else ev("say", { text:"B// no pair. the chip is ash.|A// it was always ash." });
+        you.jackpotBet = 0;
+      }
+      startActing(0);
+    }, 260 * (q.length + 2));
+  }
+  function startActing(fromSeat) {
+    T.phase = "acting";
+    const nxt = T.seats.find(s => s.seat >= fromSeat && s.bet > 0 && s.hands.some(h => !h.state));
+    if (!nxt) return startDealer();
+    T.seats.forEach(s => { if (s.state !== "empty") s.state = s.bet > 0 ? "bet" : "idle"; });
+    nxt.state = "acting";
+    nxt.activeHand = nxt.hands.findIndex(h => !h.state);
+    if (nxt.hands[nxt.activeHand].total === 21) { nxt.hands[nxt.activeHand].state = "blackjack"; ev("say", { text:"A// twenty-one, clean.|B// house error. investigating." }); return startActing(nxt.seat + (nxt.hands.some(h => !h.state) ? 0 : 1)); }
+    if (nxt.you) { T.clock = { seat:nxt.seat, secs:20 }; ev("turn", { seat:nxt.seat }); tick(nxt); }
+    else { T.clock = null; later(() => botAct(nxt), 1100 + Math.random() * 900); }
+    sync();
+  }
+  function tick(s) {
+    if (T.phase !== "acting" || !s.you || s.state !== "acting") return;
+    later(() => { if (T.clock && T.clock.seat === s.seat && s.state === "acting") { T.clock.secs--; if (T.clock.secs <= 0) { ev("say", { text:"B// clock's dead. the house stands you.|A// merciful, really." }); return act(s, "stand"); } sync(); tick(s); } }, 1000);
+  }
+  function botAct(s) {
+    const h = s.hands[s.activeHand];
+    if (!h || h.state) return later(() => startActing(s.seat + 1), 400);
+    if (h.total < 17) { h.cards.push(draw()); tot(h); ev("deal", { seat:s.seat });
+      if (h.total > 21) { h.state = "bust"; ev("say", { text:"B// " + s.name + " burns. delicious.|A// unfortunate." }); }
+      sync();
+      if (h.state) return later(() => startActing(s.seat + 1), 700);
+      return later(() => botAct(s), 900);
+    }
+    h.state = "stood"; sync();
+    later(() => startActing(s.seat + 1), 600);
+  }
+  function act(s, action) {
+    const h = s.hands[s.activeHand];
+    if (action === "hit") {
+      h.cards.push(draw()); tot(h); ev("deal", { seat:s.seat });
+      if (h.total > 21) {
+        if (you.armed.firewall) { delete you.armed.firewall; h.cards.pop(); tot(h); h.state = "stood"; ev("say", { text:"A// FIREWALL caught the burn.|B// cheat. CHEAT." }); syncYou(); }
+        else { h.state = "bust"; ev("say", { text:"B// burnt. exquisite.|A// the count did warn you." }); }
+      }
+    } else if (action === "stand") h.state = "stood";
+    else if (action === "double") { if (!(bonus && bonus.id === "freedouble")) { st.balance -= h.bet; push("casino", st); } h.bet *= 2; h.cards.push(draw()); tot(h); h.state = h.total > 21 ? "bust" : "stood"; ev("deal", { seat:s.seat }); }
+    else if (action === "split") { st.balance -= h.bet; push("casino", st); const c2 = h.cards.pop(); const nh = { cards:[c2], total:0, bet:h.bet, state:"" }; s.hands.push(nh); h.cards.push(draw()); tot(h); nh.cards.push(draw()); tot(nh); ev("say", { text:"A// two hands. ambitious.|B// twice the ash." }); }
+    T.clock = s.you && !h.state ? { seat:s.seat, secs:20 } : T.clock;
+    sync();
+    if (h.state) {
+      const more = s.hands.some(x => !x.state);
+      if (more) { s.activeHand = s.hands.findIndex(x => !x.state); T.clock = { seat:s.seat, secs:20 }; sync(); tick(s); }
+      else later(() => startActing(s.seat + 1), 700);
+    } else if (s.you) tick(s);
+  }
+  function startDealer() {
+    T.phase = "dealer"; T.clock = null;
+    T.dealer.cards = T.dealer.cards.map(c => c === -1 ? holeCard : c);
+    T.dealer.hole = false; T.dealer.total = val(T.dealer.cards);
+    ev("say", { text:"A// the hole card.|B// show them the teeth." });
+    sync();
+    if (you.armed.brick) {
+      delete you.armed.brick;
+      ev("say", { text:"A// BRICK holds the house at two cards.|B// coward's masonry." });
+      return later(payout, 1000);
+    }
+    if (you.armed.flatline) {
+      delete you.armed.flatline;
+      return (function fh() {
+        later(() => {
+          T.dealer.cards.push(draw()); T.dealer.total = val(T.dealer.cards); ev("deal", { seat:-1 }); sync();
+          if (T.dealer.total <= 21) return fh();
+          ev("say", { text:"B// FLATLINE. the house dies screaming.|A// logged as scheduled maintenance." });
+          later(payout, 800);
+        }, 650);
+      })();
+    }
+    const hitCap = you.armed.overclock ? 18 : 17;   // overclock: must hit 17
+    (function dHit() {
+      later(() => {
+        if (T.dealer.total < hitCap && T.seats.some(s => s.bet > 0 && s.hands.some(h => h.state !== "bust"))) {
+          T.dealer.cards.push(draw()); T.dealer.total = val(T.dealer.cards); ev("deal", { seat:-1 }); sync();
+          if (T.dealer.total <= 21) return dHit();
+        }
+        later(payout, 800);
+      }, 900);
+    })();
+  }
+  function payout() {
+    T.phase = "payout";
+    const dT = T.dealer.total, dBust = dT > 21;
+    T.seats.filter(s => s.bet > 0).forEach(s => {
+      s.hands.forEach(h => {
+        if (h.state === "eject") { h.state = "push"; if (s.you) { st.balance += h.bet; push("casino", st); } return; }
+        if (h.state === "bust") { h.state = "lose"; return; }
+        const bj = h.cards.length === 2 && h.total === 21 && s.hands.length === 1;
+        if (bj) { h.state = "blackjack"; creditWin(s, Math.round(h.bet * (bonus && bonus.id === "hotshoe" ? 4 : 2.5)), true); }
+        else if (dBust || h.total > dT) { h.state = "win"; creditWin(s, h.bet * 2, false); }
+        else if (h.total === dT) { h.state = "push"; if (s.you) { st.balance += h.bet; push("casino", st); } }
+        else h.state = "lose";
+      });
+    });
+    if (you.armed.overclock) { delete you.armed.overclock; }
+    ev("say", { text: dBust ? "B// the house burns?! REDEAL.|A// pay them. all of them." : "A// the round settles.|B// the shoe remembers." });
+    sync();
+    later(() => { T.round++; startBetting(); }, 4200);
+  }
+  function creditWin(s, amount, bj) {
+    if (bonus && bonus.id === "payday") amount = Math.round(amount * 1.5);
+    if (s.you) {
+      st.balance += amount; push("casino", st);
+      if (Math.random() < .4 || you.dropless >= 2 || (bonus && bonus.id === "chiprain")) {   // THE DROP — tiered, pity by the 3rd
+        you.dropless = 0;
+        const k = POOL[Math.floor(Math.random() * POOL.length)];
+        you.wallet[k] = (you.wallet[k] || 0) + 1; syncYou();
+        ev("drop", { seat:s.seat, fx:k, tier:TIER[k], text:"DROP — " + PU[k] + (TIER[k] === 2 ? " · LEGENDARY" : TIER[k] === 1 ? " · RARE" : "") + " ×1" });
+        if (TIER[k] === 2) ev("say", { text:"B// a LEGENDARY falls. everyone saw it.|A// spend it loudly." });
+      } else you.dropless++;
+    }
+    ev(bj ? "bj" : "win", { seat:s.seat });
+  }
+  later(startBetting, 700);
+  return {
+    on(n, f) { (subs[n] = subs[n] || []).push(f); if (n in last) f(JSON.parse(JSON.stringify(last[n]))); },
+    call(name, a) {
+      a = a || [];
+      if (name === "bjSit") { const s = T.seats[a[0]]; if (!s || s.state !== "empty") return Promise.resolve({ ok:false, msg:"seat taken" }); if (you.seat >= 0) { T.seats[you.seat].state = "empty"; T.seats[you.seat].name = ""; T.seats[you.seat].you = false; } you.seat = a[0]; s.name = "YOU"; s.you = true; s.state = "idle"; sync(); syncYou(); return Promise.resolve({ ok:true }); }
+      if (name === "bjLeave") { if (you.seat >= 0) { const s = T.seats[you.seat]; s.state = "empty"; s.you = false; s.name = ""; you.seat = -1; sync(); } return Promise.resolve({ ok:true }); }
+      if (name === "bjBet") { const s = T.seats[you.seat]; if (!s || T.phase !== "betting") return Promise.resolve({ ok:false, msg:"bets are closed" }); const b = Math.max(T.minBet, Math.min(st.limits[1], a[0] | 0)); if (b > st.balance) return Promise.resolve({ ok:false, msg:"not enough in the bank" }); st.balance -= b; push("casino", st); s.bet = b; s.state = "bet"; ev("bet", { seat:s.seat, text:"YOU BET $" + b.toLocaleString() }); sync(); return Promise.resolve({ ok:true }); }
+      if (name === "bjAct") { const s = T.seats[you.seat]; if (!s || !legal(s).includes(a[0])) return Promise.resolve({ ok:false, msg:"not a legal move" }); act(s, a[0]); return Promise.resolve({ ok:true }); }
+      if (name === "bjChip") {
+        const k = a[0], tSeat = a[1], s = T.seats[you.seat];
+        if (!s || !(you.wallet[k] > 0)) return Promise.resolve({ ok:false, msg:"no chip" });
+        const inActing = T.phase === "acting", myTurn = inActing && s.state === "acting";
+        const H = () => s.hands[s.activeHand];
+        const tgt = tSeat != null ? T.seats[tSeat] : null, TH = tgt && tgt.hands[tgt.activeHand || 0];
+        const use = txt => { you.wallet[k]--; syncYou(); s.played = (s.played || []).concat(k); ev("powerup", { seat:s.seat, fx:k, text:"YOU PLAY " + PU[k] + (txt || "") }); };
+        const bustCheck = h => { if (h.total > 21) h.state = "bust"; };
+        const no = m => Promise.resolve({ ok:false, msg:m });
+        const needT = ["nudge","hardnudge","handshake","mirror","gift","backstab","feed","rewire","spite","purge","chipswap","siphon"];
+        if (needT.includes(k) && (!tgt || tgt.state === "empty")) return no("pick a seat");
+        if (k === "peek") { if (!inActing || !T.dealer.hole) return no("nothing to peek"); use(); ev("peek", { card:holeCard, text:"PEEK — THE HOLE CARD, YOUR EYES ONLY" }); }
+        else if (k === "scramble") { const h = H(); if (!myTurn || !h || h.cards.length < 3) return no("nothing to redraw"); use(); h.cards.pop(); h.cards.push(draw()); tot(h); bustCheck(h); sync(); }
+        else if (k === "overclock") { if (T.phase === "dealer" || T.phase === "payout") return no("too late"); use(); you.armed.overclock = 1; ev("say", { text:"B// OVERCLOCK. the house sweats.|A// we hit on 17 tonight." }); }
+        else if (k === "firewall") { use(); you.armed.firewall = 1; ev("say", { text:"A// FIREWALL armed.|B// one burn, on the house." }); }
+        else if (k === "brick") { if (T.phase === "dealer" || T.phase === "payout") return no("too late"); use(); you.armed.brick = 1; ev("say", { text:"A// BRICK laid. the house stands on two.|B// vandalism." }); }
+        else if (k === "flatline") { if (T.phase === "dealer" || T.phase === "payout") return no("too late"); use(); you.armed.flatline = 1; ev("say", { text:"B// FLATLINE ARMED. THE HOUSE DIES THIS ROUND.|A// ...allowed. once." }); }
+        else if (k === "ghost") { if (T.phase === "dealer" || T.phase === "payout") return no("too late"); use(); s.ghost = true; sync(); }
+        else if (k === "jackpot") { if (T.phase !== "betting" || !s.bet) return no("bet first"); use(); you.jackpotBet = Math.round(s.bet / 5); ev("say", { text:"A// side bet logged. suited pair pays 20×.|B// pray to the shoe." }); }
+        else if (k === "stand19") { const h = H(); if (!myTurn || !h || h.state) return no("not your turn"); use(); h.adj = 19 - val(h.cards); tot(h); h.state = "stood"; ev("say", { text:"A// STAND.19 — the maths bends to nineteen.|B// bends? forged." }); act(s, "__adv"); }
+        else if (k === "eject") { const h = H(); if (!inActing || !h || h.state) return no("no live hand"); use(); s.hands.forEach(x => { if (!x.state) x.state = "eject"; }); ev("say", { text:"A// EJECT. the bet walks home.|B// spineless. refunded." }); if (myTurn) act(s, "__adv"); else sync(); }
+        else if (k === "houseswap") { const h = H(); if (!myTurn || !h || h.state) return no("not your turn"); use(); T.dealer.cards = T.dealer.cards.map(c => c === -1 ? holeCard : c); const dc = T.dealer.cards; T.dealer.cards = h.cards.slice(); h.cards = dc.slice(); T.dealer.hole = false; T.dealer.total = val(T.dealer.cards); h.adj = 0; tot(h); bustCheck(h); ev("say", { text:"B// HOUSE SWAP?! THAT WAS MY HAND—|A// was. past tense." }); sync(); }
+        else if (k === "nudge" || k === "hardnudge") { const n = k === "nudge" ? 1 : 3; const h = tgt.you ? H() : TH; if (!inActing || !h || h.state) return no("no live hand there"); use(" → " + tgt.name); const d = tgt.you ? (h.total + n <= 21 ? n : -n) : (h.total + n > 21 ? n : -n); h.adj = (h.adj || 0) + d; tot(h); bustCheck(h); ev("say", { text:"A// the maths bends " + (d > 0 ? "up" : "down") + " " + Math.abs(d) + ".|B// I saw nothing." }); sync(); }
+        else if (k === "handshake") { const h = H(); if (!myTurn || !h || h.state || !tgt || tgt.you || !TH || TH.state) return no("no valid target"); use(" ⇄ " + tgt.name); const c = h.cards, adj = h.adj || 0; h.cards = TH.cards; h.adj = TH.adj || 0; TH.cards = c; TH.adj = adj; tot(h); tot(TH); bustCheck(h); bustCheck(TH); ev("say", { text:"A// hands exchanged, notarised.|B// both parties robbed. beautiful." }); sync(); }
+        else if (k === "mirror") { const h = H(); if (!myTurn || !h || h.state || !tgt || tgt.you || !TH) return no("no valid target"); use(" → " + tgt.name); h.cards = TH.cards.slice(); h.adj = TH.adj || 0; tot(h); bustCheck(h); ev("say", { text:"A// MIRROR. two of them now.|B// one was already too many." }); sync(); }
+        else if (k === "gift") { if (!inActing || !tgt || tgt.you || !TH || TH.state) return no("no valid target"); use(" → " + tgt.name); TH.cards = [51, 37]; TH.adj = 0; tot(TH); ev("say", { text:"A// a gift — twenty-one, wrapped.|B// WHO AUTHORISED THIS." }); sync(); }
+        else if (k === "backstab") { if (!inActing || !tgt || tgt.you || !TH || TH.state) return no("no valid target"); use(" → " + tgt.name); TH.state = "bust"; ev("say", { text:"B// BACKSTAB. " + tgt.name + " folds like paper.|A// filed under accidents." }); sync(); }
+        else if (k === "feed") { if (!inActing || !tgt || tgt.you || !TH || TH.state) return no("no valid target"); use(" → " + tgt.name); TH.cards.push(draw()); tot(TH); bustCheck(TH); ev("deal", { seat:tgt.seat }); ev("say", { text:"A// FEED. another card, with love.|B// choke on it." }); sync(); }
+        else if (k === "rewire") { if (!inActing || !TH || TH.state) return no("no live hand there"); use(" → " + tgt.name); const n = TH.cards.length; TH.cards = []; for (let i = 0; i < n; i++) TH.cards.push(draw()); TH.adj = 0; tot(TH); bustCheck(TH); ev("say", { text:"B// REWIRE. fresh wiring, same rat.|A// results may vary." }); sync(); }
+        else if (k === "spite") { const h = H(); if (!inActing || !tgt || tgt.you || !h || h.state || !TH || TH.state) return no("no valid target"); use(" → " + tgt.name); h.state = "bust"; TH.state = "bust"; ev("say", { text:"B// SPITE. two graves, one chip.|A// poetic. pointless. approved." }); if (myTurn) act(s, "__adv"); else sync(); }
+        else if (k === "martyr") { const h = H(); if (!inActing || !h || h.state) return no("no live hand"); use(); const n = h.cards.length; s.hands.forEach(x => { if (!x.state) x.state = "bust"; }); const others = T.seats.filter(x => x.bet > 0 && !x.you); for (let i = 0; i < n && others.length; i++) { const o = others[Math.floor(Math.random() * others.length)]; const oh = o.hands[0]; if (oh) { oh.cards = [51, 37]; oh.adj = 0; tot(oh); oh.state = ""; } } ev("say", { text:"A// MARTYR. the saint burns, the table eats.|B// sainthood is contagious tonight." }); if (myTurn) act(s, "__adv"); else sync(); }
+        else if (k === "aceinject") { if (!inActing) return no("mid-round only"); const live = T.seats.filter(x => x.bet > 0 && x.hands.some(hh => !hh.state && hh.cards.length)); if (!live.length) return no("no live cards"); use(); const v = live[Math.floor(Math.random() * live.length)]; const vh = v.hands.find(hh => !hh.state); vh.cards[Math.floor(Math.random() * vh.cards.length)] = Math.floor(Math.random() * 4) * 13 + 12; tot(vh); bustCheck(vh); ev("say", { text:"A// an ace, injected somewhere.|B// the shoe files a complaint." }); sync(); }
+        else if (k === "cascade") { if (!inActing) return no("mid-round only"); const live = T.seats.filter(x => x.bet > 0 && x.hands.some(hh => !hh.state)); if (live.length < 2) return no("table too quiet"); use(); let all = []; live.forEach(x => x.hands.forEach(hh => { if (!hh.state) { all = all.concat(hh.cards); hh.cards = []; hh.adj = 0; } })); for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t2 = all[i]; all[i] = all[j]; all[j] = t2; } let gi = 0; while (all.length) { const x = live[gi % live.length]; const hh = x.hands.find(h2 => !h2.state); if (hh) hh.cards.push(all.pop()); gi++; } live.forEach(x => x.hands.forEach(hh => { if (!hh.state) { tot(hh); bustCheck(hh); } })); ev("say", { text:"B// CASCADE. all hands in the air.|A// redistribution complete. lawyers notified." }); sync(); }
+        else if (k === "purge") { use(" → " + tgt.name); if (tgt.you) you.armed = {}; tgt.ghost = false; ev("say", { text:"A// PURGE. the armed effects are ash.|B// including the fun ones." }); sync(); }
+        else if (k === "chipswap") { if (!tgt || tgt.you) return no("pick another seat"); use(" ⇄ " + tgt.name); const bw = botWallets[tgt.seat] || {}; botWallets[tgt.seat] = Object.assign({}, you.wallet); you.wallet = Object.assign({}, bw); syncYou(); ev("say", { text:"B// CHIP SWAP. pockets exchanged.|A// caveat emptor." }); }
+        else if (k === "siphon") { const h = H(); if (!myTurn || !tgt || tgt.you || !TH || TH.cards.length < 2 || TH.state) return no("no valid target"); use(" → " + tgt.name); const c = TH.cards.pop(); tot(TH); h.cards.push(c); tot(h); bustCheck(h); ev("say", { text:"B// SIPHON. " + tgt.name + " is lighter.|A// theft, notarised." }); sync(); }
+        else return no("unknown chip");
+        return Promise.resolve({ ok:true });
+      }
+      return Promise.resolve({ ok:true });
+    },
+    _push:push
+  };
+  })();
+
+const $ = s => document.querySelector(s);
+function fit() { document.documentElement.style.fontSize = Math.max(9, $("#frame").getBoundingClientRect().width / 75) + "px"; }
+window.addEventListener("resize", fit); fit();
+const F = n => "$" + Math.round(n).toLocaleString();
+
+/* ---- WebGL felt — the table-cam shader (perspective ground, rail, room) ---- */
+function feltGL(canvas) {
+  const gl = canvas.getContext("webgl", { antialias:false, alpha:false, powerPreference:"low-power" });
+  if (!gl) { canvas.style.background = "radial-gradient(ellipse at 50% 30%,#0d2a1e,#050b09 75%)"; return { kick(){} }; }
+  const V = "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
+  const Fs = "precision mediump float;uniform vec2 R;uniform float T;" +
+    "float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}" +
+    "float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);" +
+    "return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}" +
+    "void main(){vec2 uv=gl_FragCoord.xy/R;" +
+    "float hor=.62;vec3 c;" +
+    "if(uv.y<hor){" +
+    "float t=hor-uv.y;float d=.055/max(t,.004);" +
+    "vec2 w=vec2((uv.x-.5)*(R.x/R.y)*d*6.,d*6.);" +
+    "float weave=n(w*22.)*.6+n(w*44.+7.)*.4;" +
+    "float fb=n(w*.9+T*.008);" +
+    "float fog=clamp(d*.16,0.,1.);" +
+    "vec3 felt=vec3(.05,.17,.12)*(.8+.3*fb)+(weave-.5)*.06*(1.-fog);" +
+    "vec2 lp=vec2(.3*sin(T*.045),2.1+.5*cos(T*.033));" +
+    "float ld=distance(w,lp);" +
+    "felt+=vec3(1.,.66,.16)*.14*exp(-ld*ld*.22);" +
+    "felt=mix(felt,vec3(.012,.03,.024),fog);" +
+    "c=felt;" +
+    "float rail=smoothstep(.085,.0,uv.y);" +
+    "vec3 railC=vec3(.05,.082,.065)*(.9+.2*n(vec2(uv.x*40.,2.)));" +
+    "c=mix(c,railC,rail);" +
+    "c+=vec3(.5,.6,.3)*.05*smoothstep(.02,.0,abs(uv.y-.085));" +
+    "}else{" +
+    "float a=(uv.y-hor)/(1.-hor);" +
+    "c=mix(vec3(.02,.045,.036),vec3(.004,.01,.008),a);" +
+    "float m=smoothstep(.992,1.,n(uv*vec2(R.x/R.y,1.)*20.+vec2(T*.018,-T*.011)));" +
+    "c+=vec3(.75,.85,.45)*m*.22;" +
+    "}" +
+    "c+=vec3(.85,.75,.25)*.05*exp(-abs(uv.y-hor)*26.);" +
+    "float e=max(abs(uv.x-.5),abs(uv.y-.5))*2.;" +
+    "c*=1.-.45*pow(e,3.);" +
+    "gl_FragColor=vec4(c,1.);}";
+  function sh(t, s) { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; }
+  const pr = gl.createProgram();
+  gl.attachShader(pr, sh(gl.VERTEX_SHADER, V)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, Fs));
+  gl.linkProgram(pr); gl.useProgram(pr);
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(pr, "p");
+  gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const uR = gl.getUniformLocation(pr, "R"), uT = gl.getUniformLocation(pr, "T");
+  let until = 0, raf = 0, lastF = 0;
+  function size() { const r = canvas.getBoundingClientRect(); canvas.width = Math.round(r.width); canvas.height = Math.round(r.height); gl.viewport(0, 0, canvas.width, canvas.height); }
+  window.addEventListener("resize", () => { size(); draw(performance.now()); });
+  function draw(t) { gl.uniform2f(uR, canvas.width, canvas.height); gl.uniform1f(uT, t / 1000); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+  function frame(t) { raf = 0; if (t > until) { draw(t); return; } if (t - lastF >= 33) { lastF = t; draw(t); } raf = requestAnimationFrame(frame); }
+  size();
+  return { kick(ms) { until = performance.now() + (ms || 9000); if (!raf) raf = requestAnimationFrame(frame); } };
+}
+const felt = feltGL($("#gl"));
+
+/* ---- audio ---- */
+let sndOn = true, ac = null;
+function beep(f, dur, gain, type) {
+  if (!sndOn) return;
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || "square"; o.frequency.value = f;
+    g.gain.setValueAtTime(gain || .03, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + dur);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + dur);
+  } catch (e) {}
+}
+const snap = () => beep(340, .04, .035, "triangle");
+const ping = () => { beep(880, .1, .05, "triangle"); setTimeout(() => beep(1174, .14, .05, "triangle"), 90); };
+const winSting = () => { beep(660, .12, .05, "triangle"); setTimeout(() => beep(990, .18, .05, "triangle"), 110); setTimeout(() => beep(1320, .3, .05, "triangle"), 240); };
+const bustThud = () => { beep(130, .3, .07, "sawtooth"); setTimeout(() => beep(90, .4, .06, "sawtooth"), 120); };
+const dropFx = () => { [784, 988, 1319, 1568].forEach((f, i) => setTimeout(() => beep(f, .16, .05, "triangle"), i * 80)); };
+$("#snd").onclick = () => { sndOn = !sndOn; $("#snd").textContent = "SND " + (sndOn ? "ON" : "OFF"); };
+
+/* ---- render ---- */
+const RANKS = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
+const SUITS = ["♣","♦","♥","♠"];
+const suitCol = s => (s === 1 || s === 2) ? "var(--magenta)" : "var(--acc2)";
+const cardHTML = (c, big) => c < 0
+  ? '<div class="pcard' + (big ? " big" : "") + ' facedown"><div class="in"><div class="f"></div><div class="b"></div></div></div>'
+  : '<div class="pcard' + (big ? " big" : "") + '"><div class="in"><div class="f" style="color:' + suitCol(Math.floor(c / 13)) + '"><span class="r">' + RANKS[c % 13] + '</span><span class="s">' + SUITS[Math.floor(c / 13)] + '</span></div><div class="b"></div></div></div>';
+
+const SEAT_X = [15, 32, 50, 68, 85], SEAT_DY = [0, 1.1, 1.6, 1.1, 0], SEAT_ROT = [7, 3.5, 0, -3.5, -7], SEAT_SC = [.88, .95, 1, .95, .88];
+let table = null, youState = { seat:-1, wallet:[] }, cas = null, bet = 50000, targeting = null, peeked = null;
+function playedHTML(s) {
+  if (!s.played || !s.played.length) return "";
+  return '<span class="playedRow">' + s.played.map(id => '<span class="pchipB t' + PU_META[id][2] + '">◈ ' + PU_META[id][0] + "</span>").join("") + "</span>";
+}
+const stateCol = { bust:"var(--danger)", lose:"var(--danger)", win:"var(--acc)", blackjack:"var(--acc)", push:"var(--amber)", stood:"var(--dim)" };
+
+/* Seat names are players' profile names, pushed to every viewer: text, never markup. */
+const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => "&#" + c.charCodeAt(0) + ";");
+let __seatHTML = "";
+function renderSeats() {
+  if (!table) return;
+  const __h = table.seats.map(s => {
+    const i = s.seat, you = s.you;
+    let inner;
+    if (s.state === "empty") inner = '<div class="cardsRow"></div><button class="sitBtn" data-seat="' + i + '">SIT — S' + (i + 1) + "</button>";
+    else {
+      const hideCards = s.ghost && !you;
+      const multi = s.hands.length > 1;
+      const hands = s.hands.map((h, hi) => {
+        const act = s.state === "acting" && s.activeHand === hi;
+        return '<span class="hand' + (multi ? " tight" : "") + '" style="' + (act ? "filter:drop-shadow(0 0 .5rem rgba(51,255,187,.5))" : "") + '">' +
+          h.cards.map(c => cardHTML(hideCards ? -1 : c, you && !multi)).join("") +
+          (h.cards.length ? '<span class="stateChip" style="margin-left:.2rem;color:' + (stateCol[h.state] || "var(--acc2)") + '">' + (hideCards ? "?" : h.total) + (h.state ? " " + (multi ? h.state[0].toUpperCase() : h.state.toUpperCase()) : "") + "</span>" : "") + "</span>";
+      }).join('<span style="flex:none;width:' + (multi ? ".2rem" : ".5rem") + '"></span>');
+      inner = '<div class="cardsRow">' + hands + "</div>" +
+        '<span class="plate">' + (s.ghost ? "👁 " : "") + esc(s.name) +
+        (s.bet ? ' <span class="bet">' + F(s.bet) + "</span>" : "") +
+        "</span>" + playedHTML(s);
+    }
+    return '<div class="seat' + (you ? " you" : "") + (s.state === "acting" ? " active" : "") + '" data-seat="' + i + '" style="left:' + SEAT_X[i] + "%;transform:translateY(" + SEAT_DY[i] + "rem) rotate(" + SEAT_ROT[i] + "deg) scale(" + SEAT_SC[i] + ')">' + inner + "</div>";
+  }).join("");
+  /* Skip the write when nothing changed, or SIT is destroyed under the cursor
+     exactly the way the action buttons were. */
+  if (__h === __seatHTML) return;
+  __seatHTML = __h;
+  $("#seats").innerHTML = __h;
+  [...document.querySelectorAll(".sitBtn")].forEach(b => b.onclick = () => AP.call("bjSit", [+b.dataset.seat]).then(r => { if (r.ok === false) say("// " + (r.msg || "").toUpperCase(), "bad"); }));
+  [...document.querySelectorAll(".seat")].forEach(el => el.onclick = e => {
+    if (targeting && (TARGETED[targeting] || !el.classList.contains("you"))) {
+      const seat = +el.dataset.seat;
+      AP.call("bjChip", [targeting, seat]).then(r => { if (r.ok === false) say("// " + (r.msg || "").toUpperCase(), "bad"); });
+      setTargeting(null); e.stopPropagation();
+    }
+  });
+}
+function renderDealer() {
+  if (!table) return;
+  $("#dCards").innerHTML = table.dealer.cards.map(c => cardHTML(c === -1 && peeked != null ? peeked : c, true) ).join("");
+  if (peeked != null && table.dealer.hole) $("#dCards").lastElementChild && ($("#dCards").lastElementChild.style.outline = "2px dashed var(--magenta)");
+  $("#dTotal").textContent = table.dealer.cards.length ? (table.dealer.hole ? "SHOWING " + table.dealer.total : "DEALER " + table.dealer.total + (table.dealer.total > 21 ? " — BUST" : "")) : "";
+}
+function renderActions() {
+  const box = $("#actions");
+  if (!table) { box.innerHTML = ""; box.dataset.sig = ""; return; }
+  const me = table.seats.find(s => s.you);
+  const showClock = !!(me && table.clock && table.clock.seat === me.seat && table.phase === "acting");
+  const acts = (me && me.actions && me.actions.length) ? me.actions : [];
+  /* Rebuild ONLY when the offered moves change. The clock is a width, not markup. */
+  const sig = (showClock ? "c" : "-") + "|" + acts.join(",");
+  if (box.dataset.sig !== sig) {
+    box.dataset.sig = sig;
+    let html = "";
+    if (showClock) html += '<div class="clock"><span></span></div>';
+    if (acts.length) html += '<div class="actRow">' + acts.map(a => '<button class="act" data-a="' + a + '">' + a.toUpperCase() + "</button>").join("") + "</div>";
+    box.innerHTML = html;
+    [...box.querySelectorAll(".act")].forEach(b => b.onclick = () => { AP.call("bjAct", [b.dataset.a]).then(r => { if (r && r.ok === false) say("// " + (r.msg || "").toUpperCase(), "bad"); }); felt.kick(4000); });
+  }
+  if (showClock) {
+    const c = box.querySelector(".clock");
+    if (c) {
+      c.classList.toggle("low", table.clock.secs <= 5);
+      c.firstElementChild.style.width = Math.max(0, table.clock.secs / 20 * 100) + "%";
+    }
+  }
+}
+const PU_META = {
+  peek:["PEEK.EXE","hole card, your eyes only",0], scramble:["SCRAMBLE","redraw your last card",0],
+  overclock:["OVERCLOCK","dealer must hit 17",1], firewall:["FIREWALL","next bust becomes a stand",0],
+  siphon:["SIPHON","steal a seat's last card",1], ghost:["GHOST.SYS","hide your cards from the table",0],
+  jackpot:["JACKPOT","side bet — suited pair 20×",0],
+  nudge:["NUDGE","±1 to any hand — helps you, hurts them",0], hardnudge:["HARD NUDGE","±3 to any hand",1],
+  stand19:["STAND.19","discard the maths, stand on 19",1], eject:["EJECT","pull out, bet back",0],
+  brick:["BRICK","dealer stands on two cards",1], flatline:["FLATLINE","the house busts. period.",2],
+  houseswap:["HOUSE SWAP","trade hands with the dealer",1], handshake:["HANDSHAKE","swap hands with a seat",1],
+  mirror:["MIRROR","copy a seat's hand",1], gift:["GIFT.EXE","hand a seat a blackjack",2],
+  backstab:["BACKSTAB","bust a seat",1], feed:["FEED","force a seat to draw",0],
+  rewire:["REWIRE","redraw a seat's whole hand",1], spite:["SPITE","bust yourself AND them",1],
+  martyr:["MARTYR","burn now; your cards become their blackjacks",2],
+  aceinject:["ACE.INJECT","a random card becomes an ace",1], cascade:["CASCADE","shuffle every hand on the table",2],
+  purge:["PURGE","clear a seat's armed effects",0], chipswap:["CHIP SWAP","trade powerup pockets",1]
+};
+const TARGETED = { nudge:1, hardnudge:1, purge:1, handshake:0, mirror:0, gift:0, backstab:0, feed:0, rewire:1, spite:0, chipswap:0, siphon:0 }; // 1 = your own seat is a legal target too
+function playChip(id) {
+  if (id in TARGETED) {
+    if (targeting === id) return setTargeting(null);
+    setTargeting(id);
+    say("// " + PU_META[id][0] + " — PICK A SEAT" + (TARGETED[id] ? " (YOURS COUNTS)" : "") + " · ESC CANCELS", "warn");
+    return;
+  }
+  AP.call("bjChip", [id]).then(r => { if (r.ok === false) say("// " + (r.msg || "").toUpperCase(), "bad"); });
+  felt.kick(3000);
+}
+function renderLocker() {
+  const box = $("#locker");
+  $("#puCount").textContent = youState.wallet.reduce((a, w) => a + w.n, 0);
+  if (!youState.wallet.length) { box.innerHTML = '<span style="font-size:.55rem;color:var(--faint)">EMPTY — WIN HANDS, CHIPS DROP</span>'; return; }
+  const tierNm = ["", " RARE", " LEGENDARY"], tierCol = ["var(--magenta)", "var(--amber)", "var(--acc)"];
+  const order = youState.wallet.slice().sort((a, b) => PU_META[b.id][2] - PU_META[a.id][2]);
+  box.innerHTML = order.map(w =>
+    '<div class="lrow"><div class="lx"><span class="ln" style="color:' + tierCol[PU_META[w.id][2]] + '">◈ ' + PU_META[w.id][0] + ' ×' + w.n + "<small>" + tierNm[PU_META[w.id][2]] + '</small></span>' +
+    '<span class="ld">' + PU_META[w.id][1] + '</span></div>' +
+    '<button class="lplay" data-id="' + w.id + '">PLAY</button></div>').join("");
+  [...box.querySelectorAll(".lplay")].forEach(b => b.onclick = () => playChip(b.dataset.id));
+}
+function setTargeting(v) { targeting = v; $("#pit").classList.toggle("targeting", !!v); $("#pit").classList.toggle("selfok", !!v && !!TARGETED[v]); }
+function renderPanel() {
+  if (!table) return;
+  $("#phase").textContent = table.phase.toUpperCase() + " · R" + table.round;
+  $("#minBet").textContent = F(table.minBet);
+  const me = table.seats.find(s => s.you);
+  const go = $("#go");
+  if (!me) { go.textContent = "PICK A SEAT ON THE TABLE"; go.disabled = true; $("#resLbl").textContent = "TABLE"; $("#resBig").textContent = "5 SEATS"; $("#resBig").style.color = "var(--ink)"; }
+  else if (table.phase === "betting") {
+    if (me.bet) { go.textContent = "BET PLACED — " + F(me.bet); go.disabled = true; }
+    else { go.textContent = "BET — " + F(bet); go.disabled = !!targeting || (cas && (cas.gate || cas.balance < bet)); }
+    $("#resLbl").textContent = "BETS OPEN"; $("#resBig").textContent = me.bet ? F(me.bet) : "—"; $("#resBig").style.color = "var(--ink)";
+  } else { go.textContent = "ROUND LIVE"; go.disabled = true; }
+}
+let statusT = null;
+function say(m, tone) {
+  const el = $("#status");
+  el.textContent = m;
+  el.style.color = tone === "bad" ? "var(--danger)" : tone === "good" ? "var(--acc)" : tone === "warn" ? "var(--amber)" : "var(--faint)";
+  clearTimeout(statusT);
+  statusT = setTimeout(() => { el.textContent = defaultStatus(); el.style.color = "var(--faint)"; }, 4200);
+}
+function defaultStatus() {
+  return cas && cas.gate ? "// TABLE CLOSED TO YOU — " + cas.gate.toUpperCase()
+    : "// DEALERBOT DEALS · 20S CLOCK · POWERUPS DROP ON WINS · SIPHON AND GHOST ARE ALWAYS LIVE · ESC LEAVES";
+}
+let splitT = null;
+function splitSay(line) {
+  const parts = line.split("|");
+  const head = $("#headIn"), el = $("#splitLine");
+  clearTimeout(splitT);
+  head.classList.remove("b");
+  el.innerHTML = '<span style="color:var(--acc2)">' + (parts[0] || "") + "</span>";
+  beep(1046, .05, .03, "square");
+  if (parts[1]) splitT = setTimeout(() => {
+    head.classList.add("b");
+    el.innerHTML = '<span style="color:var(--magenta)">' + parts[1] + "</span>";
+    beep(392, .07, .03, "sawtooth");
+  }, 1500);
+}
+function logRound(l, net) {
+  const box = $("#sess");
+  if (box.firstChild && box.firstChild.tagName === "SPAN") box.innerHTML = "";
+  const d = new Date(), tm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  const row = document.createElement("div");
+  row.className = "row";
+  row.innerHTML = '<span class="t">' + tm + '</span><span class="l">' + l + '</span>' +
+    (net == null ? "" : '<span class="n" style="color:' + (net >= 0 ? "var(--acc)" : "var(--danger)") + '">' + (net >= 0 ? "+" : "−") + F(Math.abs(net)).slice(1) + "</span>");
+  box.prepend(row);
+  while (box.children.length > 14) box.removeChild(box.lastChild);
+}
+
+/* ---- wiring ---- */
+let lastPhase = "", roundBet = 0;
+AP.on("bj.table", t => {
+  const prevPhase = table && table.phase;
+  table = t;
+  const me = t.seats.find(s => s.you);
+  if (t.phase === "betting" && prevPhase === "payout" && me) {
+    const net = me.hands.reduce((a, h) => a + (h.state === "win" ? h.bet : h.state === "blackjack" ? Math.round(h.bet * 1.5) : h.state === "push" ? 0 : -h.bet), 0);
+  }
+  if (t.phase === "payout" && prevPhase !== "payout" && me && me.hands.length) {
+    const net = me.hands.reduce((a, h) => a + (h.state === "win" ? h.bet : h.state === "blackjack" ? Math.round(h.bet * 1.5) : h.state === "push" ? 0 : -h.bet), 0);
+    const lbl = me.hands.map(h => h.state.toUpperCase()).join(" / ");
+    $("#resLbl").textContent = "ROUND " + t.round;
+    $("#resBig").textContent = net > 0 ? "+" + F(net).slice(0) : net < 0 ? "−" + F(-net).slice(0) : "PUSH";
+    $("#resBig").style.color = net > 0 ? "var(--acc)" : net < 0 ? "var(--danger)" : "var(--amber)";
+    $("#lastR").textContent = lbl;
+    $("#lastR").style.color = net >= 0 ? "var(--acc)" : "var(--danger)";
+    logRound(lbl + " · DEALER " + t.dealer.total, net);
+    if (net > 0) winSting(); else if (net < 0) bustThud();
+  }
+  if (t.phase === "betting" && prevPhase && prevPhase !== "betting") peeked = null;
+  renderSeats(); renderDealer(); renderActions(); renderPanel();
+  if (t.phase !== lastPhase) { lastPhase = t.phase; felt.kick(5000); }
+});
+AP.on("bj.you", y => { youState = y; renderLocker(); renderSeats(); });
+AP.on("bj.event", e => {
+  if (e.kind === "deal") { snap(); felt.kick(3000); }
+  else if (e.kind === "say" && e.text) splitSay(e.text);
+  else if (e.kind === "turn") { ping(); say("// YOUR ACTION — 20S ON THE CLOCK", "warn"); }
+  else if (e.kind === "bet" && e.text) $("#ticker").textContent = "// " + e.text;
+  else if (e.kind === "drop") { dropFx(); if (e.tier === 2) setTimeout(dropFx, 240); say("// " + e.text + " — DROPPED ON THE WIN", e.tier === 2 ? "warn" : "good"); logRound("◈ " + e.text, null); }
+  else if (e.kind === "bonus") { const b = $("#bonus"); if (e.id) { b.style.display = "flex"; b.textContent = "◆ BONUS ROUND — " + e.text; if (e.say) splitSay(e.say); } else b.style.display = "none"; }
+  else if (e.kind === "peek") { peeked = e.card; renderDealer(); say("// " + e.text, "warn"); }
+  else if (e.kind === "powerup" && e.text) $("#ticker").textContent = "// " + e.text;
+  else if (e.kind === "shuffle") $("#ticker").textContent = "// " + e.text;
+});
+AP.on("casino", v => {
+  cas = v; $("#bal").textContent = F(v.balance);
+  if (!$("#chips").children.length) {
+    $("#chips").innerHTML = v.chips.map(x => '<button class="chip" data-v="' + x + '">' + (x >= 1000000 ? x / 1000000 + "M" : x / 1000 + "K") + "</button>").join("");
+    [...$("#chips").children].forEach(c => c.onclick = () => { setBet(+c.dataset.v); });
+    $("#clamp").textContent = v.limits[0] / 1000 + "K–" + v.limits[1] / 1000 + "K";
+  }
+  renderPanel();
+});
+function setBet(n, fromInput) {
+  if (cas) n = Math.max(cas.limits[0], Math.min(cas.limits[1], n || cas.limits[0]));
+  bet = n;
+  if (!fromInput) $("#betIn").value = bet.toLocaleString();
+  [...$("#chips").children].forEach(c => c.classList.toggle("on", +c.dataset.v === bet));
+  renderPanel();
+}
+$("#betIn").addEventListener("input", e => { const n = +e.target.value.replace(/[^\d]/g, ""); if (n) setBet(n, true); });
+$("#betIn").addEventListener("blur", () => setBet(bet));
+$("#betMax").onclick = () => setBet(cas ? Math.min(cas.limits[1], cas.balance) : 500000);
+$("#go").onclick = () => {
+  const me = table && table.seats.find(s => s.you);
+  if (!me) return;
+  AP.call("bjBet", [bet]).then(r => { if (r.ok === false) say("// REFUSED — " + (r.msg || "").toUpperCase(), "bad"); });
+  felt.kick(4000);
+};
+document.addEventListener("keydown", e => { if (e.key === "Escape") setTargeting(null); });
+$("#status").textContent = defaultStatus();
+felt.kick(8000);
+</script>
+</body></html>

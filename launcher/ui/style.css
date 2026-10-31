@@ -1,0 +1,28 @@
+:root { --bg:#0b0f14; --panel:#111821; --line:#1f2a36; --cyan:#14e6dc; --magenta:#ff28aa; --text:#d7e3ea; --dim:#7b8a96; --warn:#ffb020; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 "Rajdhani","Segoe UI",system-ui,sans-serif; }
+header { display:flex; justify-content:space-between; align-items:center; padding:14px 22px; border-bottom:1px solid var(--line);
+  background:linear-gradient(90deg, rgba(20,230,220,.08), rgba(255,40,170,.08)); }
+.brand { font-weight:700; letter-spacing:.3em; font-size:20px; color:var(--cyan); text-shadow:0 0 12px rgba(20,230,220,.6); }
+.brand span { color:var(--magenta); margin-left:.4em; text-shadow:0 0 12px rgba(255,40,170,.6); }
+.server { color:var(--dim); letter-spacing:.1em; }
+main { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; padding:18px 22px; }
+.card { background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--cyan); padding:14px 16px; }
+.card h2 { margin:0 0 10px; font-size:12px; letter-spacing:.35em; color:var(--magenta); }
+label { display:flex; gap:8px; align-items:center; justify-content:space-between; padding:4px 0; }
+label:has(input[type=checkbox]) { justify-content:flex-start; }
+input, select { background:#0a0e13; color:var(--text); border:1px solid var(--line); padding:4px 6px; }
+input[type=checkbox] { accent-color:var(--cyan); }
+button { background:transparent; color:var(--cyan); border:1px solid var(--cyan); padding:8px 16px; letter-spacing:.2em; cursor:pointer; }
+button:hover { background:rgba(20,230,220,.12); }
+button.primary { color:#000; background:var(--cyan); box-shadow:0 0 18px rgba(20,230,220,.5); }
+button:disabled { opacity:.4; cursor:default; }
+.row { display:flex; gap:10px; margin-top:12px; }
+.warn { color:var(--warn); margin:6px 0; }
+.hidden { display:none; }
+progress { width:100%; accent-color:var(--magenta); }
+#msg { color:var(--dim); min-height:1.4em; }
+select { -webkit-appearance:none; appearance:none; padding-right:22px; color:var(--text); background-color:#0a0e13;
+  background-image:linear-gradient(45deg, transparent 50%, var(--cyan) 50%), linear-gradient(135deg, var(--cyan) 50%, transparent 50%);
+  background-position:calc(100% - 12px) 50%, calc(100% - 7px) 50%; background-size:5px 5px; background-repeat:no-repeat; }
+option { background:#0a0e13; color:var(--text); }

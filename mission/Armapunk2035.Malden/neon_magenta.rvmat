@@ -1,0 +1,17 @@
+// Neon signage - magenta tube SHELL ("Malden"). Deliberately kept saturated rather than bright:
+// a single mid-bright material washed out to flat pale pink in game. All the brightness lives in
+// neon_core.rvmat, the thin filament sitting proud of this shell -- same split BI uses for beacons.
+// diffuse stays 1 so the #(argb..)color() texture on the faces still tints it in daylight;
+// forcedDiffuse keeps the tube from going flat black in shadow.
+ambient[]={1,1,1,1};
+diffuse[]={1,1,1,1};
+forcedDiffuse[]={0.42,0.03,0.24,1};
+emmisive[]={90000,300,42000,1};
+specular[]={0,0,0,0};
+specularPower=1;
+PixelShaderID="Normal";
+VertexShaderID="Basic";
+class StageTI
+{
+	texture="a3\data_f\default_vehicle_ti_ca.paa";
+};

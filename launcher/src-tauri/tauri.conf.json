@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Armapunk Launcher",
+  "version": "0.1.0",
+  "identifier": "com.armapunk.launcher",
+  "build": { "frontendDist": "../ui" },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [{ "title": "ARMAPUNK 2035", "width": 1100, "height": 720, "resizable": true }],
+    "security": { "csp": null }
+  },
+  "bundle": { "active": true, "targets": ["appimage"], "icon": ["icons/icon.png"] }
+}

@@ -1,0 +1,293 @@
+<!doctype html>
+<!-- THE FLOOR — the HTML casino. Dialog 930400.
+
+     THE PAGE NEVER DECIDES ANYTHING. Every table forwards the same intent the
+     native dialog sends to APS_fnc_casinoSRV / APS_fnc_blackJackSRV; the server
+     settles, credits through its own gated receiver, and pushes the result back.
+     A win here is a win the server already paid.
+
+     Self-contained: no <link>, no <script src>, no network. -->
+<html><head><meta charset="utf-8"><title>THE FLOOR</title>
+<script>
+/* The bridge is INJECTED, not included -- window.WEBUI does not exist while this
+   script runs. Promise first, then self-load; fn_casinoOpen also injects and
+   webui.js is idempotent. */
+window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+  A3API.RequestFile("webui\\ui\\webui.js").then(function (s) { (0, eval)(s); }).catch(function(){});
+}
+</script>
+<style>
+:root{
+  --scr:#050b09; --scr2:#0a1310; --panel:#0c1712; --panel2:#0e1a15;
+  --acc:#c9e21a; --acc2:#33ffbb; --danger:#ff5a3c; --amber:#ffb020; --magenta:#ff3d81;
+  --ink:#dcefe0; --dim:#7f938a; --faint:#465a51; --line:rgba(201,226,26,.15);
+  --felt:#0d2a1e;
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:transparent;overflow:hidden}
+button{font-family:var(--mono);background:none;border:none;color:inherit;cursor:pointer;padding:0}
+*::-webkit-scrollbar{width:5px}*::-webkit-scrollbar-thumb{background:#22332a;border-radius:3px}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+#fit{position:fixed;inset:0;display:grid;place-items:center;z-index:1}
+.floor{backdrop-filter:blur(1px)}
+.floor{width:min(96vw,58rem);height:min(94vh,30rem);display:flex;flex-direction:column;
+  background:radial-gradient(ellipse at 50% 0%,var(--felt),var(--scr) 76%);
+  border:1px solid var(--line);border-radius:.7rem;overflow:hidden;
+  box-shadow:0 26px 70px rgba(0,0,0,.72),inset 0 0 0 1px #000}
+.hd{flex:none;display:flex;align-items:center;gap:.7rem;padding:.6rem .9rem;
+  background:var(--scr2);border-bottom:1px solid var(--line)}
+.hd .ttl{font-family:var(--mono);font-size:.88rem;font-weight:800;letter-spacing:.26em;color:var(--acc)}
+.hd .sub{font-family:var(--mono);font-size:.58rem;letter-spacing:.2em;color:var(--faint)}
+.hd .bank{margin-left:auto;font-family:var(--mono);font-size:.72rem;color:var(--ink);font-variant-numeric:tabular-nums}
+.body{flex:1;min-height:0;display:flex;flex-direction:column;padding:.7rem .8rem;gap:.6rem}
+.grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;align-content:start;overflow-y:auto}
+.tile{display:flex;flex-direction:column;gap:.25rem;padding:.7rem .65rem;text-align:left;min-height:5rem;
+  background:var(--panel);border:1px solid var(--line);border-radius:.55rem;transition:border-color .14s,transform .14s}
+.tile:hover{border-color:rgba(201,226,26,.5);transform:translateY(-1px)}
+.tile .n{font-family:var(--mono);font-size:.74rem;font-weight:700;letter-spacing:.1em;color:#eaf2ec}
+.tile .b{font-family:var(--sans);font-size:.6rem;line-height:1.5;color:var(--faint)}
+.bar{flex:none;display:flex;align-items:center;gap:.4rem;background:var(--scr2);
+  border:1px solid var(--line);border-radius:.5rem;padding:.4rem .55rem}
+.bar .lbl{font-family:var(--mono);font-size:.55rem;letter-spacing:.14em;color:var(--faint)}
+.chip{font-family:var(--mono);font-size:.6rem;padding:.28rem .5rem;border-radius:.3rem;
+  background:var(--panel2);border:1px solid var(--line);color:var(--dim)}
+.chip:hover{border-color:rgba(201,226,26,.5);color:var(--ink)}
+.chip.on{background:rgba(201,226,26,.16);border-color:rgba(201,226,26,.55);color:var(--acc)}
+.bar .bet{margin-left:auto;font-family:var(--mono);font-size:.9rem;color:var(--acc);font-variant-numeric:tabular-nums}
+.table{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.7rem}
+.coin{width:7rem;height:7rem;border-radius:50%;display:grid;place-items:center;
+  font-family:var(--mono);font-size:1.5rem;font-weight:800;letter-spacing:.1em;
+  background:radial-gradient(circle at 35% 30%,#f2e07a,#8a6f1e 70%);color:#2a2405;
+  box-shadow:0 8px 26px rgba(0,0,0,.6),inset 0 0 0 3px rgba(255,255,255,.18)}
+.coin.spin{animation:flip .55s cubic-bezier(.4,0,.3,1)}
+@keyframes flip{0%{transform:rotateY(0) scale(1)}50%{transform:rotateY(900deg) scale(1.12)}100%{transform:rotateY(1800deg) scale(1)}}
+.picks{display:flex;gap:.5rem}
+.pick{padding:.5rem 1.3rem;border-radius:.45rem;font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;
+  background:var(--panel);border:1px solid var(--line);color:var(--dim)}
+.pick.on{background:rgba(201,226,26,.16);border-color:rgba(201,226,26,.55);color:var(--acc)}
+.go{padding:.6rem 2.2rem;border-radius:.45rem;font-family:var(--mono);font-size:.78rem;font-weight:700;
+  letter-spacing:.16em;background:rgba(201,226,26,.18);border:1px solid rgba(201,226,26,.55);color:var(--acc)}
+.go[disabled]{background:rgba(70,90,81,.35);border-color:transparent;color:#33453c;cursor:not-allowed}
+.res{min-height:1.6rem;font-family:var(--mono);font-size:.8rem;letter-spacing:.08em;color:var(--dim)}
+.res.win{color:var(--acc)} .res.lose{color:var(--danger)}
+.back{font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;color:var(--faint)}
+.back:hover{color:var(--acc)}
+.st{flex:none;min-height:1.5rem;padding:0 .2rem;font-family:var(--mono);font-size:.58rem;
+  letter-spacing:.06em;color:var(--faint)}
+.st.bad{color:var(--danger)}
+.soon{opacity:.5;cursor:not-allowed}
+</style></head>
+<body>
+<canvas id="gl"></canvas>
+<div id="fit"><div class="floor">
+  <div class="hd"><span class="ttl" id="ttl">THE FLOOR</span><span class="sub" id="sub">// CASINO</span>
+    <span class="bank" id="bank"></span></div>
+  <div class="body" id="body"></div>
+</div></div>
+<script>
+/* ---- WEBGL BACKDROP -------------------------------------------------------
+   The probe came back with real hardware WebGL2 (ANGLE / Radeon 8060S, OpenGL
+   4.6) at 60 fps, so this is a fragment shader rather than a gradient: a slow
+   felt weave, a drifting warm key light, and drifting motes.
+
+   RAW GL ON PURPOSE. No three.js -- the sandbox forbids <script src> and there
+   is no resolvable base URL, so a library would have to be inlined whole. A
+   full-screen quad and one fragment shader is about eighty lines and needs
+   neither matrices nor buffers beyond a single triangle strip.
+
+   COST. A full-bleed animation marks the whole surface dirty every frame, which
+   is the same bill the phone wallpaper pays. It is worth it HERE because the
+   casino is a screen you sit and look at -- but it stops the moment the dialog
+   is hidden, and it throttles to 30 fps because nothing in it moves fast enough
+   to need 60. */
+(function(){
+  var cv = document.getElementById("gl");
+  var gl = null;
+  try { gl = cv.getContext("webgl2") || cv.getContext("webgl"); } catch(e){}
+  if (!gl){ cv.style.display = "none"; return; }   // CSS gradient remains underneath
+
+  var VS = "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
+  var FS = [
+    "precision mediump float;",
+    "uniform vec2 r;uniform float t;",
+    // cheap value noise -- enough for felt, and no texture fetch
+    "float h(vec2 n){return fract(sin(dot(n,vec2(12.9898,78.233)))*43758.5453);}",
+    "float nz(vec2 x){vec2 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);",
+    " return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}",
+    "void main(){",
+    " vec2 uv=gl_FragCoord.xy/r.xy;",
+    " vec2 q=uv-0.5; q.x*=r.x/r.y;",
+    // felt: two scales of noise, very low contrast
+    " float felt=nz(uv*r.xy/3.0)*0.055+nz(uv*r.xy/11.0)*0.05;",
+    " vec3 base=vec3(0.035,0.105,0.075)+felt*vec3(0.5,1.0,0.7);",
+    // a warm key drifting across the table
+    " vec2 k=vec2(sin(t*0.07)*0.34,cos(t*0.05)*0.20);",
+    " float key=exp(-dot(q-k,q-k)*3.6);",
+    " base+=key*vec3(0.16,0.20,0.06);",
+    // acid rim, the deck's own accent
+    " float rim=exp(-dot(q,q)*1.15);",
+    " base+=rim*vec3(0.06,0.085,0.012);",
+    // slow motes
+    " for(int i=0;i<5;i++){float fi=float(i);",
+    "  vec2 mp=vec2(fract(0.17+fi*0.19+t*(0.006+fi*0.002)),fract(0.33+fi*0.27+sin(t*0.09+fi)*0.05));",
+    "  mp=(mp-0.5); mp.x*=r.x/r.y;",
+    "  base+=exp(-dot(q-mp,q-mp)*900.0)*vec3(0.30,0.42,0.10);}",
+    // vignette
+    " base*=1.0-smoothstep(0.35,1.15,length(q))*0.85;",
+    " gl_FragColor=vec4(base,1.0);}"
+  ].join("\n");
+
+  function sh(type, src){
+    var o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o);
+    if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(o)); return null; }
+    return o;
+  }
+  var vs = sh(gl.VERTEX_SHADER, VS), fs = sh(gl.FRAGMENT_SHADER, FS);
+  if (!vs || !fs){ cv.style.display = "none"; return; }
+  var pr = gl.createProgram();
+  gl.attachShader(pr, vs); gl.attachShader(pr, fs); gl.linkProgram(pr);
+  if (!gl.getProgramParameter(pr, gl.LINK_STATUS)){ cv.style.display = "none"; return; }
+  gl.useProgram(pr);
+
+  var buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  var loc = gl.getAttribLocation(pr, "p");
+  gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  var uR = gl.getUniformLocation(pr, "r"), uT = gl.getUniformLocation(pr, "t");
+
+  function size(){
+    var w = cv.clientWidth || 1, h = cv.clientHeight || 1;
+    if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; gl.viewport(0,0,w,h); }
+  }
+  var t0 = performance.now(), last = 0;
+  function frame(now){
+    // 30 fps is plenty for something this slow, and halves the dirty-frame bill
+    if (now - last > 33){
+      last = now; size();
+      gl.uniform2f(uR, cv.width, cv.height);
+      gl.uniform1f(uT, (now - t0) / 1000);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+<script>
+"use strict";
+var S = { d:null, view:"landing", pick:0, res:"", resCls:"", msg:"", spin:false };
+var el = function(i){ return document.getElementById(i); };
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function F(n){ return "$" + (Number(n)||0).toLocaleString("en-US"); }
+function say(m, bad){ S.msg = m; S.bad = !!bad; var n = el("st"); if (n){ n.textContent = m || ""; n.className = "st" + (bad?" bad":""); } }
+function call(k, a){
+  if (!window.WEBUI) { say("bridge not up yet", true); return Promise.resolve(null); }
+  return WEBUI.call(k, a||[], 20000).then(function(r){
+    if (r && typeof r==="object" && "ok" in r && r.msg) say(String(r.msg), !r.ok);
+    return r;
+  }, function(e){ say(String(e&&e.message||e), true); return null; });
+}
+
+/* Only coin flip is wired so far. The rest keep their native tables until each
+   one is done -- a tile that opened an empty screen would be worse than one that
+   says it is not ready. */
+var LIVE = { coinflip:true };
+
+function render(){
+  var d = S.d;
+  if (!d){ el("body").innerHTML = '<div class="st">OPENING</div>'; return; }
+  el("bank").textContent = "BANK " + F(d.bank);
+
+  if (S.view === "landing"){
+    el("ttl").textContent = "THE FLOOR"; el("sub").textContent = "// CASINO";
+    var t = "";
+    for (var i=0;i<d.games.length;i++){
+      var g = d.games[i], live = !!LIVE[g.id];
+      t += '<button class="tile' + (live?"":" soon") + '"' + (live?' data-act="open" data-id="'+esc(g.id)+'"':'') + '>' +
+        '<span class="n">' + esc(g.name) + '</span>' +
+        '<span class="b">' + esc(g.blurb) + '</span>' +
+        (live?'':'<span class="b" style="color:var(--faint)">native table for now</span>') + '</button>';
+    }
+    el("body").innerHTML = '<div class="grid">' + t + '</div>' +
+      '<div class="st" id="st">' + esc(d.gate || "") + '</div>';
+    if (d.gate) say(d.gate, true);
+    return;
+  }
+
+  /* ---- coin flip ---- */
+  el("ttl").textContent = "COIN FLIP"; el("sub").textContent = "// EVENS";
+  var chips = "";
+  for (var i=0;i<d.chips.length;i++){
+    chips += '<button class="chip' + (d.bet===d.chips[i]?" on":"") + '" data-act="bet" data-id="'+d.chips[i]+'">' +
+             F(d.chips[i]).replace("$","") + '</button>';
+  }
+  el("body").innerHTML =
+    '<div class="bar"><button class="back" data-act="back">&#9666; FLOOR</button>' +
+      '<span class="lbl">BET</span>' + chips +
+      '<span class="bet">' + F(d.bet) + '</span></div>' +
+    '<div class="table">' +
+      '<div class="coin' + (S.spin?" spin":"") + '" id="coin">' + (S.face || "?") + '</div>' +
+      '<div class="picks">' +
+        '<button class="pick' + (S.pick===0?" on":"") + '" data-act="pick" data-id="0">HEADS</button>' +
+        '<button class="pick' + (S.pick===1?" on":"") + '" data-act="pick" data-id="1">TAILS</button>' +
+      '</div>' +
+      '<button class="go" data-act="flip"' + (d.gate?" disabled":"") + '>FLIP &mdash; ' + F(d.bet) + '</button>' +
+      '<div class="res ' + S.resCls + '">' + esc(S.res) + '</div>' +
+    '</div>' +
+    '<div class="st" id="st"></div>';
+  if (S.msg) say(S.msg, S.bad);
+}
+
+function adopt(v){ if (v) S.d = v; render(); }
+
+document.addEventListener("click", function(ev){
+  var t = ev.target.closest ? ev.target.closest("[data-act]") : null;
+  if (!t || t.disabled) return;
+  var a = t.getAttribute("data-act"), id = t.getAttribute("data-id");
+  switch (a){
+    case "open": S.view = id; S.res = ""; S.resCls = ""; S.face = "?"; render(); break;
+    case "back": S.view = "landing"; render(); break;
+    case "pick": S.pick = parseInt(id,10); render(); break;
+    case "bet":  call("casBet", [parseInt(id,10)]).then(adopt); break;
+    case "flip":
+      if (!S.d || S.d.gate) return;
+      S.res = ""; S.resCls = ""; S.spin = true; render();
+      /* The server owns the flip. This animation is a courtesy while it answers;
+         the face is only written when casResult arrives. */
+      call("casPlay", ["coinflip", "play", [S.d.bet, S.pick]]);
+      break;
+  }
+});
+
+var booted = false;
+window.WEBUIReady.then(function (W) {
+  booted = true;
+  W.on("casino", adopt);
+  /* Pushed by fn_casino when the SERVER settles -- coinflip payload is
+     [face, won, bet, return] in the native render's order. */
+  W.on("casResult", function (r){
+    if (!r) return;
+    S.spin = false;
+    if (r.game === "coinflip"){
+      /* APS_fnc_casinoSRV sends [win, pick, face, bet, ret, net] -- in that order.
+         Reading p[0] as the face meant every result was the WIN BOOLEAN, and
+         false never matched tails, so the coin said HEADS every single time. */
+      var p = r.payload || [];
+      var won = p[0], face = p[2], ret = p[4], net = p[5];
+      S.face   = (face === 1) ? "TAILS" : "HEADS";
+      S.res    = won ? "WIN  +" + F(ret) : "LOSE  " + F(net);
+      S.resCls = won ? "win" : "lose";
+    }
+    render();
+    call("casino", []).then(adopt);
+  });
+  setTimeout(function(){ if (!S.d) call("casino", []).then(adopt); }, 1200);
+});
+setTimeout(function(){ if (!booted) say("no bridge", true); }, 12000);
+</script>
+</body></html>

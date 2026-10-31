@@ -1,0 +1,55 @@
+{
+  "label": "verify",
+  "errors": [
+    "pageerror: SQF timeout: log"
+  ],
+  "probe": {
+    "mode": "module",
+    "hf": {
+      "n": 200,
+      "cell": 64,
+      "extent": 12736,
+      "samples": 40000,
+      "sum": "373931.5",
+      "taps": [
+        -96.30000305175781,
+        6.099999904632568,
+        -14.600000381469727,
+        -73.5999984741211
+      ]
+    },
+    "meshModels": 502,
+    "SEC": 8,
+    "bldCount": 17287,
+    "sectors": {
+      "buckets": 19,
+      "drawn": 0,
+      "tris": 0,
+      "verts": 0
+    },
+    "sectorsM": {
+      "buckets": 43,
+      "drawn": 0,
+      "tris": 0,
+      "verts": 0
+    },
+    "sectorsF": {
+      "buckets": 11,
+      "drawn": 0,
+      "tris": 0,
+      "verts": 0
+    },
+    "canvas": {
+      "w": 1280,
+      "h": 665
+    },
+    "loadingText": "ACQUIRING SATELLITE",
+    "assetHits": [
+      "webui\\ui\\webui.js",
+      "ui\\html\\grid3d.js",
+      "ui\\html\\malden_hf.txt",
+      "ui\\html\\malden_msh.txt",
+      "ui\\html\\malden_bld.txt"
+    ]
+  }
+}

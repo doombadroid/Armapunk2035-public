@@ -1,0 +1,22 @@
+# DEV ONLY (.221 has no systemd). Prod = systemd units on .96, see radio/INSTALL-96.md.
+services:
+  icecast:
+    image: libretime/icecast:2.4.4
+    ports: ["8000:8000"]
+    environment:
+      ICECAST_SOURCE_PASSWORD: devsource
+      ICECAST_ADMIN_PASSWORD: devadmin
+      ICECAST_RELAY_PASSWORD: devrelay
+      ICECAST_MAX_CLIENTS: "120"
+      ICECAST_MAX_SOURCES: "8"
+  liquidsoap:
+    image: savonet/liquidsoap:v2.2.5
+    depends_on: [icecast]
+    command: ["liquidsoap", "/radio/radio.liq"]
+    environment:
+      ICECAST_HOST: icecast
+      ICECAST_SOURCE_PASSWORD: devsource
+      RADIO_MUSIC_DIR: /music
+    volumes:
+      - ./radio.liq:/radio/radio.liq:ro
+      - ${RADIO_MUSIC_DIR:-~/radio-music}:/music:ro

@@ -1,0 +1,773 @@
+[
+  {
+    "name": "[mapui] terrain: heightfield, buildings, meshes, tiles loaded, no boot error",
+    "pass": true,
+    "detail": {
+      "hf": 200,
+      "bld": 17287,
+      "meshes": 502,
+      "tiles": 347,
+      "bootErr": null,
+      "loadingHidden": true
+    }
+  },
+  {
+    "name": "[mapui] terrain boot: no JS errors",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "[1600x1000] every control visible inside the viewport",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "[1600x1000] header carries no renderer/debug counters",
+    "pass": true,
+    "detail": "MALDEN GRID NEON AEGEANFIELD NAVIGATION"
+  },
+  {
+    "name": "[1600x1000] result list scrolls with the full marker catalogue",
+    "pass": true,
+    "detail": {
+      "sh": 9131,
+      "ch": 410,
+      "rows": 131
+    }
+  },
+  {
+    "name": "[1600x1000] selection actions and destination controls visible",
+    "pass": true,
+    "detail": {
+      "x": 581.96875,
+      "y": 796,
+      "r": 1018.03125,
+      "b": 938,
+      "w": 436.0625,
+      "h": 142
+    }
+  },
+  {
+    "name": "[1600x1000] directory, player status, destination bar and controls do not overlap",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "[1600x1000] no JS errors",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "[1920x1080] every control visible inside the viewport",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "[1920x1080] header carries no renderer/debug counters",
+    "pass": true,
+    "detail": "MALDEN GRID NEON AEGEANFIELD NAVIGATION"
+  },
+  {
+    "name": "[1920x1080] result list scrolls with the full marker catalogue",
+    "pass": true,
+    "detail": {
+      "sh": 9161,
+      "ch": 420,
+      "rows": 131
+    }
+  },
+  {
+    "name": "[1920x1080] selection actions and destination controls visible",
+    "pass": true,
+    "detail": {
+      "x": 741.96875,
+      "y": 876,
+      "r": 1178.03125,
+      "b": 1018,
+      "w": 436.0625,
+      "h": 142
+    }
+  },
+  {
+    "name": "[1920x1080] directory, player status, destination bar and controls do not overlap",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "[1920x1080] no JS errors",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "[1280x720] every control visible inside the viewport",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "[1280x720] header carries no renderer/debug counters",
+    "pass": true,
+    "detail": "MALDEN GRID NEON AEGEANFIELD NAVIGATION"
+  },
+  {
+    "name": "[1280x720] result list scrolls with the full marker catalogue",
+    "pass": true,
+    "detail": {
+      "sh": 8345,
+      "ch": 260,
+      "rows": 131
+    }
+  },
+  {
+    "name": "[1280x720] selection actions and destination controls visible",
+    "pass": true,
+    "detail": {
+      "x": 421.96875,
+      "y": 516,
+      "r": 858.03125,
+      "b": 658,
+      "w": 436.0625,
+      "h": 142
+    }
+  },
+  {
+    "name": "[1280x720] directory, player status, destination bar and controls do not overlap",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "[1280x720] no JS errors",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "[3440x1440] every control visible inside the viewport",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "[3440x1440] header carries no renderer/debug counters",
+    "pass": true,
+    "detail": "MALDEN GRID NEON AEGEANFIELD NAVIGATION"
+  },
+  {
+    "name": "[3440x1440] result list scrolls with the full marker catalogue",
+    "pass": true,
+    "detail": {
+      "sh": 9161,
+      "ch": 420,
+      "rows": 131
+    }
+  },
+  {
+    "name": "[3440x1440] selection actions and destination controls visible",
+    "pass": true,
+    "detail": {
+      "x": 1501.96875,
+      "y": 1236,
+      "r": 1938.03125,
+      "b": 1378,
+      "w": 436.0625,
+      "h": 142
+    }
+  },
+  {
+    "name": "[3440x1440] directory, player status, destination bar and controls do not overlap",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "[3440x1440] no JS errors",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "Nearby lists every text-bearing marker from the real catalogue",
+    "pass": true,
+    "detail": "131 rows vs 131 markers"
+  },
+  {
+    "name": "Nearby is ordered by direct distance from the player",
+    "pass": true,
+    "detail": "174 m, 184 m, 209 m, 292 m, 315 m, 337 m"
+  },
+  {
+    "name": "Directory heading is the nearest real TOWN, not a hill or coast",
+    "pass": true,
+    "detail": "La Trinité"
+  },
+  {
+    "name": "A player marker saying \"WP\" is listed; the engine's own AP_mapwp is skipped by id",
+    "pass": true,
+    "detail": [
+      "m:_USER_DEFINED #2/1/0"
+    ]
+  },
+  {
+    "name": "Search is accent-insensitive and crosses categories (\"trinite\" finds La Trinité places + markers)",
+    "pass": true,
+    "detail": [
+      "La Trinite",
+      "La Trinité",
+      "La Trinite Sheriff's Office"
+    ]
+  },
+  {
+    "name": "Seven identical \"Boat Shop\" markers stay seven rows, told apart by grid",
+    "pass": true,
+    "detail": [
+      "Boats · Grid 077 / 061",
+      "Boats · Grid 089 / 060",
+      "Boats · Grid 061 / 115",
+      "Boats · Grid 062 / 119",
+      "Boats · Grid 086 / 032",
+      "Boats · Grid 057 / 023",
+      "Boats · Grid 035 / 032"
+    ]
+  },
+  {
+    "name": "Two squadmates both named MOTH are two rows with distinct identities",
+    "pass": true,
+    "detail": [
+      "s:2:102",
+      "s:2:104"
+    ]
+  },
+  {
+    "name": "Empty search says so and offers recovery",
+    "pass": true,
+    "detail": "No matching places, markers or squadmates. Try fewer letters, or clear the search."
+  },
+  {
+    "name": "Clear button empties the search and refocuses it",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "Enter selects the first search result and moves the camera to it",
+    "pass": true,
+    "detail": {
+      "key": "m:marker_33",
+      "cat": "marker",
+      "name": "Chapoi Police Station",
+      "gone": false,
+      "x": 5559,
+      "y": 4234
+    }
+  },
+  {
+    "name": "Arrow Down moves focus from search into the results",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "Arrow keys move through result rows",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "Search field focus is reported to SQF (M-close guard)",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "Places lists every named location from the engine dump",
+    "pass": true,
+    "detail": "53 vs 53"
+  },
+  {
+    "name": "Squad tab: every member, dead state readable, leader and crew stated",
+    "pass": true,
+    "detail": [
+      {
+        "n": "MOTH",
+        "k": "On foot",
+        "dead": false
+      },
+      {
+        "n": "MOTH",
+        "k": "In vehicle · car · 3 crew",
+        "dead": false
+      },
+      {
+        "n": "RAZOR",
+        "k": "Airborne · 2 crew · Squad leader",
+        "dead": false
+      },
+      {
+        "n": "JINX",
+        "k": "Flatlined",
+        "dead": true
+      }
+    ]
+  },
+  {
+    "name": "A selected squadmate who moves stays selected and follows",
+    "pass": true,
+    "detail": {
+      "key": "s:2:102",
+      "cat": "squad",
+      "name": "MOTH",
+      "gone": false,
+      "x": 7600,
+      "y": 8000
+    }
+  },
+  {
+    "name": "A squadmate who disconnects stays selected as \"no longer on the map\", never swapped for the other MOTH",
+    "pass": true,
+    "detail": {
+      "sel": {
+        "key": "s:2:102",
+        "cat": "squad",
+        "name": "MOTH",
+        "gone": true,
+        "x": 7600,
+        "y": 8000
+      },
+      "selTxt": "SQUADMATE · NO LONGER ON THE MAP"
+    }
+  },
+  {
+    "name": "A 1 Hz update keeps the list's scroll position and focused row",
+    "pass": true,
+    "detail": {
+      "before": {
+        "top": 600,
+        "key": "m:lh_gunstore"
+      },
+      "after": {
+        "top": 600,
+        "key": "m:lh_gunstore"
+      }
+    }
+  },
+  {
+    "name": "directory: no JS errors",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "Plain click on empty terrain drops a selection pin and sends nothing",
+    "pass": true,
+    "detail": {
+      "key": "pt:7251,7500",
+      "cat": "point",
+      "name": "Dropped pin",
+      "gone": false,
+      "x": 7251,
+      "y": 7500
+    }
+  },
+  {
+    "name": "A drag pans the camera and neither changes selection nor sends an action",
+    "pass": true,
+    "detail": {
+      "camBefore": {
+        "tx": 7150,
+        "ty": 7800,
+        "dist": 900,
+        "tilt": 0.908,
+        "yaw": 0
+      },
+      "cam": {
+        "tx": 7108,
+        "ty": 7827,
+        "dist": 900,
+        "tilt": 0.908,
+        "yaw": 0
+      }
+    }
+  },
+  {
+    "name": "Clicking a marker glyph selects that marker by its own id",
+    "pass": true,
+    "detail": {
+      "key": "m:marker_19",
+      "cat": "marker",
+      "name": "Bank of Malden",
+      "gone": false,
+      "x": 6241,
+      "y": 2867
+    }
+  },
+  {
+    "name": "CTRL-click (window.__mods from SQF) sends exactly one waypoint action and keeps the selection",
+    "pass": true,
+    "detail": {
+      "calls": 1,
+      "sel": "m:marker_19",
+      "wp": {
+        "x": 6350.371571398983,
+        "y": 2643.6119510973344
+      }
+    }
+  },
+  {
+    "name": "Teleport control appears only with the staff flag in the feed",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "An armed teleport click sends one teleport and nothing else; selection unchanged; arm spent",
+    "pass": true,
+    "detail": [
+      "mapTeleport"
+    ]
+  },
+  {
+    "name": "SHIFT (from SQF) + drag orbits instead of panning",
+    "pass": true,
+    "detail": {
+      "c0": {
+        "tx": 6241,
+        "ty": 2867,
+        "dist": 900,
+        "tilt": 0.9,
+        "yaw": 0
+      },
+      "c1": {
+        "tx": 6241,
+        "ty": 2867,
+        "dist": 900,
+        "tilt": 0.9,
+        "yaw": 0.4
+      }
+    }
+  },
+  {
+    "name": "Left-button Orbit pad rotates and tilts",
+    "pass": true,
+    "detail": {
+      "c0": {
+        "tx": 6241,
+        "ty": 2867,
+        "dist": 900,
+        "tilt": 0.9,
+        "yaw": 0.4
+      },
+      "c1": {
+        "tx": 6241,
+        "ty": 2867,
+        "dist": 900,
+        "tilt": 0.78,
+        "yaw": 0.72
+      }
+    }
+  },
+  {
+    "name": "Reset north returns yaw to 0",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "2D goes top-down and marks itself pressed",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "2D right after a list selection: camera flat AND switch shows 2D (final step is painted)",
+    "pass": true,
+    "detail": {
+      "tilt": 0,
+      "aria": "true"
+    }
+  },
+  {
+    "name": "3D restores tilt",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "Zoom in reduces camera distance",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "My position centres on the player",
+    "pass": true,
+    "detail": {
+      "tx": 7150,
+      "ty": 7800,
+      "dist": 558,
+      "tilt": 0.908,
+      "yaw": 0
+    }
+  },
+  {
+    "name": "Set waypoint shows a pending state and ignores a second click",
+    "pass": true,
+    "detail": {
+      "t": "Setting…",
+      "d": true
+    }
+  },
+  {
+    "name": "Waypoint set: exactly one action; bar shows the destination name and direct distance",
+    "pass": true,
+    "detail": {
+      "calls": 1,
+      "barName": "Larche"
+    }
+  },
+  {
+    "name": "Rapid waypoint changes are serialized: in-flight one, then only the latest queued intent",
+    "pass": true,
+    "detail": [
+      [
+        5000,
+        5000
+      ],
+      [
+        6500,
+        6500
+      ]
+    ]
+  },
+  {
+    "name": "Dismissing the selection leaves the waypoint in place",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "A refused waypoint changes nothing on screen and says why",
+    "pass": true,
+    "detail": {
+      "wp": {
+        "x": 6500,
+        "y": 6500
+      },
+      "toast": "Waypoint refused by the test"
+    }
+  },
+  {
+    "name": "Set GPS shows \"Finding route\" while pending",
+    "pass": true,
+    "detail": "Finding route…"
+  },
+  {
+    "name": "GPS success: the drawn route IS the returned road polyline, and road length is shown",
+    "pass": true,
+    "detail": {
+      "nav": {
+        "x": 11197.8,
+        "y": 4459.3,
+        "n": 232,
+        "len": 7388
+      },
+      "expect": {
+        "n": 232,
+        "len": 7388
+      },
+      "status": "GPS set · 7.4 km by road."
+    }
+  },
+  {
+    "name": "The GPS set went through mapNav exactly once (the path that stores AP_gpsRoutePts)",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "A failed GPS replacement keeps drawing the route the game kept, and says so",
+    "pass": true,
+    "detail": {
+      "nav": {
+        "x": 11197.8,
+        "y": 4459.3,
+        "n": 232,
+        "len": 7388
+      },
+      "status": "No road route found to there. Your previous route is unchanged."
+    }
+  },
+  {
+    "name": "ALT-click sends one mapNav through the same helper and updates the same route state",
+    "pass": true,
+    "detail": {
+      "toast": "GPS set · 251 m by road."
+    }
+  },
+  {
+    "name": "Clear GPS removes the route and leaves the waypoint",
+    "pass": true,
+    "detail": {
+      "sel": {
+        "key": "m:marker_1",
+        "cat": "marker",
+        "name": "Mental Asylum",
+        "gone": false,
+        "x": 4258,
+        "y": 3906
+      },
+      "wp": {
+        "x": 6500,
+        "y": 6500
+      },
+      "nav": null,
+      "busy": {
+        "wp": false,
+        "nav": false
+      },
+      "status": "No road route found to there. Your previous route is unchanged.",
+      "toast": "GPS cleared.",
+      "bar": true,
+      "cam": {
+        "tx": 7150,
+        "ty": 7800,
+        "dist": 558,
+        "tilt": 0.908,
+        "yaw": 0
+      }
+    }
+  },
+  {
+    "name": "Clear waypoint removes the waypoint and hides the bar",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "Layers: squad off removes squad glyph hits, labels and group helicopter holograms",
+    "pass": true,
+    "detail": {
+      "tiersOn": {
+        "t": {
+          "10": 1,
+          "20": 44,
+          "40": 7,
+          "80": 4,
+          "100": 1
+        },
+        "squadHits": 4,
+        "markerHits": 44,
+        "helis": 1
+      },
+      "tiersOff": {
+        "t": {
+          "10": 1,
+          "100": 1
+        },
+        "squadHits": 0,
+        "markerHits": 0,
+        "helis": 0
+      }
+    }
+  },
+  {
+    "name": "Layers: markers off removes marker glyph hits and labels",
+    "pass": true,
+    "detail": {
+      "on": 44,
+      "off": 0
+    }
+  },
+  {
+    "name": "Layers: zones off removes zone labels",
+    "pass": true,
+    "detail": {
+      "on": 7
+    }
+  },
+  {
+    "name": "Layers never hide the player",
+    "pass": true,
+    "detail": {
+      "10": 1,
+      "100": 1
+    }
+  },
+  {
+    "name": "Squad search still works with the squad layer hidden",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "Directory collapses to expose terrain",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "Idle: no animation frames without input or pushes",
+    "pass": true,
+    "detail": "1 frames in 2 s"
+  },
+  {
+    "name": "A push paints about one frame, not a loop",
+    "pass": true,
+    "detail": "5 frames for 5 pushes"
+  },
+  {
+    "name": "gestures/actions: no JS errors",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "Reduced motion: camera moves are immediate, no animation queued",
+    "pass": true,
+    "detail": {
+      "tx": 7150,
+      "ty": 7800,
+      "anims": 0,
+      "anim": "none"
+    }
+  },
+  {
+    "name": "reduced motion: no JS errors",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "serve replacement (push-before-serve): new document boots, reads the feed and restores the waypoint",
+    "pass": true,
+    "detail": {
+      "gen": 2,
+      "grid": "GRID 073 / 078",
+      "rows": 131,
+      "wp": true,
+      "bar": true,
+      "hf": 200,
+      "liveDot": true
+    }
+  },
+  {
+    "name": "serve replacement (push-before-serve): the replaced document leaves no running frame loop",
+    "pass": true,
+    "detail": "0 frames idle"
+  },
+  {
+    "name": "serve replacement (push-before-serve): a push is handled by exactly one live subscription",
+    "pass": true,
+    "detail": 1
+  },
+  {
+    "name": "serve replacement (push-before-serve): no JS errors",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "serve replacement (serve-before-push): new document boots, reads the feed and restores the waypoint",
+    "pass": true,
+    "detail": {
+      "gen": 2,
+      "grid": "GRID 073 / 078",
+      "rows": 131,
+      "wp": true,
+      "bar": true,
+      "hf": 200,
+      "liveDot": true
+    }
+  },
+  {
+    "name": "serve replacement (serve-before-push): the replaced document leaves no running frame loop",
+    "pass": true,
+    "detail": "0 frames idle"
+  },
+  {
+    "name": "serve replacement (serve-before-push): a push is handled by exactly one live subscription",
+    "pass": true,
+    "detail": 1
+  },
+  {
+    "name": "serve replacement (serve-before-push): no JS errors",
+    "pass": true,
+    "detail": ""
+  }
+]

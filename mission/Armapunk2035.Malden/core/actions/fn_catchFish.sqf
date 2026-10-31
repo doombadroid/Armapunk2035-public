@@ -1,0 +1,20 @@
+private _fishArray = nearestObjects[getPos player, ["Fish_Base_F"], 5];
+if (_fishArray isEqualTo[]) exitWith {};
+private _fish = _fishArray select 0;
+if (player distance _fish > 3.5 || !(_fish isKindOf "Fish_Base_F")) exitWith {}; (switch typeOf _fish do {case "Salema_F": {["salema", 1]
+        }; case "Ornate_random_F": {["ornate", 5]};
+        case "Mackerel_F": {["mackerel", 2.5]};
+        case "Tuna_F": {["tuna", 35]};
+        case "Mullet_F": {["mullet", 7]};
+        case "CatShark_F": {["catshark", 2]};
+        default {["", 0]};}) params["_type", "_maxWeight"];
+if (_type isEqualTo "") exitWith {};
+["collect", "fish", 1] spawn AP_fnc_handleQuest;
+private _weight = round((random _maxWeight) * 100) / 100;
+if ([true, _type, 1] call AP_fnc_handleInv) then {deleteVehicle _fish;
+    titleText[format["You caught a %1kg %2", _weight, _type], "PLAIN"];
+    AP_side_exp = AP_side_exp + 3;};
+if (_weight > 1 && !(13 in AP_achievements)) then {[13] call AP_fnc_achievementGrant};
+if (_weight > 5 && !(14 in AP_achievements)) then {[14] call AP_fnc_achievementGrant};
+if (_weight > 25 && !(15 in AP_achievements)) then {[15] call AP_fnc_achievementGrant};
+["fishcaught", 1] call AP_fnc_statArrUpdate;

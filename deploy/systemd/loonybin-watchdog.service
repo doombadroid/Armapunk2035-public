@@ -1,0 +1,36 @@
+[Unit]
+Description=LooneyBin restart watchdog (4h hard-restart driver) -- OWN unit on purpose
+Documentation=https://github.com/doombadroid/LoonyBin
+After=network-online.target
+
+# WHY THIS UNIT EXISTS (outage 2026-07-24, 19m40s down):
+# The watchdog used to be started by run-boot2.sh with setsid, INSIDE loonybin-arma.service.
+# setsid escapes the session and the TTY -- it does NOT escape the cgroup. loonybin-arma is
+# Type=simple / Restart=no / KillMode=control-group, so the moment the watchdog killed the
+# server to perform a HARD restart, the unit main process exited, systemd tore down the cgroup,
+# and the watchdog was killed mid-restart. Nothing was left to relaunch the server, so it stayed
+# down until a human noticed. Soft restarts never tripped this (they do not exit the unit), which
+# is why it survived 7 restarts that day and died on the first hard one.
+# Living in its own unit means the arma cgroup teardown cannot reach it, and Restart=always covers
+# every other way it might die.
+
+[Service]
+Type=simple
+WorkingDirectory=/home/timb/Documents/LooneyBin Altis Life
+# the watchdog talks to the DB container on every poll; do not spin before 3306 answers
+ExecStartPre=-/usr/bin/timeout 120 /bin/bash -c 'until (echo > /dev/tcp/127.0.0.1/3306) 2>/dev/null; do sleep 2; done'
+ExecStart=/bin/bash "/home/timb/Documents/LooneyBin Altis Life/deploy/restart_watchdog.sh"
+Restart=always
+RestartSec=10
+# KillMode=process is deliberate and is the whole point: a HARD restart makes run-boot2.sh (and
+# therefore the arma server) a CHILD of this unit. With the default control-group, restarting or
+# stopping the watchdog would kill the live server with it -- reintroducing the same bug one level
+# up. Only the watchdog process itself is ever signalled.
+KillMode=process
+# stdout goes to the journal, not /tmp/lb_watchdog.log. The journal is what made the 2026-07-24
+# outage diagnosable; the tmp log had been truncated to the single line it died on.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

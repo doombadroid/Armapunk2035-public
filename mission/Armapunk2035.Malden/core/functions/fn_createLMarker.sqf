@@ -1,0 +1,11 @@
+params[["_playerName", "", [""]], "_pos", ["_prefix", "911", [""]], ["_color", "ColorRed", [""]], ["_shape", "mil_dot", [""]], ["_time", 300, [0]]];
+private _text = format["%2 %1", _playerName, _prefix];
+_playerName = format["%2%1", _playerName, _prefix];
+deleteMarkerLocal _playerName;
+private _marker = createMarkerLocal[_playerName, _pos];
+_marker setMarkerShapeLocal "ICON";
+_marker setMarkerTypeLocal _shape;
+_marker setMarkerColorLocal _color;
+_marker setMarkerTextLocal _text;
+uiSleep _time;
+deleteMarkerLocal _playerName;

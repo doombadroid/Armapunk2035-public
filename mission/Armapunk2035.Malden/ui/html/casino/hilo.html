@@ -1,0 +1,549 @@
+<!doctype html>
+<!-- CASINO — HI-LO. Self-contained, game-ready: inline CSS/JS, no libs, no
+     network, no storage. AP stub behind a guard.
+
+     CONTRACT
+       AP.on("casino", { balance, chips:[amounts], limits:[min,max], gate })
+       AP.on("casResult", { game:"hilo", payload })
+         payload = ["play"|"bust"|"cashout", card, mult, bet, pot, prevCard, tag]
+         card 0–51: suit = floor(c/13) → C D H S, rank = c mod 13 → 2…10 J Q K A
+       AP.call("casPlay", ["hilo","deal",[bet]])   // reply = SENT, not settled
+       AP.call("casPlay", ["hilo","hi",[]])
+       AP.call("casPlay", ["hilo","lo",[]])
+       AP.call("casPlay", ["hilo","cash",[]])
+     Each correct call multiplies the pot (server's number, cap 30×). A wrong
+     call loses everything. Cashing out at ≤1.0× returns HALF the bet — the
+     consolation, and the UI words it as one ("WALK — HALF BACK"). The page
+     renders the server's card and multiplier; it never draws from a deck.
+
+     WHAT ANIMATES: DOM only — a card slide+flip per call (~.5s, CSS
+     transforms), the felt while hot. No persistent rAF; between calls the
+     page is still. Audio: flip snap, rising streak ticks, bust thud, cashout
+     sting; SND toggle. -->
+<html><head><meta charset="utf-8"><title>CASINO — hi-lo</title>
+<script>
+/* ---- BRIDGE SHIM (installed by tools/install_casino_pages.py) --------------
+   window.WEBUI does not exist while this page's own script runs; the bridge is
+   INJECTED afterwards. Anything that touches it at load is silently deaf, which
+   is how the first web shop shipped.
+
+   AP is defined here, synchronously, before the page's script -- so its
+   `if (typeof AP === "undefined")` dev stub never installs, and every on()/call()
+   made before the bridge lands is queued and flushed when it does. -------- */
+(function () {
+  var subs = {}, queued = [], W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  /* Instrumentation for AP_fnc_casinoDiag. The browser console is unreachable
+     in game -- Esc opens it and closes the dialog -- so a deaf page has to be
+     able to say why on its own surface. */
+  window.__apSubs = subs;
+  /* A throw inside a channel handler is CAUGHT by webui.js and console.error'd,
+     and the console is unreachable in game -- so a payload the page cannot read
+     looks exactly like a payload that never arrived. Wrapping every handler
+     records the first failure where the diagnostic can print it. */
+  function guard(n, f) {
+    return function (v) {
+      try { return f(v); }
+      catch (e) { if (!window.__apHandlerErr) window.__apHandlerErr = n + ": " + e; throw e; }
+    };
+  }
+  window.AP = {
+    __shim: true,
+    on: function (n, f) {
+      (subs[n] = subs[n] || []).push(guard(n, f));
+      if (W) W.on(n, subs[n][subs[n].length - 1]);
+    },
+    call: function (n, a) {
+      if (W) return W.call(n, a || [], 20000);
+      return new Promise(function (res, rej) { queued.push([n, a || [], res, rej]); });
+    },
+    handle: function (n, f) { if (W) W.handle(n, f); }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    W.on("casino", function () { window.__apGotCasino = true; });
+    queued.forEach(function (q) { W.call(q[0], q[1], 20000).then(q[2], q[3]); });
+    queued = [];
+  });
+  /* A <script src> cannot work here -- the page has no resolvable base URL and
+     the src quietly resolves to nothing. SQF injects the same file too and
+     webui.js is idempotent, so whichever lands first wins. */
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else {
+    window.__apBootErr = "no A3API on this page";
+  }
+})();
+</script>
+<style>
+:root{
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --scr:#050b09; --scr2:#0a1310; --panel:#0c1712; --panel2:#0e1a15;
+  --acc:#c9e21a; --acc2:#33ffbb; --danger:#ff5a3c; --amber:#ffb020; --magenta:#ff3d81;
+  --ink:#dcefe0; --dim:#7f938a; --faint:#465a51; --line:rgba(201,226,26,.15);
+  --felt:#0d2a1e;
+}
+html,body{margin:0;height:100%;background:#07090a;font-family:var(--mono)}
+#stage{position:fixed;inset:0;display:grid;place-items:center}
+#frame{width:min(96vw,192vh);aspect-ratio:2/1;position:relative}
+#screen{position:absolute;inset:0;border-radius:.6rem;overflow:hidden;display:flex;flex-direction:column;
+  background:var(--scr);box-shadow:inset 0 0 0 1px #000,0 30px 80px rgba(0,0,0,.7)}
+#gl{position:absolute;inset:0;width:100%;height:100%}
+#screen::after{content:"";position:absolute;inset:0;z-index:40;pointer-events:none;opacity:.26;
+  background:repeating-linear-gradient(180deg,transparent 0 2px,rgba(0,0,0,.2) 2px 3px)}
+.hdr{position:relative;z-index:2;flex:none;display:flex;align-items:center;gap:.8rem;padding:.55rem 1.1rem;
+  background:rgba(10,19,16,.78);border-bottom:1px solid var(--line)}
+.led{width:.5rem;height:.5rem;border-radius:50%;background:var(--acc2);box-shadow:0 0 .55rem rgba(51,255,187,.55);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+a.back{color:var(--dim);text-decoration:none;font-size:.6rem;letter-spacing:.14em}
+a.back:hover{color:var(--acc)}
+.bal{margin-left:auto;display:flex;align-items:baseline;gap:.45rem;font-size:.7rem;color:var(--dim)}
+.bal b{color:#eef4ee;font-size:.85rem;font-variant-numeric:tabular-nums}
+.snd{border:1px solid var(--line);background:transparent;color:var(--dim);border-radius:.35rem;
+  font-family:var(--mono);font-size:.54rem;letter-spacing:.12em;padding:.24rem .5rem;cursor:pointer}
+.snd:hover{color:var(--acc)}
+.body{position:relative;z-index:2;flex:1;min-height:0;display:flex}
+.pit{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;position:relative;padding:.8rem}
+.table{display:flex;align-items:center;gap:1.6rem}
+.stack{position:relative;width:6rem;height:8.4rem;flex:none}
+.stack .pcard{position:absolute;inset:0}
+.stack .pcard:nth-child(1){transform:translate(-.35rem,.3rem) rotate(-4deg)}
+.stack .pcard:nth-child(2){transform:translate(.2rem,-.15rem) rotate(2deg)}
+.slot{display:flex;flex-direction:column;align-items:center;gap:.45rem}
+.slot .lbl{font-size:.54rem;letter-spacing:.18em;color:var(--faint)}
+.pcard{width:6rem;height:8.4rem;border-radius:.55rem;position:relative;perspective:60rem}
+.pcard.big{width:9.2rem;height:12.9rem}
+.pcard .in{position:absolute;inset:0;border-radius:.55rem;transform-style:preserve-3d;
+  transition:transform .45s cubic-bezier(.25,.7,.3,1.04)}
+.pcard.facedown .in{transform:rotateY(180deg)}
+.pcard .f,.pcard .b{position:absolute;inset:0;border-radius:.55rem;backface-visibility:hidden;overflow:hidden}
+.pcard .f{background:linear-gradient(165deg,#121e18,#0b1310 70%);border:1px solid rgba(201,226,26,.28);
+  box-shadow:0 10px 26px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.07);
+  display:flex;align-items:center;justify-content:center}
+.pcard .b{transform:rotateY(180deg);border:1px solid rgba(201,226,26,.3);
+  background:repeating-linear-gradient(-45deg,rgba(201,226,26,.14) 0 .35rem,transparent .35rem .8rem),#0c1712;
+  box-shadow:0 10px 26px rgba(0,0,0,.55)}
+.pcard .b::after{content:"";position:absolute;inset:.55rem;border:1px solid rgba(201,226,26,.3);border-radius:.35rem}
+.pcard .corner{position:absolute;display:flex;flex-direction:column;align-items:center;line-height:1.05;font-weight:800}
+.pcard .corner.tl{top:.45rem;left:.55rem}
+.pcard .corner.br{bottom:.45rem;right:.55rem;transform:rotate(180deg)}
+.pcard .pip{font-size:2.6rem;text-shadow:0 0 1.2rem currentColor;font-family:var(--sans)}
+.pcard.big .pip{font-size:4rem}
+.pcard .corner{font-size:.85rem}
+.pcard.big .corner{font-size:1.15rem}
+.pcard .corner .s{font-family:var(--sans);font-size:.9em}
+.pcard.won .f{border-color:rgba(201,226,26,.7);box-shadow:0 0 1.4rem rgba(201,226,26,.25),0 10px 26px rgba(0,0,0,.55)}
+.pcard.lost .f{border-color:rgba(255,90,60,.7);box-shadow:0 0 1.4rem rgba(255,90,60,.3),0 10px 26px rgba(0,0,0,.55)}
+.calls{display:flex;flex-direction:column;gap:.5rem}
+.call{width:9.5rem;height:3.4rem;border-radius:.55rem;cursor:pointer;font-family:var(--mono);
+  font-size:.82rem;font-weight:800;letter-spacing:.16em;display:flex;align-items:center;justify-content:center;gap:.5rem}
+.call.hi{border:1px solid rgba(51,255,187,.55);background:rgba(51,255,187,.14);color:var(--acc2)}
+.call.hi:hover{background:rgba(51,255,187,.24)}
+.call.lo{border:1px solid rgba(255,176,32,.55);background:rgba(255,176,32,.14);color:var(--amber)}
+.call.lo:hover{background:rgba(255,176,32,.24)}
+.call:disabled{border-color:rgba(70,90,81,.35);background:transparent;color:#33453c;cursor:not-allowed}
+.tie{font-size:.5rem;letter-spacing:.14em;color:var(--faint);text-align:center}
+.hist{display:flex;gap:.4rem;align-items:center;min-height:2.2rem}
+.hcard{display:flex;align-items:center;gap:.25rem;font-size:.68rem;font-weight:700;padding:.22rem .45rem;
+  border-radius:.35rem;background:var(--panel2);border:1px solid var(--line)}
+.hcard .s{font-family:var(--sans)}
+.hcard .arr{font-size:.55rem;color:var(--faint)}
+.panel{flex:none;width:20.5rem;border-left:1px solid var(--line);background:rgba(10,19,16,.8);
+  display:flex;flex-direction:column;min-height:0;padding:.7rem .75rem;gap:.5rem}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:.55rem;padding:.55rem .65rem;display:flex;flex-direction:column;gap:.35rem}
+.lbl{font-size:.54rem;letter-spacing:.18em;color:var(--faint)}
+.kv{display:flex;justify-content:space-between;align-items:baseline;font-size:.6rem;color:var(--dim)}
+.kv b{color:var(--ink);font-variant-numeric:tabular-nums}
+.big{font-size:1.7rem;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums;text-shadow:0 0 1.4rem rgba(201,226,26,.25);min-height:2.1rem}
+.chips{display:flex;gap:.3rem;flex-wrap:wrap}
+.chip{flex:1;min-width:3.1rem;height:1.9rem;border-radius:1rem;border:1px solid var(--line);background:var(--panel2);
+  color:var(--dim);font-family:var(--mono);font-size:.6rem;font-weight:700;cursor:pointer;letter-spacing:.04em}
+.chip:hover{color:var(--acc);border-color:rgba(201,226,26,.4)}
+.chip.on{color:#0a1005;background:var(--acc);border-color:var(--acc)}
+.betrow{display:flex;align-items:center;gap:.4rem;background:var(--scr2);border:1px solid var(--line);
+  border-left:2px solid var(--acc2);border-radius:.45rem;padding:.4rem .55rem}
+.betrow input{flex:1;min-width:0;font-family:var(--mono);font-size:.85rem;font-weight:700;color:var(--acc2);
+  background:none;border:none;outline:none;font-variant-numeric:tabular-nums}
+.go{height:2.8rem;border-radius:.55rem;border:1px solid rgba(51,255,187,.55);background:rgba(51,255,187,.16);
+  color:var(--acc2);font-family:var(--mono);font-size:.72rem;font-weight:800;letter-spacing:.14em;cursor:pointer}
+.go:hover{background:rgba(51,255,187,.24)}
+.go:disabled{border-color:rgba(70,90,81,.35);background:transparent;color:#33453c;cursor:not-allowed}
+.cash{height:2.8rem;border-radius:.55rem;font-family:var(--mono);font-size:.68rem;font-weight:800;letter-spacing:.12em;cursor:pointer}
+.cash.full{border:1px solid rgba(201,226,26,.55);background:rgba(201,226,26,.16);color:var(--acc)}
+.cash.full:hover{background:rgba(201,226,26,.24)}
+.cash.half{border:1px solid rgba(255,176,32,.55);background:rgba(255,176,32,.12);color:var(--amber)}
+.cash.half:hover{background:rgba(255,176,32,.2)}
+.cash:disabled{border:1px solid rgba(70,90,81,.35);background:transparent;color:#33453c;cursor:not-allowed}
+.sess{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:.25rem}
+.sess .row{display:flex;gap:.45rem;font-size:.56rem;align-items:baseline}
+.sess .t{color:var(--faint)}
+.sess .l{flex:1;color:var(--ink);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess .n{font-variant-numeric:tabular-nums}
+.status{position:relative;z-index:2;flex:none;display:flex;align-items:center;height:1.8rem;padding:0 1.1rem;
+  border-top:1px solid var(--line);background:rgba(10,19,16,.78);font-size:.56rem;letter-spacing:.08em;color:var(--faint)}
+*::-webkit-scrollbar{width:5px}*::-webkit-scrollbar-thumb{background:#22332a;border-radius:3px}
+</style></head><body>
+<div id="stage"><div id="frame"><div id="screen" data-screen-label="Hi-Lo">
+  <canvas id="gl"></canvas>
+  <div class="hdr">
+    <span class="led"></span>
+    <span style="color:var(--acc2);font-weight:800;font-size:.95rem;letter-spacing:.3em">HI-LO</span>
+    <span style="color:var(--faint);font-size:.62rem;letter-spacing:.24em">// CALL IT HIGHER OR LOWER · RIDE IT TO 30× · ONE WRONG CALL TAKES THE POT</span>
+    <a class="back" href="#" onclick="AP.call('casTable',['landing']);return false;">⟵ FLOOR</a>
+    <span class="bal">BANK <b id="bal">—</b></span>
+    <button class="snd" id="snd">SND ON</button>
+  </div>
+  <div class="body">
+    <div class="pit">
+      <div class="table">
+        <div class="slot"><span class="lbl">THE SHOE</span>
+          <div class="stack">
+            <div class="pcard facedown"><div class="in"><div class="f"></div><div class="b"></div></div></div>
+            <div class="pcard facedown"><div class="in"><div class="f"></div><div class="b"></div></div></div>
+          </div>
+        </div>
+        <div class="slot"><span class="lbl">PREVIOUS</span><div id="prev"></div></div>
+        <div class="slot"><span class="lbl" id="curLbl">THE CARD</span><div id="cur"></div></div>
+        <div class="calls">
+          <button class="call hi" id="hiBtn">▲ HIGHER</button>
+          <button class="call lo" id="loBtn">▼ LOWER</button>
+          <span class="tie">A PUSH GOES TO THE HOUSE</span>
+        </div>
+      </div>
+      <div class="hist" id="hist"></div>
+    </div>
+    <div class="panel">
+      <div class="card">
+        <span class="lbl" id="resLbl">READY</span>
+        <span class="big" id="resBig">—</span>
+        <div class="kv"><span>MULT</span><b id="mult">—</b></div>
+        <div class="kv"><span>CAP</span><b>30×</b></div>
+        <div class="kv"><span>LAST HAND</span><b id="lastR">—</b></div>
+      </div>
+      <div class="card">
+        <span class="lbl">BET — CLAMPS <span id="clamp">10K–500K</span></span>
+        <div class="chips" id="chips"></div>
+        <div class="betrow"><span style="color:var(--faint);font-size:.7rem">$</span><input id="betIn" inputmode="numeric" value="50,000"><button class="chip" id="betMax" style="flex:none;min-width:2.6rem">MAX</button></div>
+      </div>
+      <button class="go" id="go">DEAL</button>
+      <button class="cash half" id="cashBtn" disabled>CASH OUT</button>
+      <div class="card" style="flex:1;min-height:0">
+        <span class="lbl">THIS SESSION</span>
+        <div class="sess" id="sess"><span style="font-size:.56rem;color:var(--faint)">NO HANDS YET</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="status" id="status"></div>
+</div></div></div>
+
+<script>
+/* ---- AP stub (dev only — the real bridge replaces it). The ladder factor is
+   a demo stand-in; in game the SERVER owns cards, multiplier and cap. ---- */
+if (typeof AP === "undefined") window.AP = (function () {
+  const subs = {}, last = {};
+  const push = (n, v) => { last[n] = v; (subs[n] || []).forEach(f => f(v)); };
+  const st = { balance:1240000, chips:[10000,50000,100000,250000,500000], limits:[10000,500000], gate:"" };
+  push("casino", JSON.parse(JSON.stringify(st)));
+  let hand = null;
+  const send = p => setTimeout(() => push("casResult", { game:"hilo", payload:p }), 420 + Math.random() * 380);
+  return {
+    on(n, f) { (subs[n] = subs[n] || []).push(f); if (n in last) f(last[n]); },
+    call(name, a) {
+      if (name !== "casPlay" || a[0] !== "hilo") return Promise.resolve({ ok:true });
+      const act = a[1];
+      if (act === "deal") {
+        if (hand) return Promise.resolve({ ok:false, msg:"hand in play" });
+        const bet = Math.max(st.limits[0], Math.min(st.limits[1], a[2][0] | 0));
+        if (bet > st.balance) return Promise.resolve({ ok:false, msg:"not enough in the bank" });
+        st.balance -= bet; push("casino", JSON.parse(JSON.stringify(st)));
+        hand = { bet, card:Math.floor(Math.random() * 52), mult:1 };
+        send(["play", hand.card, 1, bet, bet, -1, "deal"]);
+        return Promise.resolve({ ok:true });
+      }
+      if (!hand) return Promise.resolve({ ok:false, msg:"no hand" });
+      if (act === "hi" || act === "lo") {
+        let next = Math.floor(Math.random() * 52);
+        while (next === hand.card) next = Math.floor(Math.random() * 52);
+        const r0 = hand.card % 13, r1 = next % 13;
+        const correct = r1 === r0 ? false : (act === "hi" ? r1 > r0 : r1 < r0);   // push goes to the house
+        const prev = hand.card;
+        if (correct) {
+          hand.mult = Math.min(30, +(hand.mult * (1.25 + Math.random() * .22)).toFixed(2));
+          hand.card = next;
+          send(["play", next, hand.mult, hand.bet, Math.round(hand.bet * hand.mult), prev, act]);
+        } else {
+          send(["bust", next, 0, hand.bet, 0, prev, act]);
+          hand = null;
+        }
+        return Promise.resolve({ ok:true });
+      }
+      if (act === "cash") {
+        const ret = hand.mult <= 1 ? Math.round(hand.bet / 2) : Math.round(hand.bet * hand.mult);
+        st.balance += ret; push("casino", JSON.parse(JSON.stringify(st)));
+        send(["cashout", hand.card, hand.mult, hand.bet, ret, hand.card, "cash"]);
+        hand = null;
+        return Promise.resolve({ ok:true });
+      }
+      return Promise.resolve({ ok:true });
+    },
+    _push:push
+  };
+})();
+
+const $ = s => document.querySelector(s);
+function fit() { document.documentElement.style.fontSize = Math.max(9, $("#frame").getBoundingClientRect().width / 75) + "px"; }
+window.addEventListener("resize", fit); fit();
+const F = n => "$" + Math.round(n).toLocaleString();
+
+/* ---- WebGL felt (same shader as the landing) ---- */
+function feltGL(canvas) {
+  const gl = canvas.getContext("webgl", { antialias:false, alpha:false, powerPreference:"low-power" });
+  if (!gl) { canvas.style.background = "radial-gradient(ellipse at 50% 30%,#0d2a1e,#050b09 75%)"; return { kick(){} }; }
+  const V = "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
+  const Fs = "precision mediump float;uniform vec2 R;uniform float T;" +
+    "float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}" +
+    "float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);" +
+    "return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}" +
+    "void main(){vec2 uv=gl_FragCoord.xy/R;vec2 q=uv*vec2(R.x/R.y,1.);" +
+    "float weave=n(q*150.)*.6+n(q*300.+7.)*.4;" +
+    "float fb=n(q*3.2+T*.008);" +
+    "vec3 c=vec3(.045,.155,.11)*(.8+.3*fb)+(weave-.5)*.045;" +
+    "vec2 lp=vec2(.42+.2*sin(T*.045),.30+.12*cos(T*.033));" +
+    "float d=distance(q,lp*vec2(R.x/R.y,1.));" +
+    "c+=vec3(1.,.66,.16)*.085*exp(-d*d*5.5);" +
+    "float e=max(abs(uv.x-.5),abs(uv.y-.5))*2.;" +
+    "c+=vec3(.75,.85,.12)*.035*pow(e,3.);" +
+    "float m=smoothstep(.992,1.,n(q*20.+vec2(T*.018,-T*.011)));" +
+    "c+=vec3(.75,.85,.45)*m*.28;" +
+    "c*=1.-.5*pow(e,3.5);" +
+    "gl_FragColor=vec4(c,1.);}";
+  function sh(t, s) { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; }
+  const pr = gl.createProgram();
+  gl.attachShader(pr, sh(gl.VERTEX_SHADER, V)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, Fs));
+  gl.linkProgram(pr); gl.useProgram(pr);
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(pr, "p");
+  gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const uR = gl.getUniformLocation(pr, "R"), uT = gl.getUniformLocation(pr, "T");
+  let until = 0, raf = 0, lastF = 0;
+  function size() {
+    const r = canvas.getBoundingClientRect();
+    canvas.width = Math.round(r.width); canvas.height = Math.round(r.height);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+  window.addEventListener("resize", () => { size(); draw(performance.now()); });
+  function draw(t) { gl.uniform2f(uR, canvas.width, canvas.height); gl.uniform1f(uT, t / 1000); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+  function frame(t) {
+    raf = 0;
+    if (t > until) { draw(t); return; }
+    if (t - lastF >= 33) { lastF = t; draw(t); }
+    raf = requestAnimationFrame(frame);
+  }
+  size();
+  return { kick(ms) { until = performance.now() + (ms || 9000); if (!raf) raf = requestAnimationFrame(frame); } };
+}
+const felt = feltGL($("#gl"));
+
+/* ---- audio ---- */
+let sndOn = true, ac = null;
+function beep(f, dur, gain, type) {
+  if (!sndOn) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || "square"; o.frequency.value = f;
+    g.gain.setValueAtTime(gain || .03, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + dur);
+    o.connect(g); g.connect(ac.destination);
+    o.start(); o.stop(ac.currentTime + dur);
+  } catch (e) {}
+}
+const snap = () => beep(340, .04, .04, "triangle");
+const streakTick = n => beep(520 + n * 90, .09, .04, "triangle");
+const bustThud = () => { beep(130, .3, .07, "sawtooth"); setTimeout(() => beep(90, .4, .06, "sawtooth"), 120); };
+const cashSting = () => { beep(660, .12, .05, "triangle"); setTimeout(() => beep(990, .18, .05, "triangle"), 110); setTimeout(() => beep(1320, .3, .05, "triangle"), 240); };
+$("#snd").onclick = () => { sndOn = !sndOn; $("#snd").textContent = "SND " + (sndOn ? "ON" : "OFF"); };
+
+/* ---- cards ---- */
+const RANKS = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
+const SUITS = ["♣","♦","♥","♠"];
+const suitCol = s => (s === 1 || s === 2) ? "var(--magenta)" : "var(--acc2)";
+function cardHTML(c, big, facedown, mark) {
+  const r = RANKS[c % 13], s = Math.floor(c / 13);
+  return '<div class="pcard' + (big ? " big" : "") + (facedown ? " facedown" : "") + (mark ? " " + mark : "") + '">' +
+    '<div class="in"><div class="f" style="color:' + suitCol(s) + '">' +
+    '<span class="corner tl">' + r + '<span class="s">' + SUITS[s] + '</span></span>' +
+    '<span class="pip">' + SUITS[s] + '</span>' +
+    '<span class="corner br">' + r + '<span class="s">' + SUITS[s] + '</span></span>' +
+    "</div><div class=\"b\"></div></div></div>";
+}
+function ghostHTML(big) {
+  return '<div class="pcard' + (big ? " big" : "") + '" style="border:1px dashed rgba(70,90,81,.5);border-radius:.55rem"></div>';
+}
+
+/* ---- state ---- */
+let cas = null, bet = 50000;
+let hand = null;        // { bet, card, mult, pot, streak }
+let waiting = false;    // a call is in flight
+let hist = [];
+
+function renderTable(revealNew) {
+  $("#prev").innerHTML = hand && hand.prev != null && hand.prev >= 0 ? cardHTML(hand.prev, false) : ghostHTML(false);
+  if (hand) {
+    $("#cur").innerHTML = cardHTML(hand.card, true, revealNew, hand.mark);
+    if (revealNew) requestAnimationFrame(() => requestAnimationFrame(() => {
+      const el = $("#cur .pcard");
+      el.classList.remove("facedown");
+      snap();
+    }));
+  } else if (hand === null && lastEnd) {
+    $("#cur").innerHTML = cardHTML(lastEnd.card, true, false, lastEnd.mark);
+  } else {
+    $("#cur").innerHTML = ghostHTML(true);
+  }
+  $("#hist").innerHTML = hist.map(h =>
+    '<span class="hcard" style="color:' + suitCol(Math.floor(h.c / 13)) + '">' +
+    (h.arr ? '<span class="arr">' + h.arr + "</span>" : "") +
+    RANKS[h.c % 13] + '<span class="s">' + SUITS[Math.floor(h.c / 13)] + "</span></span>").join("");
+}
+let lastEnd = null;
+
+function syncButtons() {
+  const live = !!hand, gate = cas && cas.gate;
+  $("#go").disabled = live || waiting || !cas || !!gate || cas.balance < bet;
+  $("#go").textContent = live ? "HAND IN PLAY" : "DEAL — " + F(bet);
+  $("#hiBtn").disabled = !live || waiting || !!gate;
+  $("#loBtn").disabled = !live || waiting || !!gate;
+  const c = $("#cashBtn");
+  if (live) {
+    c.disabled = waiting;
+    if (hand.mult <= 1) { c.className = "cash half"; c.textContent = "WALK — HALF BACK " + F(hand.bet / 2); }
+    else { c.className = "cash full"; c.textContent = "CASH OUT — " + F(hand.pot); }
+  } else { c.disabled = true; c.className = "cash half"; c.textContent = "CASH OUT"; }
+  if (gate) say("// " + gate.toUpperCase(), "bad");
+}
+function countUp(n) {
+  const el = $("#resBig"); el.style.color = "var(--acc)";
+  const t0 = performance.now();
+  (function step(t) {
+    const p = Math.min(1, (t - t0) / 800), e = 1 - Math.pow(1 - p, 2);
+    el.textContent = F(n * e);
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+}
+function setRes(big, lbl, col) { $("#resBig").textContent = big; $("#resBig").style.color = col; $("#resLbl").textContent = lbl; }
+
+/* ---- actions ---- */
+function act(name, args) {
+  waiting = true; syncButtons();
+  AP.call("casPlay", ["hilo", name, args || []]).then(r => {
+    if (r && r.ok === false) { waiting = false; say("// REFUSED — " + (r.msg || "").toUpperCase(), "bad"); syncButtons(); }
+  });
+  felt.kick(4000);
+}
+$("#go").onclick = () => { if (!hand && !waiting) { lastEnd = null; hist = []; act("deal", [bet]); } };
+$("#hiBtn").onclick = () => { if (hand && !waiting) { hand.lastCall = "▲"; act("hi"); } };
+$("#loBtn").onclick = () => { if (hand && !waiting) { hand.lastCall = "▼"; act("lo"); } };
+$("#cashBtn").onclick = () => { if (hand && !waiting) act("cash");
+};
+
+AP.on("casResult", r => {
+  if (r.game !== "hilo") return;
+  if (!waiting) return;                       // bridge replays the last value on subscribe — accept only awaited results
+  waiting = false;
+  const p = r.payload, tag = p[0], card = p[1], mult = p[2], b = p[3], pot = p[4], prev = p[5];
+  if (tag === "play") {
+    const first = p[5] === -1;   /* server sends tag "" on the deal; prevCard -1 is the marker */
+    if (!first && hand) { hist.push({ c: prev, arr: hand.lastCall }); hand.streak++; streakTick(hand.streak); }
+    hand = { bet:b, card, mult, pot, prev, streak: hand && !first ? hand.streak : 0, lastCall: null, mark: first ? "" : "won" };
+    setRes(F(pot), first ? "POT — CALL IT" : hand.streak + " RIGHT — POT", first ? "var(--dim)" : "var(--acc)");
+    $("#resBig").style.color = first ? "var(--ink)" : "var(--acc)";
+    $("#mult").textContent = mult.toFixed(2) + "×";
+    say(first ? "// DEALT — HIGHER OR LOWER · A PUSH GOES TO THE HOUSE" : "// RIGHT CALL — " + mult.toFixed(2) + "× · CASH OR RIDE", first ? "" : "good");
+    renderTable(true);
+  } else if (tag === "bust") {
+    if (hand) hist.push({ c: prev, arr: hand.lastCall });
+    lastEnd = { card, mark:"lost" };
+    bustThud();
+    setRes("BUST", "WRONG CALL — HOUSE TAKES " + F(b), "var(--danger)");
+    $("#mult").textContent = "—";
+    $("#lastR").textContent = "BUST ON " + RANKS[card % 13] + SUITS[Math.floor(card / 13)] + " — LOST " + F(b);
+    $("#lastR").style.color = "var(--danger)";
+    logHand("BUST " + RANKS[card % 13] + SUITS[Math.floor(card / 13)] + (hand ? " · " + hand.streak + " RIGHT" : ""), -b);
+    hand = null;
+    renderTable(true);
+    say("// BUST — THE POT GOES TO THE HOUSE", "bad");
+  } else if (tag === "cashout") {
+    const ret = pot, half = mult <= 1;
+    lastEnd = { card: hand ? hand.card : card, mark: half ? "" : "won" };
+    if (half) {
+      setRes(F(ret), "WALKED AT " + mult.toFixed(2) + "× — HALF BACK", "var(--amber)");
+      $("#resBig").style.color = "var(--amber)";
+      say("// WALKED — HALF THE BET BACK · THE CONSOLATION", "warn");
+      beep(440, .18, .04, "triangle");
+    } else {
+      cashSting();
+      countUp(ret);
+      $("#resLbl").textContent = "CASHED AT " + mult.toFixed(2) + "×";
+      say("// CASHED " + F(ret) + " @ " + mult.toFixed(2) + "× — SERVER SETTLED", "good");
+    }
+    $("#lastR").textContent = (half ? "WALKED" : "CASHED") + " @ " + mult.toFixed(2) + "× — " + F(ret);
+    $("#lastR").style.color = half ? "var(--amber)" : "var(--acc)";
+    logHand((half ? "WALKED" : "CASHED " + mult.toFixed(2) + "×") + (hand ? " · " + hand.streak + " RIGHT" : ""), ret - b);
+    hand = null;
+    renderTable(false);
+  }
+  syncButtons();
+});
+
+/* ---- bet bar + wiring ---- */
+function setBet(n, fromInput) {
+  if (cas) n = Math.max(cas.limits[0], Math.min(cas.limits[1], n || cas.limits[0]));
+  bet = n;
+  if (!fromInput) $("#betIn").value = bet.toLocaleString();
+  [...$("#chips").children].forEach(c => c.classList.toggle("on", +c.dataset.v === bet));
+  syncButtons();
+}
+function renderChips() {
+  $("#chips").innerHTML = cas.chips.map(v =>
+    '<button class="chip" data-v="' + v + '">' + (v >= 1000000 ? v / 1000000 + "M" : v / 1000 + "K") + "</button>").join("");
+  [...$("#chips").children].forEach(c => c.onclick = () => { setBet(+c.dataset.v); felt.kick(2000); });
+  $("#clamp").textContent = cas.limits[0] / 1000 + "K–" + cas.limits[1] / 1000 + "K";
+}
+$("#betIn").addEventListener("input", e => { const n = +e.target.value.replace(/[^\d]/g, ""); if (n) setBet(n, true); });
+$("#betIn").addEventListener("blur", () => setBet(bet));
+$("#betIn").addEventListener("keydown", e => { if (e.key === "Enter") { setBet(bet); $("#go").click(); } });
+$("#betMax").onclick = () => setBet(cas ? Math.min(cas.limits[1], cas.balance) : 500000);
+let statusT = null;
+function say(m, tone) {
+  const el = $("#status");
+  el.textContent = m;
+  el.style.color = tone === "bad" ? "var(--danger)" : tone === "good" ? "var(--acc)" : tone === "warn" ? "var(--amber)" : "var(--faint)";
+  clearTimeout(statusT);
+  statusT = setTimeout(() => { el.textContent = defaultStatus(); el.style.color = "var(--faint)"; }, 3600);
+}
+function defaultStatus() {
+  return cas && cas.gate ? "// TABLE CLOSED TO YOU — " + cas.gate.toUpperCase()
+    : "// EVERY RIGHT CALL MULTIPLIES THE POT · WALK AT 1× AND THE HOUSE HANDS HALF BACK · ESC LEAVES";
+}
+function logHand(l, net) {
+  const box = $("#sess");
+  if (box.firstChild && box.firstChild.tagName === "SPAN") box.innerHTML = "";
+  const d = new Date(), tm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  const row = document.createElement("div");
+  row.className = "row";
+  row.innerHTML = '<span class="t">' + tm + '</span><span class="l">' + l +
+    '</span><span class="n" style="color:' + (net >= 0 ? "var(--acc)" : "var(--danger)") + '">' + (net >= 0 ? "+" : "−") + F(Math.abs(net)).slice(1) + "</span>";
+  box.prepend(row);
+  while (box.children.length > 12) box.removeChild(box.lastChild);
+}
+AP.on("casino", v => { cas = v; $("#bal").textContent = F(v.balance); if (!$("#chips").children.length) renderChips(); setBet(bet); });
+renderTable(false); syncButtons(); felt.kick(6000);
+$("#status").textContent = defaultStatus();
+</script>
+</body></html>

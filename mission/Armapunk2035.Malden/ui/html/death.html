@@ -1,0 +1,405 @@
+<!doctype html>
+<!-- FLATLINED — the death screen. Production build of the approved concept C
+     (design/death-menu/death-c.html, "Black Box"), over the real corpse camera.
+
+     WHAT THE PREVIEW HAD AND THIS DOES NOT: the concept navigation, the scenario
+     selector, the sample-data caption, the abstract street SVG and the fake
+     crosshair. Those were preview tooling. The backdrop here is the actual death
+     camera (dialog/function/fn_deathCamera.sqf) showing the player's own body, and
+     the browser control's background is fully transparent (dialog/web_death.hpp) so
+     it comes through. Everything else — the large left headline, the right-side
+     recovery console, the amber/blue theme, the type, the action order and the
+     animated trace — is the approved composition.
+
+     FLATLINED. IS ONE WORD ON ONE LINE. That is an explicit approval, not a
+     default, so the headline is nowrap and sized with clamp() rather than allowed
+     to reflow; it must not become FLAT / LINED at any width, and it must not revert
+     to SIGNAL LOST.
+
+     CONTRACT (core/web/fn_deathWebBridge.sqf matches this and adds nothing):
+
+       AP.on("death", { stage, remain, paused, canRespawn, canRequest, canAllow,
+                        reqCd, allowCd, allowed, requested, restricted,
+                        online, nearest, responder, reason, dragger })
+            stage      "lock"  = first timer, respawn locked, bleedout NOT started
+                       "bleed" = second timer, this is the bleedout deadline
+                       "done"  = the clocks are over
+            remain     SECONDS LEFT of the current stage, not a timestamp — the page
+                       has no access to the engine clock and cannot align to one
+            paused     a revive is in progress: `remain` is frozen and MUST NOT be
+                       rendered as a countdown
+            nearest    metres to the closest eligible live responder, or -1 = none.
+                       THIS IS A DISTANCE, NOT AN ETA, and is never labelled as one.
+            dragger    display name of the player dragging the body, "" = nobody
+                       (owner 2026-09-16, body dragging). SQF reads attachedTo, not the
+                       public flag, so this is never a stale claim. A missing key (a
+                       client older than this page -- the served copy replaces the
+                       client's unconditionally) reads as "". The name is a player's
+                       profile name and may contain < > &: it reaches the DOM through
+                       textContent only, never innerHTML.
+       AP.call("deathReady",   [])  -> answered by the first "death" push
+       AP.call("deathRequest", [])  -> { ok, msg }   (only after the inline confirm)
+       AP.call("deathAllow",   [])  -> { ok, msg }
+       AP.call("deathRespawn", [])  -> { ok, msg }   (only after the inline confirm)
+
+     SQF OWNS EVERYTHING THAT MATTERS. This page counts its own clock down between
+     the 1 Hz pushes so the timer does not visibly stutter, and it disables buttons
+     so a click is not wasted — but it authorises nothing. Every push overwrites the
+     interpolated value, and every verb re-checks its own gate in SQF, so a page that
+     lied would be corrected within a second and refused immediately.
+
+     THE ONE APPROVED AFFORDANCE THAT IS NOT IMPLEMENTED: the concept disables
+     Respawn while a revive is in progress. It is not implemented, and this is a
+     deliberate, load-bearing deviation. Nothing clears AP_reviving if the reviving
+     medic disconnects mid-attempt (core/medical/fn_revivePlayer.sqf clears it after
+     its loop, which never returns in that case), so the corpse would keep the flag
+     forever — bleedout paused forever AND respawn disabled forever, with Escape
+     blocked. That is an unrecoverable session. Respawn therefore stays available
+     during a revive; the concept's intent is kept by the confirmation, which says a
+     medic is working on them before they abandon it.
+
+     Escape is blocked on the DISPLAY by AP_fnc_deathWebOpen, not here. Reduced
+     motion is honoured. The waveform is illustrative, not medical telemetry. -->
+<html lang="en"><head><meta charset="utf-8"><title>FLATLINED</title>
+<script>
+/* Bridge self-boot -- the mandatory head block. window.WEBUI does not exist while
+   this script runs; the page pulls webui.js itself and the SQF fallback injection
+   covers the rest. A <script src> has no base URL to resolve against here. */
+window.WEBUIReady = new Promise(function (resolve) { window.__webuiReady = resolve; });
+if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+  A3API.RequestFile("webui\\ui\\webui.js")
+    .then(function (src) { (0, eval)(src); })
+    .catch(function (e) { console.error("bridge self-load failed, waiting for SQF injection", e); });
+}
+</script>
+<style>
+:root{--scr:#050a10;--panel:#0c1622;--acc:#f5a623;--live:#54b0ff;--danger:#ff4d4d;
+--ink:#dbe6f2;--dim:#9caabc;--line:rgba(245,166,35,.19);--mono:ui-monospace,Consolas,monospace}
+*{box-sizing:border-box}
+/* TRANSPARENT, all the way down. The death camera is behind this surface and the
+   whole design is composed over it; a painted body would hide the shot. */
+html,body{margin:0;height:100%;background:transparent;color:var(--ink);
+  font:15px system-ui,sans-serif;overflow:hidden}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:rgba(10,18,28,.72);
+  color:var(--ink);padding:17px 23px;font-size:13px;font-weight:650;
+  transition:background .2s,transform .2s}
+button:focus-visible{outline:2px solid var(--acc);outline-offset:5px}
+button:hover:enabled{background:#263329;transform:translateY(-2px)}
+button:disabled{color:#819187;border-color:#33453c;cursor:not-allowed}
+button.primary{background:var(--acc);color:var(--scr);border-color:var(--acc)}
+button.primary:hover:enabled{background:#ffc55e}
+button.primary:disabled{background:#273629;color:#819187;border-color:#33453c}
+.stage{position:fixed;inset:0;overflow:hidden}
+/* The vignette is the only thing this page paints over the camera, and it is what
+   keeps the headline legible against a bright daytime backdrop. */
+.vignette{position:absolute;inset:0;box-shadow:inset 0 0 180px 80px rgba(5,10,16,.7);pointer-events:none}
+.world-label{position:absolute;top:32px;left:36px;color:var(--dim);font:10px var(--mono);letter-spacing:.16em}
+.corner{position:absolute;right:36px;top:32px;font:10px var(--mono);color:var(--dim)}
+.eyebrow{font:11px var(--mono);letter-spacing:.17em;text-transform:uppercase;color:var(--dim)}
+.danger{color:var(--danger)}
+h1{font-size:44px;line-height:1.03;letter-spacing:-.045em;margin:14px 0 18px;font-weight:600}
+p{color:var(--dim);line-height:1.6;margin:0;max-width:55ch}
+/* FLATLINED. -- one word, one line, at every width. nowrap is the approval; the
+   clamp is what keeps it inside the frame on an ultrawide without wrapping, and the
+   right edge is capped so it can never run under the console panel. */
+.large-title{position:absolute;left:6%;top:30%;right:auto;max-width:52vw;
+  font-size:clamp(44px,7.2vw,115px);line-height:.85;letter-spacing:-.065em;font-weight:750;
+  color:#dbe6f2;white-space:nowrap;text-shadow:0 2px 24px rgba(5,10,16,.85)}
+/* The subtitle gets the headline's shadow treatment for the same reason the
+   headline has one: the concept sat on its own dark radial backdrop, and this sits
+   on whatever the death camera is pointing at. Red on a mid-tone daytime Malden is
+   the case that fails, and it is only visible when the page is composited over a
+   real scene rather than a white one. */
+.large-title small{font:11px var(--mono);letter-spacing:.16em;color:var(--danger);
+  display:block;margin-top:30px;white-space:normal;text-shadow:0 1px 10px rgba(5,10,16,.95)}
+.panel{position:absolute;right:5%;top:15%;bottom:9%;width:410px;padding:30px;
+  display:flex;flex-direction:column;background:rgba(10,18,28,.97);border:1px solid var(--line);
+  animation:arrive .55s cubic-bezier(.16,1,.3,1)}
+.brand{display:flex;align-items:center;gap:12px;font:12px var(--mono);letter-spacing:.14em}
+.mark{display:grid;place-items:center;width:31px;height:31px;background:var(--acc);
+  color:var(--scr);font-size:26px;font-weight:800}
+.meta{display:flex;gap:30px;font:12px var(--mono);color:var(--dim)}
+.meta b{color:var(--ink);font-weight:500}
+.topline .meta{margin-top:25px;flex-direction:column;gap:12px}
+.content{margin-top:35px}
+.wave{width:100%;height:64px;color:var(--danger);overflow:hidden}
+.wave path{fill:none;stroke:currentColor;stroke-width:2;vector-effect:non-scaling-stroke}
+.wave .trace{stroke-dasharray:160 740;animation:trace 3.6s linear infinite}
+.reviving .wave{color:var(--live)}
+.enroute .wave{color:var(--acc)}
+.clock{border-top:1px solid var(--line);padding-top:20px;margin-top:24px}
+.timer{font:30px var(--mono);color:var(--ink);letter-spacing:-.06em}
+.timer-label{font:10px var(--mono);letter-spacing:.1em;color:var(--dim);margin-bottom:7px}
+.bottom{margin-top:auto;padding-top:25px}
+.actions{display:flex;flex-direction:column;gap:10px}
+.status{font:12px var(--mono);color:var(--live);min-height:20px;line-height:1.6;margin-top:18px}
+.status.bad{color:var(--danger)}
+.led{display:inline-block;width:6px;height:6px;background:var(--live);border-radius:50%;
+  margin-right:9px;animation:pulse 2s ease-in-out infinite}
+.confirm{display:flex;align-items:center;gap:12px;padding-top:16px;flex-wrap:wrap}
+.confirm[hidden]{display:none}
+.confirm span{font-size:12px;color:var(--dim);flex:1 1 100%}
+.confirm button{padding:10px}
+@keyframes trace{to{stroke-dashoffset:-900}}
+@keyframes pulse{50%{opacity:.35}}
+@keyframes arrive{from{opacity:0;filter:brightness(1.4)}to{opacity:1;filter:brightness(1)}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+/* The console must stay readable and must never sit on top of the headline. Below
+   this width the two stack instead of competing for the same row. */
+@media(max-width:1100px){
+  .large-title{top:8%;font-size:clamp(34px,7vw,64px);max-width:88vw}
+  .panel{top:30%;left:4%;right:4%;bottom:6%;width:auto}
+  .world-label,.corner{display:none}
+}
+</style></head>
+<body>
+<div class="stage">
+  <div class="vignette"></div>
+  <div class="world-label">MALDEN / DEATH CAMERA</div>
+  <div class="corner">NEURAL INTERFACE / RECOVERY MODE</div>
+  <div class="large-title">FLATLINED.<small>BODY OFFLINE / CONSCIOUSNESS RETAINED</small></div>
+  <section class="panel" aria-label="Recovery menu">
+    <div class="topline">
+      <div class="brand"><span class="mark">+</span>TRAUMA TEAM</div>
+      <div class="meta">
+        <span><span class="led"></span><b id="online">--</b> online</span>
+        <span>Nearest <b id="nearest">--</b></span>
+      </div>
+    </div>
+    <div class="content">
+      <div class="diagnostic"><svg class="wave" viewBox="0 0 600 90" aria-hidden="true">
+        <path opacity=".13" d="M0 45H600M0 15H600M0 75H600"/>
+        <path opacity=".25" d="M0 45H110l10-8 12 16 16-9h50l10-15 12 36 12-62 12 78 12-36h70l12-8 12 16 12-8H600"/>
+        <path class="trace" d="M0 45H110l10-8 12 16 16-9h50l10-15 12 36 12-62 12 78 12-36h70l12-8 12 16 12-8H600"/>
+      </svg></div>
+      <div class="intro">
+        <div class="eyebrow danger">Critical condition / 01</div>
+        <h1 id="headline">You’re still here.</h1>
+        <p id="message">Critical trauma detected. Choose how you come back.</p>
+      </div>
+      <div class="clock">
+        <div class="timer-label" id="timerLabel">RESPAWN UNLOCKS IN</div>
+        <div class="timer" id="timer">--:--</div>
+      </div>
+    </div>
+    <div class="bottom">
+      <div class="actions">
+        <button class="primary" id="request">Request Trauma Team</button>
+        <button id="allow">Allow revive</button>
+        <button id="respawn">Respawn ↗</button>
+      </div>
+      <div class="status" id="status" role="status">Recovery channel open.</div>
+      <div class="confirm" id="confirm" hidden>
+        <span id="question"></span>
+        <button id="yes" class="primary">Confirm</button>
+        <button id="no">Cancel</button>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+"use strict";
+var $ = function (s) { return document.querySelector(s); };
+
+/* ==== standalone stub — the real bridge always wins ========================
+   Lets the page be reviewed in a browser instead of only in game, where the
+   console is unreachable because Escape is blocked. It answers EVERY method the
+   page calls: a stub missing one throws inside the WEBUIReady .then as a silent
+   unhandled rejection, and every handler registered after it is never reached. */
+if (typeof A3API === "undefined") (function stub() {
+  var st = { stage: "lock", remain: 36, paused: false, canRespawn: false,
+             canRequest: true, canAllow: true, reqCd: 0, allowCd: 0,
+             allowed: false, requested: false, restricted: false,
+             online: 3, nearest: 842, responder: "", reason: "", dragger: "" };
+  var bus = {
+    _h: {},
+    on: function (ch, fn) { (this._h[ch] = this._h[ch] || []).push(fn); },
+    _push: function (ch, d) { (this._h[ch] || []).forEach(function (f) { f(d); }); },
+    call: function (verb) {
+      if (verb === "deathRequest") { st.requested = true; st.allowed = true; st.reqCd = 120; st.allowCd = 120;
+        st.canRequest = false; st.canAllow = false; st.responder = "TT Medic Voss";
+        return Promise.resolve({ ok: true, msg: "LOCATION TRANSMITTED -- AWAITING A RESPONDER" }); }
+      if (verb === "deathAllow") { st.allowed = true; st.allowCd = 120; st.canAllow = false;
+        return Promise.resolve({ ok: true, msg: "REVIVE ALLOWED -- NO MEDIC HAS BEEN PAGED" }); }
+      if (verb === "deathRespawn") {
+        if (!st.canRespawn) return Promise.resolve({ ok: false, msg: "RESPAWN NOT AVAILABLE YET" });
+        st.stage = "done"; return Promise.resolve({ ok: true, msg: "LEAVING THE BODY" }); }
+      return Promise.resolve({ ok: true, msg: "" });
+    },
+    ask: function () { return Promise.resolve(false); },
+    handle: function () {}, get: function () { return null; }
+  };
+  window.__stubState = st;
+  setTimeout(function () {
+    window.__webuiReady(bus);
+    bus._push("death", st);
+    setInterval(function () {
+      if (st.stage === "done") return;
+      if (!st.paused && st.remain > 0) st.remain--;
+      if (st.remain <= 0 && st.stage === "lock") { st.stage = "bleed"; st.remain = 1800; st.canRespawn = true; }
+      if (st.reqCd > 0) { st.reqCd--; if (st.reqCd === 0) st.canRequest = true; }
+      if (st.allowCd > 0) { st.allowCd--; if (st.allowCd === 0) st.canAllow = true; }
+      bus._push("death", st);
+    }, 1000);
+  }, 80);
+})();
+
+/* ==== state ================================================================
+   `s` is the last authoritative push, never a local decision. `tick` interpolates
+   ONLY the displayed clock between pushes; every push overwrites it. */
+var s = null, tick = 0, pending = "", busy = false;
+
+function mmss(n) {
+  n = Math.max(0, Math.round(n));
+  return String(Math.floor(n / 60)).padStart(2, "0") + ":" + String(n % 60).padStart(2, "0");
+}
+function setStatus(text, bad) {
+  var el = $("#status");
+  el.textContent = text;
+  el.className = bad ? "status bad" : "status";
+}
+
+/* The wording. The headline element under the console is the NARRATIVE line; the
+   big FLATLINED. is fixed and never changes, by approval. */
+function words() {
+  if (!s) return ["You’re still here.", "Critical trauma detected. Choose how you come back."];
+  if (s.stage === "done") return ["Signal restored.", "Leaving the body. The spawn menu is opening."];
+  if (s.paused) return ["Stay with us.", "Medical intervention in progress. Bleedout paused."];
+  if (s.responder) return ["Help is coming.", s.responder + " has accepted your request."];
+  if (s.restricted) return ["Nothing left to treat.", "There is not enough of you for a medic to work with."];
+  return ["You’re still here.", "Critical trauma detected. Choose how you come back."];
+}
+
+function render() {
+  if (!s) return;
+  document.body.classList.toggle("reviving", !!s.paused);
+  document.body.classList.toggle("enroute", !s.paused && !!s.responder);
+
+  var w = words();
+  $("#headline").textContent = w[0];
+  $("#message").textContent = w[1];
+
+  $("#online").textContent = String(s.online);
+  /* -1 is NONE, and it must read as none rather than as a zero-metre distance --
+     a medic standing on your body and no medic at all are not the same picture. */
+  $("#nearest").textContent = (s.nearest < 0) ? "None" : (s.nearest + " m");
+
+  /* PAUSED, not a frozen countdown: while a revive is in progress the deadline is
+     held by SQF and `remain` is meaningless. */
+  $("#timer").textContent = s.paused ? "PAUSED" : mmss(tick);
+  $("#timerLabel").textContent = s.stage === "lock" ? "RESPAWN UNLOCKS IN"
+    : s.stage === "bleed" ? "BLEEDOUT REMAINING" : "";
+
+  var done = (s.stage === "done") || busy;
+
+  var req = $("#request");
+  req.disabled = done || !s.canRequest;
+  req.textContent = s.reqCd > 0 ? ("Request sent · " + mmss(s.reqCd))
+    : s.requested ? "Request Trauma Team" : "Request Trauma Team";
+
+  var allow = $("#allow");
+  allow.disabled = done || !s.canAllow;
+  allow.textContent = s.allowCd > 0 ? ("Revive allowed · " + mmss(s.allowCd))
+    : s.allowed ? "Revive allowed" : "Allow revive";
+
+  var resp = $("#respawn");
+  resp.disabled = done || !s.canRespawn;
+  resp.textContent = "Respawn ↗";
+}
+
+/* A disabled action KEEPS ITS SLOT and the status area says why, rather than a
+   button vanishing or sitting dead with no explanation. Precedence matches
+   fn_deathState's: a restriction outranks a cooldown outranks the idle line.
+   The drag line (owner 2026-09-16) sits under the medic-attending line, because a
+   revive in progress is the more important fact and the two cannot both be true
+   for long (a dragged body refuses a revive and a revive refuses a drag), and above
+   the responder line, because a responder walking to where the body WAS is exactly
+   what the dead player needs to know is going wrong. The strip is rewritten from
+   here on every push, so the line appears and clears within one push. setStatus
+   writes textContent, so a name full of < > & renders as typed. */
+function idleStatus() {
+  if (!s) return "Recovery channel open.";
+  if (s.stage === "done") return "● Leaving the body.";
+  if (s.reason) return "● " + s.reason;
+  if (s.paused) return "● Medic attending. Hold position.";
+  if (typeof s.dragger === "string" && s.dragger)
+    return "● YOUR BODY IS BEING MOVED BY " + s.dragger.toUpperCase();
+  if (s.responder) return "● " + s.responder + " is en route.";
+  if (s.reqCd > 0) return "● Location transmitted. Awaiting a responder.";
+  if (s.allowed) return "● Revive allowed. Medics have not been paged.";
+  if (s.stage === "lock") return "● Recovery channel open. Respawn is locked.";
+  return "● Recovery channel open. No request sent.";
+}
+
+/* ==== the inline confirmation ==============================================
+   Replaces the native BIS_fnc_GUIMessage, which is a separate engine display and
+   would fight the browser for the screen. SQF is called only on Confirm. */
+function ask(action) {
+  pending = action;
+  var q;
+  if (action === "request") {
+    q = "Send your location to Trauma Team?";
+  } else if (s && s.paused) {
+    /* The concept disabled Respawn here; this page warns instead -- see the header
+       for why disabling it is not safe. */
+    q = "A medic is working on your body right now. Leave anyway?";
+  } else {
+    q = "Leave your body and open the spawn menu?";
+  }
+  $("#question").textContent = q;
+  $("#confirm").hidden = false;
+  $("#yes").focus();
+}
+function closeConfirm() { $("#confirm").hidden = true; pending = ""; }
+
+function send(verb) {
+  if (busy) return;
+  busy = true; render();
+  window.WEBUIReady.then(function (AP) {
+    return AP.call(verb, []);
+  }).then(function (v) {
+    busy = false;
+    if (v && v.ok) { setStatus(v.msg || idleStatus(), false); }
+    else { setStatus((v && v.msg) || "REFUSED", true); }
+    render();
+  }).catch(function (e) {
+    busy = false;
+    setStatus("LINK FAILED — " + e, true);
+    render();
+  });
+}
+
+$("#request").onclick = function () { ask("request"); };
+$("#respawn").onclick = function () { ask("respawn"); };
+$("#allow").onclick   = function () { send("deathAllow"); };
+$("#no").onclick      = function () { var p = pending; closeConfirm();
+                                      $(p === "request" ? "#request" : "#respawn").focus(); };
+$("#yes").onclick     = function () { var p = pending; closeConfirm();
+                                      send(p === "request" ? "deathRequest" : "deathRespawn"); };
+
+/* One timer, display only. It never changes stage, never unlocks respawn and never
+   expires anything -- SQF does all of that and the next push corrects this. */
+setInterval(function () {
+  if (!s || s.paused || s.stage === "done") { render(); return; }
+  if (tick > 0) tick -= 1;
+  render();
+}, 1000);
+
+/* ==== bridge =============================================================== */
+window.WEBUIReady.then(function (AP) {
+  /* SQF cannot see PageLoaded for url= pages; it waits for ANY inbound message
+     before draining its ExecJS queue. One call in, drained instantly. */
+  AP.call("log", ["death page up"]);
+  AP.on("death", function (d) {
+    if (!d) return;
+    var first = (s === null);
+    s = d;
+    tick = d.remain;                       // re-sync the interpolated clock every push
+    if (first || !busy) setStatus(idleStatus(), false);
+    render();
+  });
+  AP.call("deathReady", []);
+});
+</script>
+</body></html>

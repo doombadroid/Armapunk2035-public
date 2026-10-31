@@ -1,0 +1,10 @@
+if (isNil "AP_treasureSpot") then {[] call AP_fnc_treasureChestCreate;};
+disableSerialization;
+createDialog "AP_TreasureMap";
+private _display = findDisplay 74700;
+if (isNull _display) exitWith {};
+private _treasureMap = _display displayCtrl 74701;
+_treasureMap ctrlEnable false;
+_treasureMap ctrlMapAnimAdd[0, 0.01, (AP_treasureSpot select 1)];
+ctrlMapAnimCommit _treasureMap;
+_treasureMap ctrlSetEventHandler["Draw", format["(_this select 0) drawIcon ['\A3\ui_f\data\map\markers\handdrawn\destroy_ca.paa', [1, 0, 0, 1], %1, 100, 100, 45]", (AP_treasureSpot select 0)]];

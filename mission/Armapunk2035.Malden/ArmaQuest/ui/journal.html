@@ -1,0 +1,1231 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!DOCTYPE html>
+<!--
+  ui/journal.html -- the ArmaQuest quest journal, as an arma-webui page.
+
+  (The licence comment sits above the DOCTYPE deliberately: the house rule puts
+  SPDX on line one, and a comment before the DOCTYPE is allowed by the HTML
+  parser's "initial" insertion mode and does not force quirks mode.)
+
+  WHY THIS EXISTS
+    A quest log built from engine dialog controls is a wall of idc numbers and
+    a .paa bake for every panel state, and it has to be rebuilt to move a box.
+    Worse for this system specifically: the journal must show an arbitrary
+    number of quests, each with an arbitrary number of objectives whose progress
+    lines are produced by plugin objective types the engine has never heard of.
+    That is a data-driven list of unknown depth, which is what HTML is for.
+
+    It also exists to keep the client honest. The page renders exactly what the
+    server pushed and asks the server for every change. It never moves a quest
+    between lists, never marks an objective complete and never computes a
+    reward, because a client that decides it finished a quest is a client that
+    can pay itself.
+
+  WHAT IT DOES
+    Subscribes to three push channels and calls three verbs. These names are the
+    contract with functions/fn_journal.sqf, which registers exactly these verbs
+    and pushes exactly these channels. A mismatch on either side is a journal
+    whose buttons reach nothing and whose lists never fill, with no error at
+    either end -- so if you rename one here, rename it there.
+
+      channel "quests"    the player's own log   (active + terminal states)
+      channel "offers"    what is available at the giver being talked to
+      channel "progress"  incremental per-objective progress updates
+
+      verb "select"   [questId]  -- tell the server what is being looked at
+      verb "accept"   [questId]  -- request acceptance; server decides
+      verb "abandon"  [questId]  -- request abandonment; server decides
+
+    The shipped bridge does NOT push "progress": it re-pushes whole quest records
+    on "quests" every time the server speaks, which carries the same figures and
+    cannot drift out of step with the rest of the record. The channel is kept
+    because it costs nothing and a host pushing finer-grained updates of its own
+    is a reasonable thing to want; an empty channel is not an error here.
+
+    Layout is a list split by state (Available / Active / Completed) beside a
+    detail pane with description, per-objective progress lines, rewards, and
+    accept / abandon buttons. Narrow controls collapse to one column.
+
+  Usage (SQF side; see arma-webui docs/API.md):
+      [_ctrl] call webui_fnc_init;
+      [_ctrl, "quests",  _questRecords] call webui_fnc_push;
+      [_ctrl, "accept", { [_this select 0] call aq_fnc_accept }] call webui_fnc_on;
+
+  NO MOTION BY DESIGN
+    UNVERIFIED, and load-bearing for every layout decision below: this assumes
+    browser frame delivery for the control is dirty-driven, and that on some
+    client launch paths it is clamped to roughly one frame per second. Nothing in
+    this repository has been run, so that is an assumption and not a measurement.
+    Confirm by animating one element and watching whether it moves smoothly.
+
+    The design follows from the assumption being true: anything that has to move
+    to be understood -- a spinner, a fading toast, a bar that animates to its
+    value -- is unreadable or invisible at one frame per second. So there are no
+    transitions, no animations and no timed reveals anywhere in this file, and
+    every piece of information is legible in a single static frame. If the
+    assumption turns out to be wrong, nothing here breaks; the page is simply
+    plainer than it needed to be, which is the right direction to be wrong in.
+
+  WIRE SHAPES ACCEPTED
+    Payloads arrive as toJSON of a HashMap or Array, so they land as plain
+    JavaScript objects and arrays. The reader below is deliberately tolerant of
+    the reasonable spellings, because a shape mismatch between the bridge and
+    this page is otherwise a blank screen with no error.
+
+      "quests"   { "active": [quest...], "completed": [quest...] }
+                 | { "quests": [quest...] } | [quest...]
+      "offers"   { "giver": "id", "giverName": "Market Trader",
+                   "offers": [quest...] } | [quest...]
+      "progress" { "quest": "id", "objective": "id", "cur": 3, "max": 20,
+                   "text": "3 / 20 copper", "done": false }
+                 | [update...]
+                 | { "questId": { "objId": [cur, max, "text"] } }
+
+      quest      { "id", "title", "summary", "description", "state",
+                   "giver"|"giverName", "icon", "expires" (seconds left),
+                   "objectives": [objective...], "rewards": {...} }
+      objective  { "id", "text", "cur", "max", "done", "optional" }
+                 | [cur, max, "text"]                  (the type "progress" verb)
+                 | ["id", cur, max, "text"]
+      rewards    { "money", "xp", "items": [["class", 1]...],
+                   "licenses": ["trucking"...] }
+
+    Optional envelope keys honoured on any channel: "heading" (page title),
+    "currency" (symbol prefixed to money), "theme" ("light" | "dark").
+
+    Unknown keys are ignored. A record with no id is reported to the RPT rather
+    than silently dropped.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quest Journal</title>
+
+<script>
+/* Self-boot. A <script src> cannot work here: the page is handed to the
+   browser as a blob: URL with no resolvable base, so the bridge is pulled out
+   of the PBO instead. SQF injection may win the race; both paths are
+   idempotent and either one resolves WEBUIReady.
+
+   AQ_WEBUI_PATHS is the one thing a host may need to edit -- it is where
+   webui.js ended up in YOUR mission. Every candidate is tried in order, and if
+   all of them miss, the page still renders with a visible "no bridge" state
+   rather than a blank rectangle. */
+window.AQ_WEBUI_PATHS = window.AQ_WEBUI_PATHS || [
+  "armaquest\\ui\\webui.js",
+  "webui\\ui\\webui.js",
+  "webui\\webui.js",
+  "ui\\html\\webui.js",
+  "ui\\webui.js"
+];
+window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+(function selfBoot() {
+  "use strict";
+  if (typeof A3API === "undefined" || !A3API.RequestFile) { return; }
+  var paths = window.AQ_WEBUI_PATHS, i = 0;
+  (function next() {
+    if (window.WEBUI) { return; }
+    if (i >= paths.length) {
+      window.AQ_BOOT_ERROR = "webui.js not found under: " + paths.join(", ");
+      return;
+    }
+    var p = paths[i++];
+    A3API.RequestFile(p).then(function (src) {
+      /* UNVERIFIED: this assumes a missing FILE resolves with a short string
+         rather than rejecting, so length is treated as the signal instead of the
+         promise's own outcome. Nothing here has been run; that is an assumption,
+         not a measurement. Confirm by pointing one candidate at a path that does
+         not exist and reading the RPT -- the boot should fall through to the next
+         candidate, not stop. The length test is safe whichever way it resolves:
+         a real webui.js is several KB, so a rejection path and a stub path both
+         end up trying the next candidate.
+
+         WHY eval IS ACCEPTABLE HERE, and only here. The library's rule is that
+         nothing supplied as CONFIG is ever compiled, because config is content
+         and content is edited by people thinking about quest design. This is not
+         config: AQ_WEBUI_PATHS is a list of file paths inside the mission's own
+         PBO, the payload is a named dependency the host installed on purpose,
+         and a <script src> cannot be used because the page is handed to the
+         browser as a blob: URL with no resolvable base. Anyone who can change
+         what those paths point at can already change this file. */
+      if (typeof src === "string" && src.length > 200) { (0, eval)(src); }
+      if (!window.WEBUI) { next(); }
+    }, next);
+  })();
+})();
+</script>
+
+<style>
+/* ---------------------------------------------------------------------------
+   THEME
+   A host restyles this page by overriding the custom properties below -- from
+   its own stylesheet, or with one ExecJS call setting them on documentElement.
+   Nothing else in this file hardcodes a colour.
+
+   The light palette is defined on bare :root so it is always complete; the dark
+   palette overrides only the tokens that change. An explicit choice can be
+   forced with <html data-aq-theme="dark"> (or "light"), which the page also
+   sets when a payload carries a "theme" key.
+   --------------------------------------------------------------------------- */
+:root {
+  --aq-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --aq-mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+
+  --aq-bg:        #f2f4f7;
+  --aq-panel:     #ffffff;
+  --aq-panel-2:   #e7ebf1;
+  --aq-line:      #cfd6e0;
+  --aq-line-hard: #9aa5b4;
+  --aq-ink:       #16191f;
+  --aq-ink-dim:   #55606f;
+  --aq-accent:    #1b5fbe;
+  --aq-on-accent: #ffffff;
+  --aq-ok:        #1d7a3c;
+  --aq-warn:      #8a5a00;
+  --aq-bad:       #a32521;
+  --aq-focus:     #1b5fbe;
+
+  --aq-radius: 8px;
+  --aq-pad: 10px;
+  --aq-list-w: 34%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-aq-theme="light"]) {
+    --aq-bg:        #10141a;
+    --aq-panel:     #171d25;
+    --aq-panel-2:   #1f2833;
+    --aq-line:      #2c3846;
+    --aq-line-hard: #5a6b7d;
+    --aq-ink:       #e6ecf3;
+    --aq-ink-dim:   #9aa9b9;
+    --aq-accent:    #4d9bff;
+    --aq-on-accent: #08101c;
+    --aq-ok:        #4fc27a;
+    --aq-warn:      #e0a53a;
+    --aq-bad:       #ff7b72;
+    --aq-focus:     #4d9bff;
+  }
+}
+:root[data-aq-theme="dark"] {
+  --aq-bg:        #10141a;
+  --aq-panel:     #171d25;
+  --aq-panel-2:   #1f2833;
+  --aq-line:      #2c3846;
+  --aq-line-hard: #5a6b7d;
+  --aq-ink:       #e6ecf3;
+  --aq-ink-dim:   #9aa9b9;
+  --aq-accent:    #4d9bff;
+  --aq-on-accent: #08101c;
+  --aq-ok:        #4fc27a;
+  --aq-warn:      #e0a53a;
+  --aq-bad:       #ff7b72;
+  --aq-focus:     #4d9bff;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--aq-bg);
+  color: var(--aq-ink);
+  font: 400 clamp(12px, 1.05vw, 16px)/1.45 var(--aq-font);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--aq-focus); outline-offset: 2px; }
+
+/* ---- header ------------------------------------------------------------- */
+header {
+  flex: 0 0 auto;
+  padding: var(--aq-pad) calc(var(--aq-pad) * 1.4) 0;
+  border-bottom: 1px solid var(--aq-line);
+  background: var(--aq-panel);
+}
+.hrow { display: flex; align-items: baseline; gap: .8em; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 1.15em; letter-spacing: .02em; }
+.bridge {
+  margin-left: auto; font-size: .72em; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--aq-ink-dim);
+  border: 1px solid var(--aq-line); border-radius: 99px; padding: .1em .7em;
+}
+.bridge.live { color: var(--aq-ok); border-color: var(--aq-ok); }
+.bridge.down { color: var(--aq-bad); border-color: var(--aq-bad); }
+
+.tabs { display: flex; gap: .3em; margin-top: .7em; flex-wrap: wrap; }
+.tab {
+  background: transparent; border: 1px solid transparent; border-bottom: none;
+  border-radius: var(--aq-radius) var(--aq-radius) 0 0;
+  padding: .35em .9em; cursor: pointer; color: var(--aq-ink-dim);
+  margin-bottom: -1px;
+}
+.tab[aria-selected="true"] {
+  background: var(--aq-bg); border-color: var(--aq-line);
+  color: var(--aq-ink); font-weight: 600;
+}
+.tab .n {
+  font-family: var(--aq-mono); font-size: .82em; margin-left: .45em;
+  color: var(--aq-ink-dim);
+}
+
+/* ---- body --------------------------------------------------------------- */
+main {
+  flex: 1 1 auto; min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(200px, var(--aq-list-w)) 1fr;
+  gap: 0;
+}
+.pane { min-height: 0; overflow: auto; }
+/* The list pane does not scroll itself: the filter stays put and only the rows
+   below it move, so a long log never scrolls the search box out of reach. */
+.list {
+  border-right: 1px solid var(--aq-line); padding: calc(var(--aq-pad) * .6);
+  overflow: hidden; display: flex; flex-direction: column;
+}
+#list { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.detail { padding: calc(var(--aq-pad) * 1.2) calc(var(--aq-pad) * 1.4); }
+
+.filter {
+  flex: 0 0 auto;
+  width: 100%; margin: 0 0 .5em; padding: .4em .6em;
+  background: var(--aq-panel); border: 1px solid var(--aq-line);
+  border-radius: var(--aq-radius); outline: none;
+}
+
+.row {
+  display: block; width: 100%; text-align: left;
+  background: var(--aq-panel); color: inherit;
+  border: 1px solid var(--aq-line); border-left: 4px solid var(--aq-line);
+  border-radius: var(--aq-radius);
+  padding: .45em .6em; margin-bottom: .35em; cursor: pointer;
+}
+.row:hover { background: var(--aq-panel-2); }
+.row[aria-pressed="true"] {
+  background: var(--aq-panel-2); border-color: var(--aq-line-hard);
+  border-left-color: var(--aq-accent);
+}
+.row .t {
+  display: flex; align-items: baseline; gap: .5em;
+  font-weight: 600;
+}
+.row .t .name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .t .frac { font-family: var(--aq-mono); font-size: .82em; color: var(--aq-ink-dim); }
+.row .s {
+  font-size: .84em; color: var(--aq-ink-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.row .meta { font-size: .75em; color: var(--aq-ink-dim); margin-top: .15em; }
+
+.empty {
+  color: var(--aq-ink-dim); padding: 1.2em .8em; text-align: center;
+  border: 1px dashed var(--aq-line); border-radius: var(--aq-radius);
+}
+
+/* ---- detail ------------------------------------------------------------- */
+.back { display: none; }
+h2 { margin: 0 0 .1em; font-size: 1.25em; }
+.badges { display: flex; flex-wrap: wrap; gap: .35em; margin: .35em 0 .8em; }
+.badge {
+  font-size: .72em; letter-spacing: .06em; text-transform: uppercase;
+  border: 1px solid var(--aq-line-hard); color: var(--aq-ink-dim);
+  border-radius: 99px; padding: .12em .65em;
+}
+.badge.state-offered   { color: var(--aq-accent); border-color: var(--aq-accent); }
+.badge.state-active    { color: var(--aq-warn);   border-color: var(--aq-warn); }
+.badge.state-completed { color: var(--aq-ok);     border-color: var(--aq-ok); }
+.badge.state-failed,
+.badge.state-expired,
+.badge.state-abandoned { color: var(--aq-bad);    border-color: var(--aq-bad); }
+
+.section { margin: 1.1em 0 0; }
+.section > h3 {
+  margin: 0 0 .45em; font-size: .76em; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--aq-ink-dim); font-weight: 700;
+}
+.desc { white-space: pre-wrap; }
+
+.obj {
+  display: flex; align-items: flex-start; gap: .55em;
+  border: 1px solid var(--aq-line); border-radius: var(--aq-radius);
+  background: var(--aq-panel); padding: .45em .6em; margin-bottom: .35em;
+}
+.obj .box {
+  flex: 0 0 auto; width: .85em; height: .85em; margin-top: .28em;
+  border: 2px solid var(--aq-line-hard); border-radius: 3px;
+}
+.obj.done .box { background: var(--aq-ok); border-color: var(--aq-ok); }
+.obj.done .otext { color: var(--aq-ink-dim); }
+.obj .body { flex: 1 1 auto; min-width: 0; }
+.obj .otext { overflow-wrap: anywhere; }
+.obj .frac {
+  flex: 0 0 auto; font-family: var(--aq-mono); font-size: .85em;
+  color: var(--aq-ink-dim); margin-top: .05em;
+}
+.bar {
+  height: 6px; margin-top: .35em; border-radius: 99px;
+  background: var(--aq-panel-2); border: 1px solid var(--aq-line);
+  overflow: hidden;
+}
+.bar > i { display: block; height: 100%; background: var(--aq-accent); }
+.obj.done .bar > i { background: var(--aq-ok); }
+
+.chips { display: flex; flex-wrap: wrap; gap: .35em; }
+.chip {
+  border: 1px solid var(--aq-line); background: var(--aq-panel);
+  border-radius: var(--aq-radius); padding: .25em .6em; font-size: .88em;
+}
+.chip .k {
+  font-size: .74em; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--aq-ink-dim); margin-right: .4em;
+}
+.chip .v { font-family: var(--aq-mono); }
+
+.actions {
+  display: flex; flex-wrap: wrap; gap: .5em;
+  margin-top: 1.2em; padding-top: .9em; border-top: 1px solid var(--aq-line);
+}
+.btn {
+  border: 1px solid var(--aq-line-hard); background: var(--aq-panel);
+  color: var(--aq-ink); border-radius: var(--aq-radius);
+  padding: .45em 1.1em; cursor: pointer; font-weight: 600;
+}
+.btn:hover { background: var(--aq-panel-2); }
+.btn.primary {
+  background: var(--aq-accent); border-color: var(--aq-accent);
+  color: var(--aq-on-accent);
+}
+.btn.danger { border-color: var(--aq-bad); color: var(--aq-bad); }
+.btn.danger.armed { background: var(--aq-bad); color: var(--aq-on-accent); }
+.btn[disabled] { opacity: .55; cursor: default; }
+
+/* ---- footer ------------------------------------------------------------- */
+footer {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--aq-line); background: var(--aq-panel);
+  padding: .4em calc(var(--aq-pad) * 1.4);
+  font-size: .82em; color: var(--aq-ink-dim);
+  min-height: 2em;
+  overflow-wrap: anywhere;
+}
+footer.bad { color: var(--aq-bad); }
+footer.good { color: var(--aq-ok); }
+
+/* ---- narrow control ------------------------------------------------------
+   Small browser controls are common (the CSS viewport is a fixed number of
+   pixels per UI grid unit, so a small control really is a small screen). One
+   column, and the detail replaces the list once something is selected. */
+@media (max-width: 620px) {
+  main { grid-template-columns: 1fr; }
+  .list { border-right: none; }
+  body.showing-detail .list { display: none; }
+  body:not(.showing-detail) .detail { display: none; }
+  .back {
+    display: inline-block; margin-bottom: .7em;
+    background: transparent; border: 1px solid var(--aq-line);
+    border-radius: var(--aq-radius); padding: .3em .8em; cursor: pointer;
+  }
+}
+</style>
+</head>
+
+<body>
+<header>
+  <div class="hrow">
+    <h1 id="heading">Quest Journal</h1>
+    <span class="bridge" id="bridge">connecting</span>
+  </div>
+  <div class="tabs" id="tabs" role="tablist" aria-label="Quest states"></div>
+</header>
+
+<main>
+  <div class="pane list" id="listPane">
+    <input class="filter" id="filter" type="text" placeholder="Filter&hellip;" aria-label="Filter quests">
+    <div id="list" role="list"></div>
+  </div>
+  <div class="pane detail" id="detailPane">
+    <button type="button" class="back" id="back">&larr; All quests</button>
+    <div id="detail"></div>
+  </div>
+</main>
+
+<footer id="status">Waiting for quest data&hellip;</footer>
+
+<script>
+"use strict";
+/* ===========================================================================
+   ArmaQuest journal -- page logic.
+
+   Structural rule this file follows everywhere: THE SERVER IS THE AUTHORITY.
+   Actions are requests. Lists are redrawn from what arrives on the channels,
+   never edited locally to predict the outcome, because a journal that shows an
+   accepted quest the server refused is worse than one that shows nothing.
+
+   Second rule: no innerHTML with anything that came off the bridge. Quest text
+   is authored content and can contain angle brackets; it is written with
+   textContent so it can never become markup.
+   =========================================================================== */
+
+/* ---- error reporting ------------------------------------------------------
+   A JavaScript error kills a page silently: execution stops, handlers are
+   never registered, and it reads exactly like a broken feature rather than a
+   crash. Errors are buffered until the bridge exists, because the most likely
+   time to throw is during boot, before there is anywhere to send it.
+
+   The bridge reports uncaught errors too. This layer adds the pre-bridge
+   window, an [AQ] prefix so journal faults are greppable, and de-duplication
+   so a throw inside a render loop cannot flood the RPT. */
+var LOGQ = [];
+var LOGSEEN = Object.create(null);
+var ERRCOUNT = 0;
+
+function report(msg) {
+  try {
+    var line = "[AQ] journal: " + String(msg);
+    if (LOGSEEN[line]) { LOGSEEN[line]++; return; }
+    LOGSEEN[line] = 1;
+    ERRCOUNT++;
+    LOGQ.push(line);
+    flushLog();
+  } catch (e) { /* reporting must never be the thing that throws */ }
+}
+function flushLog() {
+  if (!window.WEBUI || !LOGQ.length) { return; }
+  var batch = LOGQ.splice(0, LOGQ.length);
+  for (var i = 0; i < batch.length; i++) {
+    try { WEBUI.call("log", [batch[i]]).catch(function () {}); } catch (e) {}
+  }
+}
+window.addEventListener("error", function (e) {
+  report("ERROR " + (e.message || e.type) + " at " +
+         (e.filename || "page") + ":" + (e.lineno || "?") + ":" + (e.colno || "?"));
+});
+window.addEventListener("unhandledrejection", function (e) {
+  var r = e.reason;
+  report("UNHANDLED REJECTION " + ((r && (r.stack || r.message)) || String(r)));
+});
+if (window.AQ_BOOT_ERROR) { report(window.AQ_BOOT_ERROR); }
+
+/* ---- tiny DOM helpers ---------------------------------------------------- */
+function el(id) { return document.getElementById(id); }
+function h(tag, cls, text) {
+  var n = document.createElement(tag);
+  if (cls) { n.className = cls; }
+  if (text !== undefined && text !== null) { n.textContent = String(text); }
+  return n;
+}
+function clear(node) { while (node.firstChild) { node.removeChild(node.firstChild); } }
+
+/* ---- model ---------------------------------------------------------------
+   MODEL.byId is the single record store; the three lists hold ids in the order
+   the server sent them. The list order is the server's and is never re-sorted
+   here -- ordering is content design (chain order, board freshness) and the
+   client has no way to know the intent. */
+var MODEL = {
+  offers: [],        // ids, in server order
+  active: [],
+  done: [],          // completed + failed + expired + abandoned
+  byId: Object.create(null),
+  giverName: "",
+  currency: ""
+};
+var VIEW = {
+  tab: "offers",
+  selected: null,
+  filter: "",
+  busy: false,       // an accept/abandon request is in flight
+  armedAbandon: null // quest id whose abandon button is on its confirm click
+};
+
+var TABS = [
+  { key: "offers", label: "Available" },
+  { key: "active", label: "Active" },
+  { key: "done",   label: "Completed" }
+];
+
+/* Terminal states share the Completed tab. The client groups strictly by the
+   state string the server sent -- it does not decide what "finished" means, it
+   only knows which bucket each state name belongs in. */
+var TERMINAL = { completed: 1, complete: 1, done: 1, failed: 1, fail: 1,
+                 expired: 1, abandoned: 1, abandon: 1 };
+
+/* ---- normalisation -------------------------------------------------------
+   Every reader below tolerates the reasonable spellings of a field. The cost is
+   a few `||` chains; the alternative is that a bridge that says "current" where
+   this page says "cur" renders a journal full of 0/0 with no error anywhere. */
+function pick(o) {
+  for (var i = 1; i < arguments.length; i++) {
+    var k = arguments[i];
+    if (o && o[k] !== undefined && o[k] !== null && o[k] !== "") { return o[k]; }
+  }
+  return undefined;
+}
+function numOr(v, dflt) {
+  var n = typeof v === "number" ? v : parseFloat(v);
+  return (typeof n === "number" && isFinite(n)) ? n : dflt;
+}
+function asArray(v) {
+  if (Array.isArray(v)) { return v; }
+  if (v === undefined || v === null) { return []; }
+  return [v];
+}
+
+function normObjective(raw, index) {
+  var o = { id: "obj" + index, text: "", cur: 0, max: 0, done: false, optional: false };
+
+  if (Array.isArray(raw)) {
+    /* The objective-type "progress" verb returns [cur, max, "text"]. A bridge
+       that forwards it verbatim, with or without the objective id in front,
+       lands here. */
+    if (raw.length >= 4 && typeof raw[0] === "string") {
+      o.id = raw[0]; o.cur = numOr(raw[1], 0); o.max = numOr(raw[2], 0);
+      o.text = String(raw[3]);
+    } else if (raw.length >= 3) {
+      o.cur = numOr(raw[0], 0); o.max = numOr(raw[1], 0); o.text = String(raw[2]);
+    } else {
+      o.text = raw.join(" ");
+    }
+  } else if (raw && typeof raw === "object") {
+    var id = pick(raw, "id", "objective", "key", "name");
+    if (id !== undefined) { o.id = String(id); }
+    var prog = pick(raw, "progress");
+    if (Array.isArray(prog) && prog.length >= 3) {
+      o.cur = numOr(prog[0], 0); o.max = numOr(prog[1], 0); o.text = String(prog[2]);
+    }
+    o.cur = numOr(pick(raw, "cur", "current", "value", "have"), o.cur);
+    o.max = numOr(pick(raw, "max", "total", "count", "need", "target"), o.max);
+    var t = pick(raw, "text", "label", "describe", "description", "line", "summary");
+    if (t !== undefined) { o.text = String(t); }
+    o.optional = !!pick(raw, "optional");
+    var d = pick(raw, "done", "complete", "completed", "finished");
+    o.done = d !== undefined ? !!d : (o.max > 0 && o.cur >= o.max);
+  } else if (typeof raw === "string") {
+    o.text = raw;
+  } else {
+    report("objective " + index + " had an unreadable shape (" + typeof raw + ")");
+    o.text = "(unreadable objective)";
+  }
+
+  if (!o.text) { o.text = o.id; }
+  if (o.max > 0 && o.cur >= o.max) { o.done = true; }
+  return o;
+}
+
+function normRewards(raw) {
+  if (!raw || typeof raw !== "object") { return null; }
+  var r = {
+    money: numOr(pick(raw, "money", "cash", "payout"), 0),
+    xp: numOr(pick(raw, "xp", "exp"), 0),
+    items: [],
+    licenses: []
+  };
+  asArray(pick(raw, "items", "item")).forEach(function (it) {
+    if (Array.isArray(it)) {
+      r.items.push({ name: String(it[0]), qty: numOr(it[1], 1) });
+    } else if (it && typeof it === "object") {
+      r.items.push({
+        name: String(pick(it, "name", "label", "item", "class", "classname") || "item"),
+        qty: numOr(pick(it, "qty", "count", "amount"), 1)
+      });
+    } else if (typeof it === "string") {
+      r.items.push({ name: it, qty: 1 });
+    }
+  });
+  asArray(pick(raw, "licenses", "license", "licences")).forEach(function (l) {
+    if (typeof l === "string") { r.licenses.push(l); }
+    else if (l && typeof l === "object") {
+      r.licenses.push(String(pick(l, "name", "label", "license", "id") || "licence"));
+    }
+  });
+  return r;
+}
+
+function normQuest(raw, fallbackState) {
+  if (Array.isArray(raw)) {
+    report("a quest record arrived as an ARRAY; keyed records are expected");
+    return null;
+  }
+  if (!raw || typeof raw !== "object") {
+    report("a quest record arrived as " + typeof raw);
+    return null;
+  }
+  var id = pick(raw, "id", "quest", "questId", "key");
+  if (id === undefined) {
+    report("a quest record has no id and was skipped: " +
+           Object.keys(raw).slice(0, 8).join(","));
+    return null;
+  }
+  var q = {
+    id: String(id),
+    title: String(pick(raw, "title", "name") || id),
+    summary: String(pick(raw, "summary", "short", "blurb") || ""),
+    description: String(pick(raw, "description", "desc", "body") || ""),
+    state: String(pick(raw, "state", "status") || fallbackState || "active").toLowerCase(),
+    giver: String(pick(raw, "giverName", "giver_name", "giver") || ""),
+    icon: String(pick(raw, "icon", "type") || ""),
+    objectives: [],
+    rewards: normRewards(pick(raw, "rewards", "reward")),
+    deadline: null   // ms timestamp on THIS client's clock, or null
+  };
+
+  asArray(pick(raw, "objectives", "objs", "tasks", "goals")).forEach(function (o, i) {
+    q.objectives.push(normObjective(o, i));
+  });
+
+  /* Deadlines are read as SECONDS REMAINING and anchored to the local clock at
+     push time. A server-absolute timestamp cannot be trusted across machines
+     with unsynchronised clocks, so it is only used when nothing relative was
+     sent, and it is assumed to be unix epoch seconds. */
+  var rel = pick(raw, "expires", "expiresIn", "remaining", "timeLeft", "secondsLeft");
+  var relN = numOr(rel, null);
+  if (relN !== null && relN >= 0) {
+    q.deadline = Date.now() + relN * 1000;
+  } else {
+    var abs = numOr(pick(raw, "expiresAt", "deadline"), null);
+    if (abs !== null && abs > 1000000000) { q.deadline = abs * 1000; }
+  }
+  return q;
+}
+
+/* ---- envelope readers ---------------------------------------------------- */
+function readEnvelopeExtras(env) {
+  if (!env || typeof env !== "object" || Array.isArray(env)) { return; }
+  var heading = pick(env, "heading", "title");
+  if (typeof heading === "string" && heading) { el("heading").textContent = heading; }
+  var cur = pick(env, "currency", "currencySymbol");
+  if (typeof cur === "string") { MODEL.currency = cur; }
+  var theme = pick(env, "theme");
+  if (theme === "dark" || theme === "light") {
+    document.documentElement.setAttribute("data-aq-theme", theme);
+  }
+}
+
+function ingest(list, fallbackState, into) {
+  var ids = [];
+  asArray(list).forEach(function (raw) {
+    var q = normQuest(raw, fallbackState);
+    if (!q) { return; }
+    MODEL.byId[q.id] = q;
+    ids.push(q.id);
+  });
+  MODEL[into] = ids;
+}
+
+/* channel "quests" -- the player's own log. */
+function onQuests(payload) {
+  readEnvelopeExtras(payload);
+  var activeSrc, doneSrc;
+
+  if (Array.isArray(payload)) {
+    /* One flat list: split it by each record's own state string. */
+    var act = [], fin = [];
+    payload.forEach(function (raw) {
+      var st = String((raw && (raw.state || raw.status)) || "active").toLowerCase();
+      (TERMINAL[st] ? fin : act).push(raw);
+    });
+    activeSrc = act; doneSrc = fin;
+  } else if (payload && typeof payload === "object") {
+    var rawActive = pick(payload, "active", "quests", "current");
+    var rawDone = pick(payload, "completed", "done", "finished", "history");
+    if (rawActive === undefined && rawDone === undefined) {
+      /* Loud, because the symptom is otherwise an empty journal that looks
+         like "you have no quests" rather than "the wire shape is wrong". */
+      report("\"quests\" payload had neither an active nor a completed list; keys: " +
+             Object.keys(payload).slice(0, 8).join(","));
+    }
+    activeSrc = rawActive || [];
+    doneSrc = rawDone || [];
+  } else {
+    report("\"quests\" payload was " + typeof payload);
+    return;
+  }
+
+  ingest(activeSrc, "active", "active");
+  ingest(doneSrc, "completed", "done");
+  renderAll();
+}
+
+/* channel "offers" -- what this giver has on the board right now. */
+function onOffers(payload) {
+  readEnvelopeExtras(payload);
+  var list;
+  if (Array.isArray(payload)) {
+    list = payload;
+  } else if (payload && typeof payload === "object") {
+    list = pick(payload, "offers", "list", "quests", "available") || [];
+    var gn = pick(payload, "giverName", "giver_name", "giver", "name");
+    MODEL.giverName = gn ? String(gn) : "";
+  } else {
+    report("\"offers\" payload was " + typeof payload);
+    return;
+  }
+  ingest(list, "offered", "offers");
+  renderAll();
+}
+
+/* channel "progress" -- incremental objective updates.
+   Applied onto existing records only. An update naming a quest this page has
+   never seen is reported, not invented: inventing a row would show a quest with
+   no title, no rewards and no state, which looks like data loss. */
+function applyUpdate(u) {
+  if (!u || typeof u !== "object" || Array.isArray(u)) { return false; }
+  var qid = pick(u, "quest", "questId", "id");
+  var oid = pick(u, "objective", "objectiveId", "obj");
+  if (qid === undefined) { return false; }
+  var q = MODEL.byId[String(qid)];
+  if (!q) { report("progress for unknown quest \"" + qid + "\""); return true; }
+
+  var target = null;
+  if (oid !== undefined) {
+    for (var i = 0; i < q.objectives.length; i++) {
+      if (q.objectives[i].id === String(oid)) { target = q.objectives[i]; break; }
+    }
+    if (!target) {
+      target = normObjective({ id: String(oid) }, q.objectives.length);
+      q.objectives.push(target);
+    }
+  } else if (q.objectives.length === 1) {
+    target = q.objectives[0];
+  } else {
+    report("progress for quest \"" + qid + "\" named no objective");
+    return true;
+  }
+
+  var merged = normObjective(u, 0);
+  /* A [cur, max, "text"] tuple under "progress" carries all three fields at
+     once, so it has to satisfy all three presence checks -- otherwise only the
+     count updates and the line keeps the wording of the previous tick. */
+  var tuple = Array.isArray(pick(u, "progress"));
+  if (tuple || pick(u, "cur", "current", "value", "have") !== undefined) { target.cur = merged.cur; }
+  if (tuple || pick(u, "max", "total", "count", "need", "target") !== undefined) { target.max = merged.max; }
+  if (tuple || pick(u, "text", "label", "describe", "description", "line") !== undefined) { target.text = merged.text; }
+  if (pick(u, "done", "complete", "completed", "finished") !== undefined) { target.done = merged.done; }
+  if (target.max > 0 && target.cur >= target.max) { target.done = true; }
+
+  var st = pick(u, "state", "status");
+  if (typeof st === "string") { q.state = st.toLowerCase(); }
+  return true;
+}
+
+function onProgress(payload) {
+  if (!payload) { return; }
+  if (Array.isArray(payload)) {
+    payload.forEach(applyUpdate);
+  } else if (typeof payload === "object") {
+    if (!applyUpdate(payload)) {
+      /* Map form: { questId: { objId: [cur, max, "text"] } } */
+      Object.keys(payload).forEach(function (qid) {
+        var objs = payload[qid];
+        if (!objs || typeof objs !== "object") { return; }
+        if (Array.isArray(objs)) {
+          objs.forEach(function (o, i) {
+            var n = normObjective(o, i);
+            applyUpdate({ quest: qid, objective: n.id, cur: n.cur, max: n.max,
+                          text: n.text, done: n.done });
+          });
+        } else {
+          Object.keys(objs).forEach(function (oid) {
+            var n = normObjective(objs[oid], 0);
+            applyUpdate({ quest: qid, objective: oid, cur: n.cur, max: n.max,
+                          text: n.text, done: n.done });
+          });
+        }
+      });
+    }
+  } else {
+    report("\"progress\" payload was " + typeof payload);
+    return;
+  }
+  renderAll();
+}
+
+/* ---- formatting ---------------------------------------------------------- */
+function fmtNum(n) {
+  try { return Number(n).toLocaleString(); }
+  catch (e) { return String(n); }
+}
+function fmtMoney(n) { return (MODEL.currency || "") + fmtNum(n); }
+
+/* Relative time, rendered as a static string. Deliberately coarse: a
+   second-by-second countdown would need animation to stay truthful, and frame
+   delivery cannot be relied on for that. */
+function relTime(ms) {
+  var s = Math.round((ms - Date.now()) / 1000);
+  if (s <= 0) { return "expired"; }
+  if (s < 90) { return s + "s left"; }
+  var m = Math.round(s / 60);
+  if (m < 90) { return m + "m left"; }
+  var hr = Math.floor(m / 60);
+  if (hr < 48) { return hr + "h " + (m % 60) + "m left"; }
+  return Math.floor(hr / 24) + "d " + (hr % 24) + "h left";
+}
+function objDoneCount(q) {
+  var n = 0;
+  for (var i = 0; i < q.objectives.length; i++) { if (q.objectives[i].done) { n++; } }
+  return n;
+}
+
+/* ---- rendering ----------------------------------------------------------- */
+function currentIds() { return MODEL[VIEW.tab] || []; }
+
+function matchesFilter(q) {
+  if (!VIEW.filter) { return true; }
+  var f = VIEW.filter;
+  return (q.title + " " + q.summary + " " + q.giver).toLowerCase().indexOf(f) !== -1;
+}
+
+function renderTabs() {
+  var box = el("tabs");
+  clear(box);
+  TABS.forEach(function (t) {
+    var b = h("button", "tab");
+    b.type = "button";
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", VIEW.tab === t.key ? "true" : "false");
+    var label = t.label;
+    if (t.key === "offers" && MODEL.giverName) { label = MODEL.giverName; }
+    b.appendChild(h("span", null, label));
+    b.appendChild(h("span", "n", (MODEL[t.key] || []).length));
+    b.addEventListener("click", function () {
+      VIEW.tab = t.key;
+      VIEW.armedAbandon = null;
+      document.body.classList.remove("showing-detail");
+      renderAll();
+    });
+    box.appendChild(b);
+  });
+}
+
+function renderList() {
+  var box = el("list");
+  /* Pushes redraw the whole list, and replacing the children momentarily
+     shrinks the scroll height, which the browser answers by clamping scrollTop
+     to 0. Reading a quest while progress ticks would otherwise yank the list
+     back to the top every few seconds. */
+  var keepScroll = box.scrollTop;
+  clear(box);
+
+  var ids = currentIds();
+  var shown = 0;
+
+  ids.forEach(function (id) {
+    var q = MODEL.byId[id];
+    if (!q || !matchesFilter(q)) { return; }
+    shown++;
+
+    var row = h("button", "row");
+    row.type = "button";
+    row.setAttribute("role", "listitem");
+    row.setAttribute("aria-pressed", VIEW.selected === id ? "true" : "false");
+
+    var top = h("div", "t");
+    top.appendChild(h("span", "name", q.title));
+    if (q.objectives.length) {
+      top.appendChild(h("span", "frac", objDoneCount(q) + "/" + q.objectives.length));
+    }
+    row.appendChild(top);
+
+    if (q.summary) { row.appendChild(h("div", "s", q.summary)); }
+
+    var meta = [];
+    if (VIEW.tab !== "offers" && q.state) { meta.push(q.state); }
+    if (q.deadline) { meta.push(relTime(q.deadline)); }
+    if (VIEW.tab === "offers" && q.rewards && q.rewards.money) {
+      meta.push(fmtMoney(q.rewards.money));
+    }
+    if (meta.length) { row.appendChild(h("div", "meta", meta.join("  ·  "))); }
+
+    row.addEventListener("click", function () { select(id); });
+    box.appendChild(row);
+  });
+
+  if (!shown) {
+    var msg = VIEW.filter ? "Nothing matches that filter."
+            : VIEW.tab === "offers" ? "Nothing on offer here."
+            : VIEW.tab === "active" ? "No active quests."
+            : "Nothing completed yet.";
+    box.appendChild(h("div", "empty", msg));
+  }
+  box.scrollTop = keepScroll;
+}
+
+function renderDetail() {
+  var box = el("detail");
+  clear(box);
+
+  var q = VIEW.selected ? MODEL.byId[VIEW.selected] : null;
+  if (!q) {
+    box.appendChild(h("div", "empty", "Select a quest to read it."));
+    return;
+  }
+
+  box.appendChild(h("h2", null, q.title));
+
+  var badges = h("div", "badges");
+  badges.appendChild(h("span", "badge state-" + q.state.replace(/[^a-z]/g, ""), q.state));
+  if (q.giver) { badges.appendChild(h("span", "badge", q.giver)); }
+  if (q.icon) { badges.appendChild(h("span", "badge", q.icon)); }
+  if (q.deadline) { badges.appendChild(h("span", "badge", relTime(q.deadline))); }
+  box.appendChild(badges);
+
+  var text = q.description || q.summary;
+  if (text) {
+    var s = h("div", "section");
+    s.appendChild(h("h3", null, "Briefing"));
+    s.appendChild(h("div", "desc", text));
+    box.appendChild(s);
+  }
+
+  if (q.objectives.length) {
+    var os = h("div", "section");
+    os.appendChild(h("h3", null, "Objectives"));
+    q.objectives.forEach(function (o) {
+      var row = h("div", "obj" + (o.done ? " done" : ""));
+      row.appendChild(h("span", "box"));
+
+      var body = h("div", "body");
+      body.appendChild(h("div", "otext", o.text + (o.optional ? "  (optional)" : "")));
+      if (o.max > 1) {
+        var bar = h("div", "bar");
+        var fill = h("i");
+        var pct = Math.max(0, Math.min(100, (o.cur / o.max) * 100));
+        fill.style.width = pct + "%";
+        bar.appendChild(fill);
+        body.appendChild(bar);
+      }
+      row.appendChild(body);
+      if (o.max > 0) { row.appendChild(h("span", "frac", o.cur + " / " + o.max)); }
+      os.appendChild(row);
+    });
+    box.appendChild(os);
+  }
+
+  var r = q.rewards;
+  if (r && (r.money || r.xp || r.items.length || r.licenses.length)) {
+    var rs = h("div", "section");
+    rs.appendChild(h("h3", null, "Rewards"));
+    var chips = h("div", "chips");
+    function chip(k, v) {
+      var c = h("span", "chip");
+      c.appendChild(h("span", "k", k));
+      c.appendChild(h("span", "v", v));
+      chips.appendChild(c);
+    }
+    if (r.money) { chip("Money", fmtMoney(r.money)); }
+    if (r.xp) { chip("XP", fmtNum(r.xp)); }
+    r.items.forEach(function (it) { chip("Item", it.name + (it.qty > 1 ? " ×" + it.qty : "")); });
+    r.licenses.forEach(function (l) { chip("Licence", l); });
+    rs.appendChild(chips);
+    box.appendChild(rs);
+  }
+
+  box.appendChild(renderActions(q));
+}
+
+function renderActions(q) {
+  var wrap = h("div", "actions");
+  var offered = q.state === "offered" || q.state === "offer" ||
+                MODEL.offers.indexOf(q.id) !== -1;
+
+  if (offered) {
+    var accept = h("button", "btn primary", VIEW.busy ? "Working…" : "Accept");
+    accept.type = "button";
+    accept.disabled = VIEW.busy;
+    accept.addEventListener("click", function () { doAccept(q.id); });
+    wrap.appendChild(accept);
+  }
+
+  if (q.state === "active") {
+    var armed = VIEW.armedAbandon === q.id;
+    var ab = h("button", "btn danger" + (armed ? " armed" : ""),
+               VIEW.busy ? "Working…" : (armed ? "Confirm abandon" : "Abandon"));
+    ab.type = "button";
+    ab.disabled = VIEW.busy;
+    ab.addEventListener("click", function () {
+      /* Two deliberate clicks instead of a dialog or a timed confirmation:
+         abandoning is destructive, and a confirmation that fades needs motion
+         this page cannot rely on. */
+      if (VIEW.armedAbandon !== q.id) {
+        VIEW.armedAbandon = q.id;
+        setStatus("Click again to abandon “" + q.title + "”.", "");
+        renderDetail();
+        return;
+      }
+      VIEW.armedAbandon = null;
+      doAbandon(q.id);
+    });
+    wrap.appendChild(ab);
+  }
+
+  return wrap;
+}
+
+function renderAll() {
+  renderTabs();
+  renderList();
+  renderDetail();
+  ensureTimeTicker();
+}
+
+function setStatus(msg, kind) {
+  var f = el("status");
+  f.textContent = msg;
+  f.className = kind || "";
+}
+
+/* Deadlines are the only thing on screen that goes stale on its own. A slow
+   ticker keeps them honest without depending on frame rate for correctness --
+   the labels are coarse enough that a late repaint changes nothing. */
+var timeTimer = null;
+function anyDeadline() {
+  var ids = currentIds();
+  for (var i = 0; i < ids.length; i++) {
+    var q = MODEL.byId[ids[i]];
+    if (q && q.deadline) { return true; }
+  }
+  return !!(VIEW.selected && MODEL.byId[VIEW.selected] && MODEL.byId[VIEW.selected].deadline);
+}
+function ensureTimeTicker() {
+  var need = anyDeadline();
+  if (need && !timeTimer) {
+    timeTimer = setInterval(function () { renderList(); renderDetail(); }, 15000);
+  } else if (!need && timeTimer) {
+    clearInterval(timeTimer);
+    timeTimer = null;
+  }
+}
+
+/* ---- actions -------------------------------------------------------------
+   Every one of these is a REQUEST. Nothing below moves a quest between lists,
+   flips a state or credits a reward; the page waits for the server to push the
+   new truth on "quests" / "offers". If the server refuses, the journal simply
+   keeps showing what is actually the case. */
+function select(id) {
+  VIEW.selected = id;
+  VIEW.armedAbandon = null;
+  document.body.classList.add("showing-detail");
+  renderAll();
+  callVerb("select", [id], null);   // fire and forget; the server may reply with detail
+}
+
+function describeResult(res) {
+  /* The verbs' return values are the host's to define. Every reasonable shape
+     is read here, and an unreadable one is shown verbatim rather than
+     interpreted -- guessing "success" from an unknown value is how a refused
+     request comes to look like an accepted one. */
+  if (res === true) { return { ok: true, msg: "" }; }
+  if (res === false) { return { ok: false, msg: "Refused." }; }
+  if (res === null || res === undefined) { return { ok: null, msg: "" }; }
+  if (typeof res === "string") { return { ok: null, msg: res }; }
+  if (typeof res === "object" && !Array.isArray(res)) {
+    var okRaw = pick(res, "ok", "success", "accepted", "granted");
+    var msg = pick(res, "reason", "message", "error", "text");
+    return { ok: okRaw === undefined ? null : !!okRaw, msg: msg ? String(msg) : "" };
+  }
+  if (Array.isArray(res) && res.length) {
+    return { ok: !!res[0], msg: res.length > 1 ? String(res[1]) : "" };
+  }
+  return { ok: null, msg: String(res) };
+}
+
+function callVerb(verb, args, doneMsg) {
+  if (!window.WEBUI) {
+    setStatus("No bridge: “" + verb + "” was not sent.", "bad");
+    return;
+  }
+  var quiet = doneMsg === null;
+  if (!quiet) { VIEW.busy = true; renderDetail(); setStatus("Sending “" + verb + "”…", ""); }
+
+  WEBUI.call(verb, args).then(function (res) {
+    if (quiet) { return; }
+    VIEW.busy = false;
+    var r = describeResult(res);
+    if (r.ok === false) { setStatus(r.msg || "Request refused.", "bad"); }
+    else if (r.ok === true) { setStatus(r.msg || doneMsg, "good"); }
+    else { setStatus(r.msg || doneMsg, ""); }
+    renderAll();
+  }, function (err) {
+    VIEW.busy = false;
+    var m = (err && err.message) || String(err);
+    setStatus("“" + verb + "” failed: " + m, "bad");
+    report("verb " + verb + " failed: " + m);
+    renderAll();
+  });
+}
+
+function doAccept(id) { callVerb("accept", [id], "Accepted — waiting for the server."); }
+function doAbandon(id) { callVerb("abandon", [id], "Abandoned — waiting for the server."); }
+
+/* ---- input wiring -------------------------------------------------------- */
+/* UNVERIFIED: text typed into a real <input> reaches the DOM in this control.
+   The bridge's own findings report that it does (keydown / input events fire
+   and .value holds the string); confirm on your client by typing here and
+   watching the list narrow. If it does not, the filter simply stays empty and
+   every quest remains listed -- nothing else depends on it. */
+el("filter").addEventListener("input", function (e) {
+  VIEW.filter = String(e.target.value || "").toLowerCase().trim();
+  renderList();
+});
+el("back").addEventListener("click", function () {
+  document.body.classList.remove("showing-detail");
+});
+/* No Esc handler anywhere in this file: Arma owns Esc and closes the dialog
+   with it. Intercepting it here would strand the player in the journal. */
+
+/* ---- boot ---------------------------------------------------------------- */
+function subscribe() {
+  /* WEBUI.on replays the last value per channel, so anything pushed before the
+     page finished loading arrives the moment we subscribe -- there is no need
+     to ask the server to resend. */
+  WEBUI.on("quests", function (v) { try { onQuests(v); } catch (e) { report("onQuests: " + e.message); } });
+  WEBUI.on("offers", function (v) { try { onOffers(v); } catch (e) { report("onOffers: " + e.message); } });
+  WEBUI.on("progress", function (v) { try { onProgress(v); } catch (e) { report("onProgress: " + e.message); } });
+
+  /* Exposed for diagnostics: [_ctrl, "aqDump"] call webui_fnc_call prints what
+     the page believes, which is the only way to tell "the server sent nothing"
+     apart from "the page failed to draw it". */
+  WEBUI.handle("aqDump", function () {
+    return {
+      offers: MODEL.offers.length,
+      active: MODEL.active.length,
+      done: MODEL.done.length,
+      known: Object.keys(MODEL.byId).length,
+      tab: VIEW.tab,
+      selected: VIEW.selected,
+      filter: VIEW.filter,
+      errors: ERRCOUNT,
+      viewport: window.innerWidth + "x" + window.innerHeight,
+      /* UNVERIFIED: that the licence comment above the DOCTYPE still leaves the
+         document in standards mode. The parser is specified to allow it, but
+         quirks mode would quietly change box sizing, so the answer is reported
+         here instead of assumed: expect "CSS1Compat". */
+      compatMode: document.compatMode
+    };
+  });
+
+  var b = el("bridge");
+  b.textContent = "connected";
+  b.className = "bridge live";
+  if (!Object.keys(MODEL.byId).length) { setStatus("Waiting for quest data…", ""); }
+  flushLog();
+}
+
+(function waitForBridge(n) {
+  if (window.WEBUI) { subscribe(); renderAll(); return; }
+  if (n > 100) {                      // ~10 s
+    var b = el("bridge");
+    b.textContent = "no bridge";
+    b.className = "bridge down";
+    setStatus("The page could not reach the game. Check the CfgCommands " +
+              "whitelist and where webui.js is installed.", "bad");
+    report("bridge never appeared; " + (window.AQ_BOOT_ERROR || "webui.js may not be at any known path"));
+    renderAll();
+    return;
+  }
+  setTimeout(function () { waitForBridge(n + 1); }, 100);
+})(0);
+
+renderAll();   // draw the empty frame immediately, so a slow bridge is not a blank page
+</script>
+</body>
+</html>

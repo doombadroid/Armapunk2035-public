@@ -1,0 +1,22 @@
+[package]
+name = "maldenradio"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "maldenradio"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "smoke"
+path = "src/bin/smoke.rs"
+
+[dependencies]
+arma-rs = "1.11"
+cpal = "0.15"
+minimp3 = "0.5"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+serde_json = "1"
+
+[profile.release]
+strip = true

@@ -1,0 +1,17 @@
+// Neon signage - white-hot tube core. Sits proud of the coloured shell so each stroke reads as a
+// lit filament. BI does the same two-material trick on beacons: a saturated body material plus a
+// much hotter *_emit core (Car_Beacon_Red 80000,1000,30 -> Car_Beacon_Red_emit 730000,150000,140000).
+// Keeping the shell saturated and pushing ALL the brightness into this thin core is what stops the
+// sign washing out to flat pale pink the way a single mid-bright material did.
+ambient[]={1,1,1,1};
+diffuse[]={1,1,1,1};
+forcedDiffuse[]={0.9,0.88,0.9,1};
+emmisive[]={520000,430000,520000,1};
+specular[]={0,0,0,0};
+specularPower=1;
+PixelShaderID="Normal";
+VertexShaderID="Basic";
+class StageTI
+{
+	texture="a3\data_f\default_vehicle_ti_ca.paa";
+};

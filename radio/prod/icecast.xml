@@ -1,0 +1,16 @@
+<!-- Malden Radio — icecast on .96. Passwords are placeholders: set real ones during install
+     (INSTALL-96.md step 3) and never commit them. -->
+<icecast>
+    <location>Malden</location>
+    <admin>admin@projectloonybin.com</admin>
+    <limits><clients>120</clients><sources>8</sources></limits>
+    <authentication>
+        <source-password>CHANGE_ME_SOURCE</source-password>
+        <admin-user>admin</admin-user>
+        <admin-password>CHANGE_ME_ADMIN</admin-password>
+    </authentication>
+    <hostname>radio.projectloonybin.com</hostname>
+    <listen-socket><port>8000</port><bind-address>127.0.0.1</bind-address></listen-socket>
+    <paths><logdir>/var/log/icecast</logdir><webroot>/usr/share/icecast/web</webroot><adminroot>/usr/share/icecast/admin</adminroot></paths>
+    <logging><accesslog>access.log</accesslog><errorlog>error.log</errorlog><loglevel>3</loglevel></logging>
+</icecast>

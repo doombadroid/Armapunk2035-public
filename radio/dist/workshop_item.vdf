@@ -1,0 +1,11 @@
+"workshopitem"
+{
+    "appid"            "107410"
+    "publishedfileid"  "0"
+    "contentfolder"    "/home/timb/loonybin-doomba/radio/dist/@Armapunk2035"
+    "previewfile"      "/home/timb/loonybin-doomba/radio/dist/workshop_preview.png"
+    "visibility"       "3"
+    "title"            "Armapunk 2035 Client Mod"
+    "description"      "Client-side companion mod for the Armapunk 2035 server. Currently: five live-streaming radio stations on the in-vehicle radio (real now-playing titles, positional volume). Contains no music files -- audio streams from the server. More client features incoming. By Doomba."
+    "changenote"       "Initial release: live-streaming radio."
+}

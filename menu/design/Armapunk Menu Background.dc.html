@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Michroma&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #050302; overflow: hidden; }
+  a { color: #ff2a6d; } a:hover { color: #05d9e8; }
+</style>
+<script>window.ARMAPUNK_BG_ONLY = true;</script>
+<script>window.OM_SCENES = '[{"name":"Boot","dur":3},{"name":"Logo","dur":3},{"name":"Menu","dur":4},{"name":"Idle","dur":5}]';</script>
+<script>window.OM_PLAYBACK = '{"mode":"loop"}';</script>
+<script>window.TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "palette": [
+    "#ff2a6d",
+    "#05d9e8"
+  ],
+  "aspect": "21:9",
+  "res": "1440p",
+  "scanlines": true,
+  "glitch": 1,
+  "motionEditor": true
+}/*EDITMODE-END*/;</script>
+</helmet>
+<x-import component-from-global-scope="ArmapunkMenu" from="./animations-v2.jsx ./tweaks-panel.jsx ./armapunk.jsx" hint-size="100%,100vh" style="display:block;width:100%;height:100vh"></x-import>
+</x-dc>
+</body>
+</html>

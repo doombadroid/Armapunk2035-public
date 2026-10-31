@@ -1,0 +1,32 @@
+#!/sbin/openrc-run
+# OpenRC service for LoonyBot (LooneyBin Altis Life Discord bug-report bot).
+# Install:
+#   sudo install -m 0755 loonybot-svc.sh  /usr/local/bin/loonybot
+#   sudo install -m 0755 loonybot.initd   /etc/init.d/loonybot
+#   sudo rc-update add loonybot default
+#   sudo rc-service loonybot start
+# NB: command points at the /usr/local/bin/loonybot launcher -- supervise-daemon
+#     chokes on spaces, and the project path has them.
+
+name="LoonyBot"
+description="LooneyBin Altis Life Discord bug-report bot"
+
+command="/usr/local/bin/loonybot"
+command_user="timb:timb"
+
+supervisor="supervise-daemon"
+pidfile="/run/loonybot.pid"
+respawn_delay=5
+respawn_max=0          # 0 = respawn forever
+output_log="/var/log/loonybot/loonybot.log"
+error_log="/var/log/loonybot/loonybot.log"
+
+depend() {
+    need net
+    use dns
+    after firewall
+}
+
+start_pre() {
+    checkpath -d -m 0755 -o timb:timb /var/log/loonybot
+}

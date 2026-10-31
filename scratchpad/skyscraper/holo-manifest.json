@@ -1,0 +1,593 @@
+{
+ "note": "Hologram + ad-wall wiring. ROTORS: selection may span several OBJ objects (e.g. ad_can + ad_can_band -> one selection \"ad_can\"); axis = <name>_axis memory points (vertical, listed). Anims in lux-model.cfg use source=time, sourceAddress=loop (vanilla perpetual). BLINKS: type=hide anims, no axis needed. clock hands: engine clockHourPointer/clockMinutePointer, axis = clock_axis. ticker_path_00..48: Memory LOD ring for the drawIcon3D ticker (march order blade->N->NW->W->SW->S->SE->E). EXCLUDE from Geometry/Fire/View/Shadow: HOLO_*, fish_*, clock_*, TICKER_screen_*, ad_*. TICKER_band_c*/TICKER_posts_c* stay in Geometry.",
+ "fish": [
+  {
+   "name": "fish_1",
+   "cy": 99,
+   "period": 44,
+   "dir": 1,
+   "axis": [
+    [
+     15.06,
+     96,
+     15.06
+    ],
+    [
+     15.06,
+     102,
+     15.06
+    ]
+   ]
+  },
+  {
+   "name": "fish_2",
+   "cy": 77.5,
+   "period": 62,
+   "dir": -1,
+   "axis": [
+    [
+     15.06,
+     74.5,
+     15.06
+    ],
+    [
+     15.06,
+     80.5,
+     15.06
+    ]
+   ]
+  },
+  {
+   "name": "fish_3",
+   "cy": 55,
+   "period": 36,
+   "dir": 1,
+   "axis": [
+    [
+     15.06,
+     52,
+     15.06
+    ],
+    [
+     15.06,
+     58,
+     15.06
+    ]
+   ]
+  }
+ ],
+ "clock": {
+  "axis": [
+   [
+    10.884,
+    116.3,
+    15.975
+   ],
+   [
+    11.167,
+    116.3,
+    16.258
+   ]
+  ]
+ },
+ "rotors": [
+  {
+   "name": "ad_yen",
+   "selectionNote": "ad_yen",
+   "axis": [
+    [
+     11.343,
+     96.4,
+     16.434
+    ],
+    [
+     11.343,
+     99.6,
+     16.434
+    ]
+   ],
+   "period": 5,
+   "dir": 1
+  },
+  {
+   "name": "ad_can",
+   "selectionNote": "ad_can + ad_can_band",
+   "axis": [
+    [
+     12.192,
+     87.2,
+     15.869
+    ],
+    [
+     12.192,
+     90.2,
+     15.869
+    ]
+   ],
+   "period": 8,
+   "dir": -1
+  },
+  {
+   "name": "ad_maki",
+   "selectionNote": "ad_maki + ad_maki_rice",
+   "axis": [
+    [
+     16.046,
+     60,
+     12.086
+    ],
+    [
+     16.046,
+     61.6,
+     12.086
+    ]
+   ],
+   "period": 6,
+   "dir": 1
+  },
+  {
+   "name": "ad_cube",
+   "selectionNote": "ad_cube",
+   "axis": [
+    [
+     12.333,
+     48,
+     16.01
+    ],
+    [
+     12.333,
+     50.4,
+     16.01
+    ]
+   ],
+   "period": 7,
+   "dir": -1
+  }
+ ],
+ "blinks": [
+  {
+   "name": "ad_blink_1",
+   "period": 1.2,
+   "what": "OPEN 24/7"
+  },
+  {
+   "name": "ad_blink_2",
+   "period": 1.8,
+   "what": "VACANCY"
+  },
+  {
+   "name": "ad_blink_3",
+   "period": 0.7,
+   "what": "50% OFF"
+  },
+  {
+   "name": "ad_blink_4",
+   "period": 2.4,
+   "what": "ノヴァ blade sign"
+  },
+  {
+   "name": "ad_blink_5",
+   "period": 0.9,
+   "what": "chevron low"
+  },
+  {
+   "name": "ad_blink_6",
+   "period": 1.2,
+   "what": "chevron mid"
+  },
+  {
+   "name": "ad_blink_7",
+   "period": 1.5,
+   "what": "chevron top"
+  },
+  {
+   "name": "ad_steam_1",
+   "period": 0.9,
+   "what": "ramen steam"
+  },
+  {
+   "name": "ad_steam_2",
+   "period": 1.3,
+   "what": "ramen steam"
+  },
+  {
+   "name": "ad_steam_3",
+   "period": 1.9,
+   "what": "ramen steam"
+  }
+ ],
+ "ticker_path": [
+  {
+   "name": "ticker_path_00",
+   "pos": [
+    17.354,
+    112.75,
+    10.283
+   ]
+  },
+  {
+   "name": "ticker_path_01",
+   "pos": [
+    15.586,
+    112.75,
+    12.05
+   ]
+  },
+  {
+   "name": "ticker_path_02",
+   "pos": [
+    13.818,
+    112.75,
+    13.818
+   ]
+  },
+  {
+   "name": "ticker_path_03",
+   "pos": [
+    12.05,
+    112.75,
+    15.586
+   ]
+  },
+  {
+   "name": "ticker_path_04",
+   "pos": [
+    10.283,
+    112.75,
+    17.354
+   ]
+  },
+  {
+   "name": "ticker_path_05",
+   "pos": [
+    8.4,
+    112.75,
+    18.2
+   ]
+  },
+  {
+   "name": "ticker_path_06",
+   "pos": [
+    6,
+    112.75,
+    18.2
+   ]
+  },
+  {
+   "name": "ticker_path_07",
+   "pos": [
+    3.6,
+    112.75,
+    18.2
+   ]
+  },
+  {
+   "name": "ticker_path_08",
+   "pos": [
+    1.2,
+    112.75,
+    18.2
+   ]
+  },
+  {
+   "name": "ticker_path_09",
+   "pos": [
+    -1.2,
+    112.75,
+    18.2
+   ]
+  },
+  {
+   "name": "ticker_path_10",
+   "pos": [
+    -3.6,
+    112.75,
+    18.2
+   ]
+  },
+  {
+   "name": "ticker_path_11",
+   "pos": [
+    -6,
+    112.75,
+    18.2
+   ]
+  },
+  {
+   "name": "ticker_path_12",
+   "pos": [
+    -8.4,
+    112.75,
+    18.2
+   ]
+  },
+  {
+   "name": "ticker_path_13",
+   "pos": [
+    -10.795,
+    112.75,
+    18.023
+   ]
+  },
+  {
+   "name": "ticker_path_14",
+   "pos": [
+    -14.111,
+    112.75,
+    16.65
+   ]
+  },
+  {
+   "name": "ticker_path_15",
+   "pos": [
+    -16.65,
+    112.75,
+    14.111
+   ]
+  },
+  {
+   "name": "ticker_path_16",
+   "pos": [
+    -18.023,
+    112.75,
+    10.795
+   ]
+  },
+  {
+   "name": "ticker_path_17",
+   "pos": [
+    -18.2,
+    112.75,
+    8.4
+   ]
+  },
+  {
+   "name": "ticker_path_18",
+   "pos": [
+    -18.2,
+    112.75,
+    6
+   ]
+  },
+  {
+   "name": "ticker_path_19",
+   "pos": [
+    -18.2,
+    112.75,
+    3.6
+   ]
+  },
+  {
+   "name": "ticker_path_20",
+   "pos": [
+    -18.2,
+    112.75,
+    1.2
+   ]
+  },
+  {
+   "name": "ticker_path_21",
+   "pos": [
+    -18.2,
+    112.75,
+    -1.2
+   ]
+  },
+  {
+   "name": "ticker_path_22",
+   "pos": [
+    -18.2,
+    112.75,
+    -3.6
+   ]
+  },
+  {
+   "name": "ticker_path_23",
+   "pos": [
+    -18.2,
+    112.75,
+    -6
+   ]
+  },
+  {
+   "name": "ticker_path_24",
+   "pos": [
+    -18.2,
+    112.75,
+    -8.4
+   ]
+  },
+  {
+   "name": "ticker_path_25",
+   "pos": [
+    -18.023,
+    112.75,
+    -10.795
+   ]
+  },
+  {
+   "name": "ticker_path_26",
+   "pos": [
+    -16.65,
+    112.75,
+    -14.111
+   ]
+  },
+  {
+   "name": "ticker_path_27",
+   "pos": [
+    -14.111,
+    112.75,
+    -16.65
+   ]
+  },
+  {
+   "name": "ticker_path_28",
+   "pos": [
+    -10.795,
+    112.75,
+    -18.023
+   ]
+  },
+  {
+   "name": "ticker_path_29",
+   "pos": [
+    -8.4,
+    112.75,
+    -18.2
+   ]
+  },
+  {
+   "name": "ticker_path_30",
+   "pos": [
+    -6,
+    112.75,
+    -18.2
+   ]
+  },
+  {
+   "name": "ticker_path_31",
+   "pos": [
+    -3.6,
+    112.75,
+    -18.2
+   ]
+  },
+  {
+   "name": "ticker_path_32",
+   "pos": [
+    -1.2,
+    112.75,
+    -18.2
+   ]
+  },
+  {
+   "name": "ticker_path_33",
+   "pos": [
+    1.2,
+    112.75,
+    -18.2
+   ]
+  },
+  {
+   "name": "ticker_path_34",
+   "pos": [
+    3.6,
+    112.75,
+    -18.2
+   ]
+  },
+  {
+   "name": "ticker_path_35",
+   "pos": [
+    6,
+    112.75,
+    -18.2
+   ]
+  },
+  {
+   "name": "ticker_path_36",
+   "pos": [
+    8.4,
+    112.75,
+    -18.2
+   ]
+  },
+  {
+   "name": "ticker_path_37",
+   "pos": [
+    10.795,
+    112.75,
+    -18.023
+   ]
+  },
+  {
+   "name": "ticker_path_38",
+   "pos": [
+    14.111,
+    112.75,
+    -16.65
+   ]
+  },
+  {
+   "name": "ticker_path_39",
+   "pos": [
+    16.65,
+    112.75,
+    -14.111
+   ]
+  },
+  {
+   "name": "ticker_path_40",
+   "pos": [
+    18.023,
+    112.75,
+    -10.795
+   ]
+  },
+  {
+   "name": "ticker_path_41",
+   "pos": [
+    18.2,
+    112.75,
+    -8.4
+   ]
+  },
+  {
+   "name": "ticker_path_42",
+   "pos": [
+    18.2,
+    112.75,
+    -6
+   ]
+  },
+  {
+   "name": "ticker_path_43",
+   "pos": [
+    18.2,
+    112.75,
+    -3.6
+   ]
+  },
+  {
+   "name": "ticker_path_44",
+   "pos": [
+    18.2,
+    112.75,
+    -1.2
+   ]
+  },
+  {
+   "name": "ticker_path_45",
+   "pos": [
+    18.2,
+    112.75,
+    1.2
+   ]
+  },
+  {
+   "name": "ticker_path_46",
+   "pos": [
+    18.2,
+    112.75,
+    3.6
+   ]
+  },
+  {
+   "name": "ticker_path_47",
+   "pos": [
+    18.2,
+    112.75,
+    6
+   ]
+  },
+  {
+   "name": "ticker_path_48",
+   "pos": [
+    18.2,
+    112.75,
+    8.4
+   ]
+  }
+ ]
+}

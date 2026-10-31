@@ -1,0 +1,348 @@
+@import "tailwindcss";
+/* pixel: tw-animate-css is the reference's enter/exit animation utilities (its shadcn dialogs); an
+   @import has to sit up here, the rest of the pixel block is at the bottom of this file. */
+@import "tw-animate-css";
+
+/* ---- themeable accent palette (switched at runtime via [data-theme]) ---- */
+@theme inline {
+  /* Armapunk 2035 surfaces: Tailwind's neutral grays are re-tinted toward the brand's cool
+     blue-black (hue 230, chroma ~0.012) so every existing gray background and border utility
+     shifts at once. Text grays (100-600) stay as shipped: contrast on these surfaces is what matters. */
+  --color-gray-700: oklch(34% 0.014 230);
+  --color-gray-800: oklch(25% 0.013 230);
+  --color-gray-900: oklch(17.5% 0.012 230);
+  --color-gray-950: oklch(12% 0.011 230);
+  /* Fonts: Michroma for identity moments (wordmark, hero, login), Space Mono for tabular data,
+     system sans for everything else (product register: the tool disappears into the task). */
+  --font-display: var(--font-michroma), Michroma, "Orbitron", sans-serif;
+  --font-mono: var(--font-space-mono), "Space Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-th-50: var(--th-50);
+  --color-th-100: var(--th-100);
+  --color-th-200: var(--th-200);
+  --color-th-300: var(--th-300);
+  --color-th-400: var(--th-400);
+  --color-th-500: var(--th-500);
+  --color-th-600: var(--th-600);
+  --color-th-700: var(--th-700);
+  --color-th-800: var(--th-800);
+  --color-th-900: var(--th-900);
+  --color-th-950: var(--th-950);
+}
+
+/* default theme = cyan (the Armapunk brand accent, #05d9e8 at 400). OKLCH keeps the ramp's
+   chroma falling toward both ends so the pale and deep steps do not turn garish. */
+:root,
+[data-theme="cyan"] {
+  --th-50:  oklch(97% 0.025 200); --th-100: oklch(93% 0.055 200); --th-200: oklch(88% 0.095 200);
+  --th-300: oklch(83% 0.13 200);  --th-400: oklch(79% 0.15 200);  --th-500: oklch(72% 0.14 200);
+  --th-600: oklch(62% 0.12 200);  --th-700: oklch(52% 0.10 200);  --th-800: oklch(42% 0.08 200);
+  --th-900: oklch(33% 0.06 200);  --th-950: oklch(23% 0.04 200);
+}
+[data-theme="amber"] {
+  --th-50: #fffbeb; --th-100: #fef3c7; --th-200: #fde68a; --th-300: #fcd34d;
+  --th-400: #fbbf24; --th-500: #f59e0b; --th-600: #d97706; --th-700: #b45309;
+  --th-800: #92400e; --th-900: #78350f; --th-950: #451a03;
+}
+[data-theme="blue"] {
+  --th-50: #eff6ff; --th-100: #dbeafe; --th-200: #bfdbfe; --th-300: #93c5fd;
+  --th-400: #60a5fa; --th-500: #3b82f6; --th-600: #2563eb; --th-700: #1d4ed8;
+  --th-800: #1e40af; --th-900: #1e3a8a; --th-950: #172554;
+}
+[data-theme="emerald"] {
+  --th-50: #ecfdf5; --th-100: #d1fae5; --th-200: #a7f3d0; --th-300: #6ee7b7;
+  --th-400: #34d399; --th-500: #10b981; --th-600: #059669; --th-700: #047857;
+  --th-800: #065f46; --th-900: #064e3b; --th-950: #022c22;
+}
+[data-theme="rose"] {
+  --th-50: #fff1f2; --th-100: #ffe4e6; --th-200: #fecdd3; --th-300: #fda4af;
+  --th-400: #fb7185; --th-500: #f43f5e; --th-600: #e11d48; --th-700: #be123c;
+  --th-800: #9f1239; --th-900: #881337; --th-950: #4c0519;
+}
+[data-theme="violet"] {
+  --th-50: #f5f3ff; --th-100: #ede9fe; --th-200: #ddd6fe; --th-300: #c4b5fd;
+  --th-400: #a78bfa; --th-500: #8b5cf6; --th-600: #7c3aed; --th-700: #6d28d9;
+  --th-800: #5b21b6; --th-900: #4c1d95; --th-950: #2e1065;
+}
+
+html { color-scheme: dark; }
+body {
+  background: oklch(11% 0.011 230);
+  color: #f3f4f6;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* thin dark scrollbars */
+* { scrollbar-width: thin; scrollbar-color: #374151 transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+
+.brand-font {
+  font-family: var(--font-display);
+  font-weight: 400;              /* Michroma ships one weight; size and tracking carry the hierarchy */
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* Tabular data reads in the mono: ids, money, ranks, timestamps. Slightly smaller so the wide
+   Space Mono glyphs keep leaderboard columns from wrapping on a phone. */
+.tabular-nums {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+
+/* keyboard focus — visible ring in the active accent (product a11y) */
+:focus-visible {
+  outline: 2px solid var(--th-500);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* honor reduced-motion: drawer/collapse transitions become instant */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+
+/* ==========================================================================================
+   pixel: reference theme, verbatim (Armapunk Pixel v3, PIXEL_SPEC.md § UI).
+   The reference game's Tailwind v4 / shadcn (Base UI) theme, scoped to the `.pixel-theme` wrapper
+   of /pixel. Sources: archive work/theme.css (tokens, utilities) and site/*.css (the compiled
+   variant mechanics). Nothing outside /pixel uses these class names or variants (verified by grep
+   before registering them globally).
+   ========================================================================================== */
+
+/* The reference compiles `dark:` against a `.dark` ancestor class, and its shadcn Base UI preset
+   compiles the data-* state variants against both Radix-style `data-state=` and Base UI boolean
+   attributes; same selectors here. */
+@custom-variant dark (&:is(.dark *));
+@custom-variant data-open (&:where([data-state=open]), &:where([data-open]:not([data-open=false])));
+@custom-variant data-closed (&:where([data-state=closed]), &:where([data-closed]:not([data-closed=false])));
+@custom-variant data-active (&:where([data-state=active]), &:where([data-active]:not([data-active=false])));
+@custom-variant data-checked (&:where([data-state=checked]), &:where([data-checked]:not([data-checked=false])));
+@custom-variant data-unchecked (&:where([data-state=unchecked]), &:where([data-unchecked]:not([data-unchecked=false])));
+@custom-variant data-disabled (&:where([data-disabled=true]), &:where([data-disabled]:not([data-disabled=false])));
+@custom-variant data-horizontal (&:where([data-orientation=horizontal]));
+@custom-variant data-vertical (&:where([data-orientation=vertical]));
+
+/* Semantic colours (their @theme inline set) and the radius scale. The radius tokens fall back to
+   Tailwind's defaults outside `.pixel-theme`, so the portal's rounded-* stay as they are. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-emphasis: var(--primary-emphasis);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-surface: var(--surface);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-subtle: var(--foreground-subtle);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --radius-sm: var(--pixel-radius-sm, 0.25rem);
+  --radius-md: var(--pixel-radius-md, 0.375rem);
+  --radius-lg: var(--pixel-radius-lg, 0.5rem);
+  --radius-xl: var(--pixel-radius-xl, 0.75rem);
+  --radius-2xl: var(--pixel-radius-2xl, 1rem);
+}
+
+/* Their :root (light) token set, plus the body / html rules of their base layer, on the wrapper. */
+.pixel-theme {
+  color-scheme: light;
+  --a-50: var(--color-blue-50);
+  --a-300: var(--color-blue-300);
+  --a-500: var(--color-blue-500);
+  --a-700: var(--color-blue-700);
+  --a-800: var(--color-blue-800);
+  --background: var(--color-slate-100);
+  --foreground: var(--color-slate-950);
+  --card: #fff;
+  --card-foreground: var(--color-slate-950);
+  --popover: #fff;
+  --popover-foreground: var(--color-slate-950);
+  --primary: var(--a-700);
+  --primary-foreground: var(--a-50);
+  --primary-hover: var(--a-800);
+  --primary-emphasis: var(--a-700);
+  --secondary: var(--color-slate-100);
+  --secondary-foreground: var(--color-slate-900);
+  --muted: var(--color-slate-200);
+  --muted-foreground: var(--color-slate-600);
+  --accent: var(--color-slate-300);
+  --accent-foreground: var(--color-slate-900);
+  --destructive: var(--color-red-600);
+  --success: var(--color-green-600);
+  --warning: var(--color-amber-600);
+  --border: var(--color-slate-300);
+  --input: var(--color-slate-300);
+  --surface: var(--color-slate-50);
+  --foreground-secondary: var(--color-slate-700);
+  --foreground-subtle: var(--color-slate-600);
+  --border-subtle: var(--color-slate-300);
+  --border-strong: var(--color-slate-400);
+  --ring: var(--a-500);
+  --radius: .625rem;
+  --pixel-radius-sm: calc(var(--radius) * .6);
+  --pixel-radius-md: calc(var(--radius) * .8);
+  --pixel-radius-lg: var(--radius);
+  --pixel-radius-xl: calc(var(--radius) * 1.4);
+  --pixel-radius-2xl: calc(var(--radius) * 1.8);
+  --radius-md: calc(var(--radius) * .8);
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Their .dark token set. */
+.pixel-theme.dark,
+.dark .pixel-theme {
+  color-scheme: dark;
+  --background: var(--color-slate-950);
+  --foreground: var(--color-slate-100);
+  --card: var(--color-slate-800);
+  --card-foreground: var(--color-slate-100);
+  --popover: var(--color-slate-800);
+  --popover-foreground: var(--color-slate-100);
+  --primary: var(--a-800);
+  --primary-foreground: var(--a-50);
+  --primary-hover: var(--a-700);
+  --primary-emphasis: var(--a-300);
+  --secondary: var(--color-slate-700);
+  --secondary-foreground: var(--color-slate-100);
+  --muted: var(--color-slate-700);
+  --muted-foreground: var(--color-slate-400);
+  --accent: var(--color-slate-600);
+  --accent-foreground: var(--color-slate-100);
+  --destructive: var(--color-red-400);
+  --success: var(--color-green-400);
+  --warning: var(--color-amber-400);
+  --border: var(--color-slate-700);
+  --input: var(--color-slate-700);
+  --surface: var(--color-slate-900);
+  --foreground-secondary: var(--color-slate-300);
+  --foreground-subtle: var(--color-slate-400);
+  --border-subtle: var(--color-slate-800);
+  --border-strong: var(--color-slate-600);
+  --ring: var(--a-500);
+}
+
+/* Their base layer: `* { border-color: var(--border); outline-color: var(--ring) }`. */
+@layer base {
+  .pixel-theme *,
+  .pixel-theme ::after,
+  .pixel-theme ::before {
+    border-color: var(--border);
+    outline-color: var(--ring);
+  }
+}
+
+/* Their custom utilities (theme.css), and the font utilities resolved to Geist inside the page
+   (the portal's `--font-mono` is Space Mono; `font-sans` is the wrapper font). */
+.pixel-theme .h-below-topbar {
+  height: calc(100vh - 56px);
+  height: calc(100dvh - 56px);
+}
+.pixel-theme .z-60 {
+  z-index: 60;
+}
+.pixel-theme .font-heading {
+  font-family: var(--font-geist-sans);
+}
+.pixel-theme .font-sans {
+  font-family: var(--font-geist-sans);
+}
+/* Portal rules that would otherwise leak into the page: `.tabular-nums` (Space Mono at 0.95em)
+   and the accent `:focus-visible` outline. `revert-layer` hands both back to the Tailwind layers,
+   which is what the reference has. Declared before `.font-mono` so an element with both keeps Geist Mono. */
+.pixel-theme .tabular-nums {
+  font-family: revert-layer;
+  font-size: revert-layer;
+}
+.pixel-theme :focus-visible {
+  outline: revert-layer;
+  outline-offset: revert-layer;
+  border-radius: revert-layer;
+}
+.pixel-theme .font-mono {
+  font-family: var(--font-geist-mono);
+}
+
+/* The three styled-jsx blocks of the reference page, verbatim (scoping suffixes dropped). */
+.ap-street {
+  background: linear-gradient(#3866a329 0%, #3866a30a 55%, #0000 56%), repeating-linear-gradient(90deg, #7878781a 0 44px, #0000 44px 88px);
+  border-bottom: 3px solid #78787847;
+}
+.ap-wanted {
+  animation: 1.1s steps(2, end) infinite ap-blink;
+}
+@keyframes ap-blink {
+  0%,
+  to {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.ap-char {
+  animation: 2.4s ease-in-out infinite ap-bob;
+}
+.ap-jailed {
+  filter: grayscale(0.85);
+}
+@keyframes ap-bob {
+  0%,
+  to {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ap-char,
+  .ap-wanted {
+    animation: none;
+  }
+}
+.ap-pop {
+  animation: 1.3s ease-out forwards ap-float;
+}
+@keyframes ap-float {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(-14px);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+}

@@ -1,0 +1,32 @@
+params[["_vehicle", objNull, [objNull]]];
+if (count(_vehicle getVariable["AP_vehOwners", []]) < 1 || !(_vehicle isKindOf "Car")) exitWith {
+    ["Your target is not a valid vehicle for nitrous oxide.", "basic"] spawn AP_fnc_handleMessage;};
+if !(isNull objectParent player) exitWith {};
+if !([false, "nitro", 1] call AP_fnc_handleInv) exitWith {};
+disableSerialization;
+5 cutRsc["AP_progress", "PLAIN"];
+private _ui = uiNamespace getVariable "AP_progress";
+private _progress = _ui displayCtrl 38201;
+private _pgText = _ui displayCtrl 38202;
+private _text = "Attaching nitrous injector...";
+_pgText ctrlSetText format["%2 (1%1)...", "%", _text];
+_progress progressSetPosition 0.01;
+private _cP = 0.01;
+closeDialog 0;
+AP_action_in_use = true;
+private _success = false;
+for "_i"
+from 0 to 1 step 0 do {uiSleep 0.09;
+    _cP = _cP + 0.01;
+    _progress progressSetPosition _cP;
+    _pgText ctrlSetText format["%3 (%1%2)...", round(_cP * 100), "%", _text];
+    if (player distance _vehicle > 6) exitWith {};
+    if (!alive player) exitWith {};
+    if (speed player > 2) exitWith {};
+    if (!AP_action_in_use) exitWith {};
+    if (_cP >= 1) exitWith {_success = true;};}; 5 cutText["", "PLAIN"];
+AP_action_in_use = false;
+if !(_success) exitWith {[true, "nitro", 1] call AP_fnc_handleInv};
+_vehicle setVariable["AP_nitro", 3, true];
+AP_side_exp = AP_side_exp + 20;
+["Nitrous oxide injector added to vehicle (3 injections). Press 6 when driving to activate.", "basic"] spawn AP_fnc_handleMessage;

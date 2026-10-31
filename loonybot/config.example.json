@@ -1,0 +1,27 @@
+{
+  "token": "PUT_YOUR_BOT_TOKEN_HERE",
+  "bug_channel_id": 0,
+  "status_channel_id": 0,
+  "admin_channel_id": 0,
+  "owner_ids": [],
+  "prefix": "!",
+  "report_file": "/home/timb/Documents/LooneyBin Altis Life/BUGS.md",
+  "server_dir": "/home/timb/Documents/LooneyBin Altis Life",
+  "db": {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "user": "looneybin",
+    "password": "looneybin",
+    "database": "looneybin"
+  },
+  "bones": {
+    "enabled": true,
+    "api_key": "xai-PUT_YOUR_KEY_HERE",
+    "model": "grok-3",
+    "post_interval_min": 25,
+    "reply_interval_min": 12,
+    "dry_run": false
+  },
+  "new_account_days": 120,
+  "members_intent": false
+}

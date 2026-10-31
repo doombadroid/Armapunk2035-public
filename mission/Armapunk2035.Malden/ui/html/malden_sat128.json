@@ -1,0 +1,11 @@
+{
+  "px": 128,
+  "cells": 13,
+  "size": 1664,
+  "mime": "image/jpeg",
+  "bytes": 316149,
+  "text_bytes": 421556,
+  "layout": "tile s_CCC_RRR_lco.paa at pixel (C*px, R*px); the page applies its own orientation",
+  "source_png_sha1": "f8d5b7b168a1ab4b0073451f0137b99ef75385ca",
+  "tool": "tools/bake_sat_atlas.py"
+}

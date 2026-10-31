@@ -1,0 +1,384 @@
+<!doctype html>
+<!-- VISOR — QUICKHACK PLATE STACK (design 2a). Self-contained, game-ready:
+     inline CSS/JS, no libs, no network, no storage. AP stub behind a guard.
+     Replaces the vr_dock magnifying dock (idd 941300 / fn_qhDockFill.sqf) with
+     a stacked plate launcher; visor overlay, HUD strip, reticle, gaze-lock
+     card and LMB/RMB semantics carry over unchanged.
+
+     THE DESIGN: chamfered plates stagger down the LEFT side — BREACH SPLICE
+     pinned on top (mint frame), six loadout hacks below, breach tools +
+     firewall in a footer rail. Each plate: name, READY/RUN chip, stat line,
+     RAM cost + tone pip, framed glyph. Hover arms (glow + slide), LMB fires
+     at the gaze target, RMB bails. ICE (civ) and TAL (cop) palettes; the SQF
+     pushes side. In game the backdrop is the world; this file ships a dim
+     placeholder. DEMO ONLY: press T to flip ICE/TAL.
+
+     CONTRACT (page defines it; SQF matches; target model same as the dock:
+     AP_cdTarget = cursorObject at open)
+       AP.on("visor", { side,                      // "civ" | "cop"
+                        cash, trace, deckPct,      // HUD strip
+                        lock: null | { name, kind, dist, status, los, inRange },
+                        items: [{ id, name, tone, kind, cost, stat }],
+                          // kind = cast | breach | fw ; tone = acc | util | danger
+                          // order is the loadout; unlock rides on top as the breach plate
+                        running: [ids], fw: "1/2" })
+         — pushed on open + any loadout/lock/trace change; rendered verbatim
+       AP.call("qhFire", [id])    // -> { ok } — routes to qhCast / breach fns game-side
+       AP.call("fwEdit",  [])     // -> opens the ring-loadout firewall editor
+       AP.call("visorClose", [])  // page asks; the display owns the keybind in game
+
+     WHAT ANIMATES: hover transitions + the armed-plate glow (CSS only). No rAF,
+     no timers. -->
+<html><head><meta charset="utf-8"><title>VISOR — quickhack plates</title>
+<script>
+/* ---- BRIDGE SHIM (installed by tools/install_shop_pages.py) ---------------
+   AP defined synchronously so the page's dev stub never installs; on()/call()
+   queue until webui.js lands. AP.texture goes straight to A3API -- no bridge
+   round-trip, cached by the page. */
+(function () {
+  var subs = {}, queued = [], W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  window.__apSubs = subs;
+  window.AP = {
+    __shim: true,
+    on: function (n, f) { (subs[n] = subs[n] || []).push(f); if (W) W.on(n, f); },
+    call: function (n, a) {
+      if (W) return W.call(n, a || [], 20000);
+      return new Promise(function (res, rej) { queued.push([n, a || [], res, rej]); });
+    },
+    texture: function (p, s) {
+      if (typeof A3API === "undefined" || !A3API.RequestTexture) return Promise.reject(new Error("no A3API"));
+      return A3API.RequestTexture(p, s).then(function (durl) {
+        return new Promise(function (res) {
+          var im = new Image();
+          im.onload = function () {
+            try {
+              var cv = document.createElement("canvas");
+              cv.width = im.width; cv.height = im.height;
+              var g = cv.getContext("2d");
+              g.drawImage(im, 0, 0);
+              var d = g.getImageData(0, 0, cv.width, cv.height).data;
+              var x0 = cv.width, y0 = cv.height, x1 = 0, y1 = 0;
+              for (var y = 0; y < cv.height; y++) for (var x = 0; x < cv.width; x++) {
+                if (d[(y * cv.width + x) * 4 + 3] > 10) {
+                  if (x < x0) x0 = x; if (x > x1) x1 = x;
+                  if (y < y0) y0 = y; if (y > y1) y1 = y;
+                }
+              }
+              if (x1 <= x0 || y1 <= y0) return res(durl);
+              var pad = 2, w = x1 - x0 + 1 + pad * 2, h = y1 - y0 + 1 + pad * 2;
+              var out = document.createElement("canvas"); out.width = w; out.height = h;
+              out.getContext("2d").drawImage(cv, x0 - pad, y0 - pad, w, h, 0, 0, w, h);
+              res(out.toDataURL("image/png"));
+            } catch (e) { res(durl); }
+          };
+          im.onerror = function () { res(durl); };
+          im.src = durl;
+        });
+      });
+    },
+    handle: function (n, f) { if (W) W.handle(n, f); }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    queued.forEach(function (q) { W.call(q[0], q[1], 20000).then(q[2], q[3]); });
+    queued = [];
+    W.call("log", ["visor page up"]);   // instant readiness drain
+  });
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else { window.__apBootErr = "no A3API on this page"; }
+})();
+</script>
+<style>
+:root{
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --acc:#f5a623; --util:#54b0ff; --dgr:#ff4d4d;
+  --ink:#e4f2e6; --dim:#859089; --brk:rgba(200,245,58,.42);
+}
+body.tal{ --acc:#f5a623; --util:#54b0ff; --dgr:#ff4d4d;
+  --ink:#e2ecf6; --dim:#8090a0; --brk:rgba(245,166,35,.42); }
+html{font-size:clamp(11px,1.5vh,20px)}
+html,body{margin:0;height:100%;font-family:var(--sans);overflow:hidden}
+body{background:#07090a}
+#stage{position:fixed;inset:0;background:linear-gradient(180deg,#0a0f14 0%,#0d1219 55%,#080b0d 100%)}
+#stage .blob{position:absolute;filter:blur(4.5rem);pointer-events:none}
+#stage .note{position:absolute;right:1rem;bottom:.9rem;font-family:var(--mono);font-size:.6rem;
+  letter-spacing:.14em;color:#2e3a44;text-align:right;line-height:1.7}
+#scan{position:fixed;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.22) 0 1px,transparent 1px 3px);
+  opacity:.55;pointer-events:none}
+#vig{position:fixed;inset:0;box-shadow:inset 0 0 9rem rgba(0,0,0,.8);pointer-events:none}
+.bk{position:fixed;width:1.4rem;height:1.4rem;pointer-events:none}
+.bk.tl{left:.9rem;top:1rem;border-left:2px solid var(--brk);border-top:2px solid var(--brk)}
+.bk.tr{right:.9rem;top:1rem;border-right:2px solid var(--brk);border-top:2px solid var(--brk)}
+.bk.bl{left:.9rem;bottom:1rem;border-left:2px solid var(--brk);border-bottom:2px solid var(--brk)}
+.bk.br{right:.9rem;bottom:1rem;border-right:2px solid var(--brk);border-bottom:2px solid var(--brk)}
+#brand{position:fixed;left:1.7rem;top:1.4rem;font-family:var(--mono);font-size:.68rem;letter-spacing:.1em}
+#statR{position:fixed;right:1.7rem;top:1.4rem;font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;color:var(--ink)}
+#retV{position:fixed;left:50%;top:50%;width:1px;height:1.6rem;margin:-0.8rem 0 0 -0.5px;background:var(--acc);opacity:.55}
+#retH{position:fixed;left:50%;top:50%;width:1.9rem;height:1px;margin:-0.5px 0 0 -0.95rem;background:var(--acc);opacity:.55}
+/* lock card */
+#lock{position:fixed;right:1.6rem;top:3.4rem;width:18.5rem;background:rgba(8,14,12,.58);
+  border:1px solid var(--brk);border-radius:.75rem;backdrop-filter:blur(6px);
+  padding:.8rem 1rem;display:flex;flex-direction:column;gap:.5rem}
+#lock .k{font-family:var(--mono);font-size:.56rem;letter-spacing:.22em;color:var(--dim)}
+#lock .idrow{display:flex;align-items:center;gap:.7rem}
+#lock .idrow svg{width:1.9rem;height:1.9rem;color:var(--acc);flex:none}
+#lock .nm{font-size:.94rem;font-weight:600;color:var(--ink)}
+#lock .sub{font-family:var(--mono);font-size:.62rem;color:var(--acc)}
+#lock .kv{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.66rem;color:var(--dim)}
+#lock .flags{font-family:var(--mono);font-size:.62rem}
+#lock .nolock{font-size:.85rem;color:var(--dim)}
+#lock .hint{font-size:.68rem;line-height:1.5;color:var(--dim)}
+/* plate stack */
+#stack{position:fixed;left:2rem;top:4.2rem}
+.plate{position:absolute;clip-path:polygon(1rem 0,100% 0,100% 100%,0 100%,0 1rem);
+  background:var(--brk);cursor:pointer;transition:transform .14s ease,filter .14s}
+.plate .in{position:absolute;inset:1px;clip-path:polygon(1rem 0,100% 0,100% 100%,0 100%,0 1rem);
+  background:rgba(7,13,17,.72);backdrop-filter:blur(6px);transition:background .14s}
+.plate .row{position:relative;display:flex;align-items:center;gap:.65rem;height:100%;padding:0 .6rem 0 1.1rem}
+.plate .nm{font-family:var(--mono);font-size:.82rem;font-weight:700;letter-spacing:.14em;color:var(--ink);white-space:nowrap}
+.plate .sub{display:flex;align-items:center;gap:.5rem;margin-top:.3rem}
+.plate .chip{font-family:var(--mono);font-size:.52rem;font-weight:700;letter-spacing:.16em;
+  padding:.12rem .38rem;border-radius:2px;border:1px solid var(--util);color:var(--util)}
+.plate.run .chip{background:var(--tone);border-color:transparent;color:#06110b}
+.plate .stat{font-family:var(--mono);font-size:.56rem;color:var(--dim);white-space:nowrap}
+.plate .right{margin-left:auto;display:flex;align-items:center;gap:.5rem;flex:none}
+.plate .cost{font-family:var(--mono);font-size:.92rem;font-weight:700;color:var(--ink)}
+.plate .pip{width:.38rem;height:.95rem;border-radius:1.5px;background:var(--tone)}
+.plate.run .pip,.plate:hover .pip{box-shadow:0 0 .45rem var(--tone)}
+.plate .tile{width:2.6rem;height:2.6rem;flex:none;display:flex;align-items:center;justify-content:center;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - .7rem),calc(100% - .7rem) 100%,0 100%);
+  background:rgba(4,10,8,.85);border:1px solid rgba(255,255,255,.14)}
+.plate .tile svg{width:1.5rem;height:1.5rem;color:var(--tone)}
+.plate:hover{transform:translateX(.4rem);filter:drop-shadow(0 0 .55rem var(--frame));z-index:3}
+.plate:hover{background:var(--frame)}
+.plate:hover .in{background:rgba(10,18,22,.85)}
+.plate:hover .tile{border-color:var(--frame)}
+/* footer rail */
+#rail{position:fixed;left:2.2rem;display:flex;align-items:center;gap:.6rem}
+#rail .k{font-family:var(--mono);font-size:.52rem;letter-spacing:.26em;color:var(--dim)}
+#rail .mini{display:flex;align-items:center;justify-content:center;gap:.5rem;cursor:pointer;
+  width:2.4rem;height:2.4rem;clip-path:polygon(.5rem 0,100% 0,100% 100%,0 100%,0 .5rem);
+  background:rgba(7,13,17,.72);border:1px solid rgba(255,255,255,.14);transition:border-color .12s}
+#rail .mini:hover{border-color:var(--util)}
+#rail .mini svg{width:1.15rem;height:1.15rem;color:var(--util)}
+#rail .mini.fw{width:auto;padding:0 .75rem}
+#rail .mini.fw span{font-family:var(--mono);font-size:.6rem;font-weight:700;letter-spacing:.12em;color:var(--util)}
+#cap{position:fixed;left:0;right:0;bottom:1.1rem;text-align:center;font-family:var(--mono);
+  font-size:.6rem;letter-spacing:.2em;color:var(--dim);opacity:.7}
+</style></head><body>
+<div id="stage">
+  <div class="blob" style="left:16%;top:30%;width:19rem;height:11rem;background:#3a2b58;opacity:.5"></div>
+  <div class="blob" style="left:60%;top:22%;width:16rem;height:12rem;background:#173a4a;opacity:.55"></div>
+  <div class="blob" style="left:40%;top:50%;width:15rem;height:8rem;background:#4a1f33;opacity:.4"></div>
+  <div class="note">VISOR — 2a PLATE STACK<br>IN GAME: TRANSPARENT OVER WORLD · T FLIPS PALETTE (DEMO)</div>
+</div>
+<div id="lockbox"><i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i><b class="tick"></b></div>
+<div id="scan"></div><div id="sweep"></div><div id="vig"></div>
+<div class="bk tl"></div><div class="bk tr"></div><div class="bk bl"></div><div class="bk br"></div>
+<div id="brand"></div><div id="statR"></div>
+<div id="retV"></div><div id="retH"></div>
+<div id="lock"></div>
+<div id="stack"></div>
+<div id="rail"></div>
+<div id="cap">HOVER TO ARM · LMB UPLOAD · RMB CLOSE</div>
+<svg aria-hidden="true" style="position:absolute;width:0;height:0">
+  <symbol id="vq-ping" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><circle cx="12" cy="12" r="1.6" style="fill:currentColor;stroke:none"/><path d="M8.5 8.5 A5 5 0 0 0 8.5 15.5"/><path d="M15.5 8.5 A5 5 0 0 1 15.5 15.5"/><path d="M5.6 5.6 A9 9 0 0 0 5.6 18.4"/><path d="M18.4 5.6 A9 9 0 0 1 18.4 18.4"/></g></symbol>
+  <symbol id="vq-distract" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M12 4 C8.7 4 6.5 6.4 6.5 9.6 V13 L4.8 16.2 H19.2 L17.5 13 V9.6 C17.5 6.4 15.3 4 12 4 Z"/><path d="M10 19.2 A2.2 2.2 0 0 0 14 19.2"/></g></symbol>
+  <symbol id="vq-static" viewBox="0 0 24 24"><path d="M13.2 2.6 L6.2 13.6 H11 L10 21.4 L17.8 9.8 H12.6 Z" style="fill:currentColor;stroke:currentColor;stroke-width:1;stroke-linejoin:round"/></symbol>
+  <symbol id="vq-whiteout" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><path d="M3.5 12 C5.5 8 8.5 6 12 6 C15.5 6 18.5 8 20.5 12 C18.5 16 15.5 18 12 18 C8.5 18 5.5 16 3.5 12 Z" style="stroke-linejoin:round"/><circle cx="12" cy="12" r="2.6"/><path d="M4.5 20 L19.5 4.5"/></g></symbol>
+  <symbol id="vq-leech" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><path d="M12 3.6 C9.2 8.2 7 10.8 7 14 A5 5 0 0 0 17 14 C17 10.8 14.8 8.2 12 3.6 Z" style="stroke-linejoin:round"/><path d="M9.8 14.4 A2.2 2.2 0 0 0 12 16.6"/></g></symbol>
+  <symbol id="vq-synapse" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><circle cx="5.5" cy="12" r="2.1"/><circle cx="18" cy="5.5" r="2.1"/><circle cx="18" cy="18.5" r="2.1"/><path d="M7.4 11 L16.2 6.4"/><path d="M7.4 13 L16.2 17.6"/></g></symbol>
+  <symbol id="vq-unlock" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><rect x="6.5" y="11" width="11" height="8.5" rx="1.6"/><path d="M9 11 V7.8 A3.2 3.2 0 0 1 15.2 6.8"/><path d="M12 14.2 V16.2"/></g></symbol>
+  <symbol id="vq-house" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M4 12 L12 5 L20 12"/><path d="M6.5 10.2 V19 H17.5 V10.2"/><path d="M10.5 19 V14.5 H13.5 V19"/></g></symbol>
+  <symbol id="vq-atm" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><rect x="4" y="6.5" width="16" height="11" rx="1.6" style="stroke-linejoin:round"/><path d="M4 10.2 H20"/><path d="M7 14.4 H11"/></g></symbol>
+  <symbol id="vq-cuffs" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><circle cx="7.2" cy="14.8" r="3.4"/><circle cx="16.8" cy="14.8" r="3.4"/><path d="M10.6 14.8 H13.4"/><path d="M7.2 11.4 V8.8"/><path d="M16.8 11.4 V8.8"/></g></symbol>
+  <symbol id="vq-fw" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M12 3.5 L19 6.3 V11.8 C19 16.3 16.1 19.6 12 21 C7.9 19.6 5 16.3 5 11.8 V6.3 Z"/><path d="M8.8 12 L11 14.2 L15.4 9.6"/></g></symbol>
+  <symbol id="vq-person" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><circle cx="12" cy="7.8" r="3.1"/><path d="M5.5 19.4 C5.5 15.6 8.4 13.6 12 13.6 C15.6 13.6 18.5 15.6 18.5 19.4"/></g></symbol>
+</svg>
+<script>
+/* ---- AP stub (real bridge from fn_webBridgeInit.sqf wins) --------------- */
+if (typeof AP === "undefined") {
+  window.AP = (function () {
+    const subs = {}, last = {};
+    const push = (c, v) => { last[c] = v; (subs[c] || []).forEach(f => f(v)); };
+    const M = {
+      side: "civ", cash: 14200, trace: "CLEAR", deckPct: 64,
+      lock: { name: "Marcus Kade", kind: "person", dist: 34, status: "on foot", los: true, inRange: true },
+      items: [
+        { id: "unlock",   name: "Breach Splice", tone: "util",   kind: "breach", cost: 0, stat: "entry vector · free" },
+        { id: "ping",     name: "Ping",          tone: "util",   kind: "cast",   cost: 1, stat: "0s up · 6s cd · 60m" },
+        { id: "distract", name: "Distract",      tone: "acc",    kind: "cast",   cost: 2, stat: "8s up · 14s cd · 45m" },
+        { id: "static",   name: "Static Burst",  tone: "danger", kind: "cast",   cost: 3, stat: "6s up · 20s cd · 30m" },
+        { id: "whiteout", name: "Whiteout",      tone: "danger", kind: "cast",   cost: 6, stat: "10s up · 30s cd · 25m" },
+        { id: "leech",    name: "Leech",         tone: "danger", kind: "cast",   cost: 4, stat: "12s up · 24s cd · 20m" },
+        { id: "synapse",  name: "Synapse Drag",  tone: "acc",    kind: "cast",   cost: 5, stat: "9s up · 18s cd · 35m" },
+        { id: "house",    name: "House Breach",  tone: "util",   kind: "breach", cost: 0, stat: "breach tool · free" },
+        { id: "atm",      name: "ATM Splice",    tone: "util",   kind: "breach", cost: 0, stat: "breach tool · free" },
+        { id: "cuffs",    name: "Cuff Glitch",   tone: "util",   kind: "breach", cost: 0, stat: "breach tool · free" }
+      ],
+      running: ["whiteout"], fw: "1/2"
+    };
+    const CALLS = {
+      qhFire: id => { const r = M.running, i = r.indexOf(id); i < 0 ? r.push(id) : r.splice(i, 1); push("visor", M); return { ok: true }; },
+      fwEdit: () => true,
+      visorClose: () => true
+    };
+    setTimeout(() => push("visor", M), 40);
+    document.addEventListener("keydown", e => {   // demo only
+      if (e.key.toLowerCase() === "t") { M.side = M.side === "civ" ? "cop" : "civ"; push("visor", M); }
+    });
+    return {
+      on(c, f) { (subs[c] = subs[c] || []).push(f); if (c in last) f(last[c]); },
+      get: c => last[c],
+      call: (k, a) => { console.log("AP.call", k, a || []); return Promise.resolve(CALLS[k] ? CALLS[k].apply(null, a || []) : null); },
+      _push: push
+    };
+  })();
+}
+
+const $ = id => document.getElementById(id);
+const TONE = { acc: "var(--acc)", util: "var(--util)", danger: "var(--dgr)" };
+const LEFTS = [0, 2.2, 0.5, 1.4, 0, 2.6, 1.0];   // rem stagger, breach first
+let D = null;
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function glyph(id) { return ["ping","distract","static","whiteout","leech","synapse","unlock","house","atm","cuffs","fw","person"].includes(id) ? "vq-" + id : "vq-static"; }
+
+function render() {
+  if (!D) return;
+  document.body.classList.toggle("tal", D.side === "cop");
+  $("brand").innerHTML =
+    '<span style="font-weight:700;color:var(--acc)">NEON AEGEAN</span>' +
+    '<span style="color:var(--util)">&nbsp;&nbsp;' + (D.side === "cop" ? "TAL OS" : "ICEBREAKER OS") + '</span>' +
+    '<span style="color:var(--dim)">&nbsp;&nbsp;// QUICKHACK</span>';
+  $("statR").innerHTML = "$" + D.cash.toLocaleString("en-US") +
+    '&nbsp;&nbsp;&nbsp;TRACE <span style="color:var(--acc)">' + esc(D.trace) + "</span>&nbsp;&nbsp;&nbsp;DECK " + D.deckPct + "%";
+  // lock card
+  const L = D.lock;
+  $("lock").innerHTML = L
+    ? '<span class="k">GAZE LOCK</span>' +
+      '<div class="idrow"><svg viewBox="0 0 24 24"><use href="#vq-person"/></svg>' +
+      '<div><div class="nm">' + esc(L.name) + '</div><div class="sub">' + esc(L.kind) + " · " + L.dist + ' m</div></div></div>' +
+      '<div class="kv"><span>STATUS</span><span>' + esc(L.status) + "</span></div>" +
+      '<div class="flags"><span style="color:' + (L.los ? "var(--util)" : "var(--dgr)") + '">[ ' + (L.los ? "line of sight" : "no LOS") + " ]</span>" +
+      '&nbsp;&nbsp;<span style="color:var(--util)">[ ' + (L.inRange ? "in range" : "out of range") + " ]</span></div>"
+    : '<span class="k">GAZE LOCK</span><div class="nolock">No lock</div><div class="hint">Aim at a target, then open the visor.</div>';
+  // plates: breach entry (unlock) on top, then loadout casts in push order
+  const byId = id => D.items.find(x => x.id === id);
+  const plates = [byId("unlock")].concat(D.items.filter(x => x.kind === "cast")).filter(Boolean).slice(0, 7);
+  let h = "", y = 0;
+  plates.forEach((o, i) => {
+    const breach = i === 0, hgt = breach ? 3.9 : 3.6, w = breach ? 30 : 28;
+    const run = D.running.includes(o.id);
+    h += '<div class="plate' + (run ? " run" : "") + '" data-id="' + o.id + '" data-kind="' + o.kind + '" style="left:' +
+      LEFTS[i] + "rem;top:" + y.toFixed(2) + "rem;width:" + w + "rem;height:" + hgt + "rem;--tone:" + TONE[o.tone] +
+      ";--frame:" + (breach ? "var(--util)" : "var(--acc)") + '">' +
+      '<div class="in"></div><div class="row">' +
+      '<div><div class="nm">' + esc(o.name).toUpperCase() + '</div>' +
+      '<div class="sub"><span class="chip">' + (run ? "RUN" : "READY") + '</span><span class="stat">' + esc(o.stat) + "</span></div></div>" +
+      '<div class="right"><span class="cost">&#8595; ' + o.cost + '</span><span class="pip"></span>' +
+      '<span class="tile"><svg viewBox="0 0 24 24"><use href="#' + glyph(o.id) + '"/></svg></span></div>' +
+      "</div></div>";
+    y += hgt + 0.55;
+  });
+  $("stack").innerHTML = h;
+  $("rail").style.top = "calc(4.2rem + " + y.toFixed(2) + "rem + .4rem)";
+  let r = '<span class="k">BREACH</span>';
+  D.items.filter(x => x.kind === "breach" && x.id !== "unlock").forEach(o => {
+    r += '<div class="mini" data-id="' + o.id + '" data-kind="breach" title="' + esc(o.name) + '"><svg viewBox="0 0 24 24"><use href="#' + glyph(o.id) + '"/></svg></div>';
+  });
+  r += '<div class="mini fw" data-id="fw" data-kind="fw"><svg viewBox="0 0 24 24"><use href="#vq-fw"/></svg><span>FIREWALL ' + esc(D.fw) + "</span></div>";
+  $("rail").innerHTML = r;
+}
+AP.on("visor", d => { D = d; render(); });
+
+document.addEventListener("click", ev => {
+  const el = ev.target.closest("[data-id]");
+  if (!el) return;
+  if (el.dataset.kind === "fw") AP.call("fwEdit", []);
+  else AP.call("qhFire", [el.dataset.id]);
+});
+document.addEventListener("contextmenu", ev => { ev.preventDefault(); AP.call("visorClose", []); });
+document.addEventListener("keydown", ev => { if (ev.key === "Escape") AP.call("visorClose", []); });
+
+/* Target box feed. One channel, one element; hidden the moment SQF says the
+   lock is gone, the target died, it left the screen, or line of sight broke --
+   SQF owns every one of those decisions because only it can see the world. */
+(function(){
+  if (typeof AP === "undefined" || !AP.on) return;
+  var el = document.getElementById("lockbox");
+  AP.on("lockbox", function (d) {
+    if (!el || !d) return;
+    if (!d.on) { el.classList.remove("on"); return; }
+    el.style.left   = d.x + "%";
+    el.style.top    = d.y + "%";
+    el.style.width  = d.w + "%";
+    el.style.height = d.h + "%";
+    el.classList.add("on");
+  });
+})();
+</script>
+<style>
+/* __INGAME__ (port): this file's #stage is a PLACEHOLDER SCENE -- a gradient, three blurred
+   colour blobs and a caption -- so the design could be judged in a browser. The caption says
+   so itself: "IN GAME: TRANSPARENT OVER WORLD". Over the live world it is a wall you cannot
+   see through, which is exactly what it looked like in testing.
+
+   Neutralised here rather than by editing the authored CSS above, so that block stays
+   byte-comparable to the handoff source (same convention as carradio.html).
+
+   body AND html both need it: the dialog control is already colorBackground[]={0,0,0,0}, but a
+   page painting its own opaque body is still opaque -- transparency needs BOTH sides, which is
+   the whole finding in arma-webui's FINDINGS section 8.
+
+   The scanlines and vignette stay, softened. They are the visor reading as a visor; at the
+   authored strength (.55 over rgba(0,0,0,.22), and an 8-tenths inset shadow) they grey out the
+   world they are supposed to be laid over. */
+html,body{background:transparent!important}
+#stage{background:none!important}
+#stage .blob,#stage .note{display:none!important}
+
+/* SCANLINES. Raised from the .18 this file first shipped -- that was tuned to
+   stop the placeholder backdrop greying the world, and once the backdrop was
+   gone it left the overlay looking like floating widgets rather than something
+   seen THROUGH. Tighter pitch (2px, not 3), a little more contrast, plus a slow
+   rolling sweep, which is the thing that actually sells a CRT: a static grille
+   reads as texture, a moving one reads as a display. Still light enough to aim
+   through -- that is the constraint, not taste. */
+#scan{opacity:.30!important;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.30) 0 1px,transparent 1px 2px)!important}
+#sweep{position:fixed;inset:0;pointer-events:none;z-index:3;
+  background:linear-gradient(180deg,transparent 0%,rgba(200,245,58,.055) 45%,rgba(200,245,58,.10) 50%,rgba(200,245,58,.055) 55%,transparent 100%);
+  background-size:100% 42%;background-repeat:no-repeat;animation:vsweep 6.5s linear infinite}
+@keyframes vsweep{0%{background-position:0 -45%}100%{background-position:0 145%}}
+#vig{box-shadow:inset 0 0 7rem rgba(0,0,0,.46)!important}
+
+/* TARGET BOX. Corner brackets rather than a closed rectangle: a full box hides
+   the thing it is framing, which is the opposite of the point at range. Driven
+   entirely by the "lockbox" channel -- SQF projects the target's bounding box
+   and sends percentages, so nothing here knows about world space.
+   The transition is deliberately short: long enough to smooth the ~25 Hz feed
+   into continuous motion, short enough that it does not swim behind a target
+   that changes direction. */
+#lockbox{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:4;
+  opacity:0;transition:opacity .12s ease,left .05s linear,top .05s linear,width .05s linear,height .05s linear}
+#lockbox.on{opacity:1}
+#lockbox .c{position:absolute;width:.85rem;height:.85rem;border:2px solid var(--acc);
+  filter:drop-shadow(0 0 .25rem var(--acc))}
+#lockbox .c.tl{left:-2px;top:-2px;border-right:0;border-bottom:0}
+#lockbox .c.tr{right:-2px;top:-2px;border-left:0;border-bottom:0}
+#lockbox .c.bl{left:-2px;bottom:-2px;border-right:0;border-top:0}
+#lockbox .c.br{right:-2px;bottom:-2px;border-left:0;border-top:0}
+#lockbox .tick{position:absolute;left:50%;top:50%;width:.3rem;height:.3rem;margin:-.15rem 0 0 -.15rem;
+  background:var(--acc);border-radius:50%;opacity:.85;
+  animation:vpulse 1.6s ease-in-out infinite}
+@keyframes vpulse{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.9);opacity:.35}}
+</style>
+</body></html>

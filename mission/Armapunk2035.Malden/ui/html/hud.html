@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>STATUS HUD — vitals stack</title>
+<script>
+/* ---- BRIDGE SHIM (hand-applied, the DISPLAY-ONLY variant of the one in
+   ui/html/landing.html -- the same block with call() and its rejection wrapper
+   removed, because this page has no verbs to call). Everything outside this
+   one element is the designer's file byte for byte; a re-drop replaces the rest
+   of the document and keeps this element.
+
+   window.WEBUI does not exist while this page's own script runs; the bridge is
+   INJECTED afterwards. Anything that touches it at load is silently deaf, which
+   is how the first web shop shipped.
+
+   AP is defined here, synchronously, ahead of the page's own script -- so its
+   `typeof AP!=='undefined'&&AP&&AP.on` test passes and the demo backdrop with
+   its 1/2/3/4/5/0 keyboard scenarios never arms. A subscription made before the
+   bridge lands is replayed onto it when it arrives, and webui.js's own on()
+   replays the last value on the channel, so the page gets the first push
+   whichever side won the race.
+
+   DISPLAY-ONLY, DELIBERATELY. There is no call(), no ask(), no handle() and no
+   texture() in this shim: the HUD reads one pushed channel and draws it. There
+   is no name a page-side script could reach SQF through, which is why this
+   whole feature needed no CfgRemoteExec entry and no server function.
+
+   TRANSPARENCY IS THE OWNER REQUIREMENT AND THIS BLOCK PRESERVES IT. The shim
+   adds no element, no stylesheet, no background and no wrapper -- the
+   designer's own `html,body{background:transparent}` is what the world shows
+   through, and the hosting control's colorBackground is {0,0,0,0} to match
+   (dialog\hudWeb.hpp). Anything opaque added here would paint over the world.
+
+   NOTHING IN THIS COMMENT MAY CONTAIN A CLOSING SCRIPT TAG. An HTML script
+   element ends at the first one anywhere in its content, including inside a
+   comment: that shipped once (commit 4a2a2cb5), terminated the shim early,
+   rendered the rest of the block as page text and left window.AP unarmed. ---- */
+(function () {
+  var subs = {}, W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  /* Instrumentation, same as the casino's and the landing's: the in-game
+     browser console is unreachable (Esc closes the display instead of opening
+     it), so a deaf page has to be able to say why on its own surface. */
+  window.__apSubs = subs;
+  /* A throw inside a channel handler is CAUGHT by webui.js and console.error'd,
+     and that console is unreachable -- so a payload the page cannot read looks
+     exactly like a payload that never arrived. Record the first failure where a
+     diagnostic can print it. */
+  function guard(n, f) {
+    return function (v) {
+      try { return f(v); }
+      catch (e) { if (!window.__apHandlerErr) window.__apHandlerErr = n + ": " + e; throw e; }
+    };
+  }
+  window.AP = {
+    __shim: true,
+    on: function (n, f) {
+      var g = guard(n, f);
+      (subs[n] = subs[n] || []).push(g);
+      if (W) W.on(n, g);
+    }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    W.on("hud", function () { window.__apGotHud = true; });
+  });
+  /* A script element with a src cannot work here -- the page has no resolvable
+     base URL and the src quietly resolves to nothing. SQF injects the same file
+     too and webui.js is idempotent, so whichever lands first wins. */
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else {
+    window.__apBootErr = "no A3API on this page";
+  }
+})();
+</script>
+
+<style>
+:root{
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --acc:#c9e21a; --cyan:#33ffbb; --amber:#ffb020; --red:#ff5a3c; --mag:#ff3d81;
+  --ink:#dcefe0; --dim:#7f938a; --faint:#465a51;
+  --brk:rgba(220,239,224,.22);
+}
+html{font-size:clamp(11px,1.6vh,20px)}
+html,body{margin:0;height:100%;background:transparent;font-family:var(--mono);overflow:hidden}
+/* demo backdrop (no AP only) */
+#demo{position:fixed;inset:0;background:radial-gradient(80rem 46rem at 50% 30%,#101c22,#070d11 75%)}
+#demo .blob{position:absolute;border-radius:50%;filter:blur(70px)}
+#demo .note{position:absolute;left:50%;bottom:1.6rem;transform:translateX(-50%);text-align:center;font-size:.6rem;letter-spacing:.18em;line-height:1.9;color:#5d7280}
+/* chips */
+#chips{position:fixed;right:2rem;bottom:11rem;display:flex;gap:.45rem;justify-content:flex-end;transition:bottom .3s ease}
+.chipTag{font-size:.52rem;font-weight:700;letter-spacing:.16em;padding:.16rem .5rem;
+  border:1px solid var(--brk);color:var(--dim);background:rgba(7,13,17,.72)}
+.chipTag.regen{color:var(--cyan);border-color:rgba(51,255,187,.5)}
+.chipTag.paused{color:var(--amber);border-color:rgba(255,176,32,.5)}
+/* stack */
+#stack{position:fixed;right:2rem;bottom:2rem;width:19.5rem}
+.plate{position:absolute;right:0;height:2.55rem;clip-path:polygon(0 0,100% 0,100% 100%,.9rem 100%,0 calc(100% - .9rem));
+  background:var(--brk);transition:filter .2s,bottom .3s ease}
+.plate .in{position:absolute;inset:1px;clip-path:polygon(0 0,100% 0,100% 100%,.9rem 100%,0 calc(100% - .9rem));
+  background:rgba(7,13,17,.72);backdrop-filter:blur(6px)}
+.plate .row{position:relative;display:flex;align-items:center;gap:.55rem;height:100%;padding:0 .7rem 0 .55rem}
+.plate .tile{width:1.7rem;height:1.7rem;flex:none;display:flex;align-items:center;justify-content:center;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - .5rem),calc(100% - .5rem) 100%,0 100%);
+  background:rgba(4,10,8,.85);border:1px solid rgba(255,255,255,.14)}
+.plate .tile svg{width:1.05rem;height:1.05rem;color:var(--tone)}
+.plate .k{width:2.9rem;flex:none;font-size:.56rem;font-weight:700;letter-spacing:.18em;color:var(--dim)}
+.plate .segs{flex:1;display:flex;gap:.18rem;height:.72rem}
+.plate .seg{flex:1;background:rgba(220,239,224,.1);position:relative;overflow:hidden}
+.plate .seg i{position:absolute;inset:0;background:var(--tone);transform-origin:left;transition:transform .35s ease;
+  box-shadow:0 0 .4rem color-mix(in srgb,var(--tone) 60%,transparent)}
+.plate .v{width:2.4rem;flex:none;text-align:right;font-size:.95rem;font-weight:800;color:var(--tone);
+  font-variant-numeric:tabular-nums;transition:color .3s}
+.plate.crit{animation:breathe 1.6s ease-in-out infinite}
+@keyframes breathe{0%,100%{filter:drop-shadow(0 0 0 rgba(255,90,60,0))}50%{filter:drop-shadow(0 0 .6rem rgba(255,90,60,.55))}}
+/* wanted plate */
+#wplate{position:absolute;right:0;height:2.75rem;width:19.5rem;
+  clip-path:polygon(0 0,100% 0,100% 100%,.9rem 100%,0 calc(100% - .9rem));
+  background:rgba(255,61,129,.65);display:none}
+#wplate.on{display:block}
+#wplate .in{position:absolute;inset:1px;clip-path:polygon(0 0,100% 0,100% 100%,.9rem 100%,0 calc(100% - .9rem));
+  background:rgba(23,7,13,.82);backdrop-filter:blur(6px)}
+#wplate .row{position:relative;display:flex;align-items:center;gap:.55rem;height:100%;padding:0 .7rem 0 .55rem}
+#wplate .tile{width:1.9rem;height:1.9rem;flex:none;display:flex;align-items:center;justify-content:center;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - .5rem),calc(100% - .5rem) 100%,0 100%);
+  background:rgba(10,4,7,.9);border:1px solid rgba(255,61,129,.5)}
+#wplate .tile svg{width:1.15rem;height:1.15rem;color:var(--mag)}
+#wplate .k{font-size:.6rem;font-weight:800;letter-spacing:.24em;color:var(--mag)}
+#wplate .pips{display:flex;gap:.24rem;margin-left:.1rem}
+#wplate .pip{width:.42rem;height:.85rem;background:rgba(255,61,129,.18);clip-path:polygon(0 0,100% 0,100% 70%,50% 100%,0 70%)}
+#wplate .pip.on{background:var(--mag);box-shadow:0 0 .4rem rgba(255,61,129,.6)}
+#wplate .pip.on.blink{animation:pipblink 1.1s steps(2,start) infinite}
+@keyframes pipblink{50%{opacity:.25}}
+#wplate .right{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:.1rem}
+#wplate .cap{font-size:.44rem;letter-spacing:.22em;color:rgba(255,61,129,.6)}
+#wplate .amt{font-size:.95rem;font-weight:800;color:var(--mag);font-variant-numeric:tabular-nums;line-height:1;
+  text-shadow:0 0 .8rem rgba(255,61,129,.4)}
+/* minimap — TOP-left, same plate family.
+   PR15 #4: it was bottom-left, which is where the engine draws the in-mission
+   chat. RscChatListMission (ui_f config.bin) is anchored
+     y = safezoneY + safezoneH - 10.5 * GUI_GRID_H,  rows = 5*GUI_GRID_H/(GUI_GRID_H*.8) = 6.25
+   and GUI_GRID_H is ((safezoneW/safezoneH) min 1.2)/1.2/25 = 0.04 at every aspect
+   >= 1.2 -- so the chat block owns the band from 22% to 42% of the screen height
+   ABOVE the bottom edge, six and a bit lines of it, and it grows into that band as
+   messages arrive. The panel is ~15rem tall (13 map + 1.7 bearing + .35 gap), and
+   this page's root font-size is clamp(11px,1.6vh,20px), so it is at most 27.6vh --
+   at bottom:2rem it reached 27.3vh and sat straight under the chat. Anchored to
+   the TOP instead it occupies 3.2vh-31.3vh from the top, i.e. 68.7%-96.8% above the
+   bottom: clear of the chat's 42% ceiling by 27 points at safezoneH = 1, and still
+   clear by 16 at safezoneH = 0.8, the shrunken end of the UI-bounds slider. The
+   vitals stack keeps its own corner (bottom-right) and is untouched. */
+#mapwrap{position:fixed;left:2rem;top:2rem;width:13rem}
+#brg{position:relative;height:1.7rem;margin-bottom:.35rem;clip-path:polygon(0 0,calc(100% - .6rem) 0,100% .6rem,100% 100%,0 100%);
+  background:var(--brk)}
+#brg .in{position:absolute;inset:1px;clip-path:polygon(0 0,calc(100% - .6rem) 0,100% .6rem,100% 100%,0 100%);
+  background:rgba(7,13,17,.72);backdrop-filter:blur(6px);display:flex;align-items:center;padding:0 .6rem;gap:.5rem}
+#brg .lbl{font-size:.48rem;letter-spacing:.2em;color:var(--faint)}
+#brg .deg{flex:1;text-align:center;font-size:.85rem;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums}
+#brg .deg small{font-size:.55rem;color:var(--dim);margin-left:.3rem}
+#brg .zm{font-size:.48rem;letter-spacing:.14em;color:var(--faint)}
+#map{position:relative;width:13rem;height:13rem;clip-path:polygon(0 0,100% 0,100% calc(100% - .9rem),calc(100% - .9rem) 100%,0 100%);
+  background:var(--brk)}
+#map .in{position:absolute;inset:1px;clip-path:polygon(0 0,100% 0,100% calc(100% - .9rem),calc(100% - .9rem) 100%,0 100%);
+  background:rgba(7,13,17,.78);backdrop-filter:blur(6px);overflow:hidden}
+/* PR15 #2: the transitions are GONE, from here and from #mmarks below.
+   They could not be made consistent, so they are not kept on a subset. The panel
+   moves four things per push -- #mrot's rotation, each tile img's left/top,
+   #mmarks' background-position, and the .mm/.mml blips -- and the blips are
+   rebuilt through innerHTML every render, so a brand-new element has no previous
+   computed style to transition FROM and can never ease. Easing the other three
+   is what produced the reported symptom: the grid glided while the tiles and
+   blips stepped. Worse, an ease is a LAG -- a .2s transition against an 83 ms
+   push interval leaves the layer permanently ~2.4 pushes behind the player,
+   which is the "not 1 to 1" complaint itself. So: nothing eases, and the push
+   rate carries the smoothness instead (12 Hz for pos/dir -- see fn_hudWebInit).
+   #mtiles img keeps its opacity fade: that is a load-in, not motion. */
+#mrot{position:absolute;left:-3.25rem;top:-3.25rem;width:19.5rem;height:19.5rem}
+#mtiles{position:absolute;inset:0}
+#mtiles img{position:absolute;opacity:0;transition:opacity .3s;filter:brightness(.88) saturate(.9)}
+/* THE 3D PANEL. Same renderer as MALDEN GRID (ui/html/grid3d.js) behind it; see
+   the M3 block in the script for the camera and the frame budget.
+   208² is a BUDGET, not a measurement: the panel is 13rem and the root is
+   clamp(11px,1.6vh,20px), so its pixel size is not a constant and there is
+   nothing to match exactly. It is square like the panel, so the aspect is 1
+   whatever the root font-size resolves to, and the browser scales the rest.
+   Hidden until the renderer is actually up, so a failed load leaves the 2D
+   panel visible rather than a black square. */
+#mgl{position:absolute;inset:0;width:100%;height:100%;display:none}
+#mgl.on{display:block}
+/* What 3D replaces, and what it does NOT. The flat satellite tiles and the flat
+   sea are exactly what the canvas draws better, and the scanlines read as dirt
+   over a perspective view. The 100 m grid and the range rings go with them:
+   they are affordances of a TOP-DOWN panel and a flat circle drawn as a circle
+   over a tilted camera is simply a lie.
+   #mrot and #mmarks STAY. The blips are DOM over the canvas by design, and
+   #mrot's -heading rotation is what makes them heading-up -- the same thing the
+   chase camera does, so the two agree about which way is forward. That
+   rotation is still the ONLY thing that turns the panel heading-up; what a
+   blip's dx/dy measure BEFORE it changed with the camera (2026-09-08) -- see
+   the BLIP PLACEMENT comment in renderMap(). */
+#map.is3d #mtiles,#map.is3d #mwater,#map.is3d #mscan{display:none}
+#map.is3d #mmarks{background-image:none}
+#map.is3d .ring{display:none}
+/* PR15 #1: the sea. Same box as #mrot's own coordinate space, between the tiles
+   and the marks in DOM order so it covers the seabed and never the blips. */
+#mwater{position:absolute;left:0;top:0;width:19.5rem;height:19.5rem;pointer-events:none}
+#mmarks{position:absolute;inset:0;
+  background-image:linear-gradient(rgba(220,239,224,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(220,239,224,.07) 1px,transparent 1px)}
+.ring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:1px solid rgba(220,239,224,.09);border-radius:50%}
+#mnorth{position:absolute;font-size:.6rem;font-weight:800;color:var(--red);text-shadow:0 0 .4rem rgba(255,90,60,.5)}
+.mm{position:absolute;font-size:.58rem;font-weight:800;line-height:1;text-shadow:0 0 .35rem currentColor;white-space:nowrap}
+.mm.dim{opacity:.45}
+/* PR14: icon name label, drawn inside 500 m. Its own element rather than a child of .mm so it
+   is never dragged round by the veh icon's heading rotation, and so it cannot shift the icon
+   off the world point it is centred on. Existing tokens only -- mono, --dim, one step below
+   the smallest label already on the panel. */
+.mml{position:absolute;font-family:var(--mono);font-size:.42rem;font-weight:700;letter-spacing:.08em;
+  color:var(--dim);white-space:nowrap;pointer-events:none;
+  text-shadow:0 0 .25rem rgba(7,13,17,.95),0 0 .5rem rgba(7,13,17,.85)}
+.mml.dim{opacity:.45}
+.mm .dot{display:block;width:.42rem;height:.42rem;border-radius:50%;background:currentColor;box-shadow:0 0 .35rem currentColor}
+#mme{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--acc);font-size:.75rem;
+  text-shadow:0 0 .5rem rgba(201,226,26,.8);z-index:2}
+#mscan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(180deg,transparent 0 2px,rgba(0,0,0,.16) 2px 3px)}
+</style></head><body>
+<div id="demo" style="display:none">
+  <div class="blob" style="left:56%;top:18%;width:17rem;height:11rem;background:#173a4a;opacity:.5"></div>
+  <div class="blob" style="left:30%;top:55%;width:16rem;height:9rem;background:#4a1f33;opacity:.35"></div>
+  <div class="blob" style="left:70%;top:60%;width:13rem;height:9rem;background:#1d4a2c;opacity:.3"></div>
+  <div class="note">STATUS HUD — VITALS PLATE STACK + MINIMAP<br>IN GAME: TRANSPARENT OVER WORLD, ALWAYS ON WHILE ALIVE<br>
+    DEMO: 1 HEALTHY · 2 THIRSTY · 3 CRITICAL · 4 WANTED · 5 PAUSED+REGEN · 0 RESET<br>Q/A W/S E/D NUDGE HP / H2O / FOOD · ←→ TURN · ↑ WALK</div>
+</div>
+<div id="chips"></div>
+<div id="stack" data-screen-label="Status HUD"></div>
+<div id="mapwrap">
+  <div id="brg"><div class="in"><span class="lbl">GPS</span><span class="deg" id="deg"></span><span class="zm" id="zm"></span></div></div>
+  <div id="map"><div class="in"><canvas id="mgl" width="208" height="208"></canvas><div id="mrot"><div id="mtiles"></div><canvas id="mwater" width="320" height="320"></canvas><div id="mmarks"></div></div><span id="mme">▲</span><div id="mscan"></div></div></div>
+</div>
+<script>
+'use strict';
+var HAS=typeof AP!=='undefined'&&AP&&AP.on;
+var $=function(id){return document.getElementById(id)};
+var GL={
+ hp:'<svg viewBox="0 0 24 24" fill="none"><path d="M10.5 4h3v6.5H20v3h-6.5V20h-3v-6.5H4v-3h6.5z" fill="currentColor"/></svg>',
+ h2o:'<svg viewBox="0 0 24 24" fill="none"><path d="M12 3.2c3.4 4.2 6.3 7.5 6.3 11a6.3 6.3 0 1 1-12.6 0c0-3.5 2.9-6.8 6.3-11z" stroke="currentColor" stroke-width="1.7"/><path d="M9.4 14.2a2.7 2.7 0 0 0 2.4 2.9" stroke="currentColor" stroke-width="1.5"/></svg>',
+ food:'<svg viewBox="0 0 24 24" fill="none"><path d="M7 3.5v6M4.6 3.5v4.2a2.4 2.4 0 0 0 4.8 0V3.5M7 9.5V20.5" stroke="currentColor" stroke-width="1.7"/><path d="M15.5 3.5c-1.8 1-2.8 3.4-2.8 6.2 0 2 .9 3 2.3 3.3v7.5h1.7V3.5z" stroke="currentColor" stroke-width="1.6"/></svg>',
+ want:'<svg viewBox="0 0 24 24" fill="none"><path d="M12 2.8l2.4 5.3 5.8.6-4.3 3.9 1.2 5.7-5.1-2.9-5.1 2.9 1.2-5.7-4.3-3.9 5.8-.6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="10.6" r="1.2" fill="currentColor"/></svg>'};
+var BARS=[{id:'hp',k:'HP',base:'var(--acc)'},{id:'h2o',k:'H2O',base:'var(--cyan)'},{id:'food',k:'FOOD',base:'var(--cyan)'}];
+var TIERS=[50000,100000,250000,500000,1000000];
+var S={hp:100,h2o:100,food:100,wanted:0,paused:false,regen:false,
+  map:{dir:0,pos:[3860,5120],zoom:500,tiles:null,marks:[]}};
+/* ---- THE 3D MINIMAP -------------------------------------------------------
+   The same renderer as MALDEN GRID (ui/html/grid3d.js), with a much smaller
+   camera: a chase view sitting behind and above the player and yawing with
+   them, so the panel is heading-up exactly as the 2D one was.
+
+   THE BUDGET IS THE WHOLE REASON THIS IS SAFE TO LEAVE RUNNING. This webview
+   is an RscTitles layer that never closes, so every frame it draws is a cost
+   paid for the entire session, on whatever rasterizer CEF happens to have.
+   Four decisions come out of that, and none of them are taste:
+
+     * IDLE IS STILL. rAF is not a loop here. A push marks the panel dirty and
+       schedules one frame; a frame that nobody asked to repeat schedules
+       nothing. A player standing at a bank terminal costs zero frames a second,
+       not twelve. This is the property the harness exists to assert
+       (scratchpad/grid3d_harness/render_hud.mjs), because it is invisible to a
+       screenshot and a regression here is silent and permanent.
+     * 12 fps, matching the 12 Hz `hudmap` push. Drawing faster than the data
+       arrives buys nothing but heat.
+     * NO MESH LIBRARY. malden_msh.txt is not fetched, so every building is an
+       extruded box. Real silhouettes cost hundreds of milliseconds of JS per
+       sector to build and up to 900k triangles of resident GL buffer, which is
+       a fine trade for a full-screen map you opened on purpose and a bad one
+       for a 208 px panel that is always there. Skipping the file is all it
+       takes: with no mesh library grid3d puts every row in the box sectors.
+     * NO HERO WINDOW AND NO 256 ATLAS -- create(gl,{detail:false,hero:false}).
+       Each instance owns its own atlases and this one can sample neither of
+       those two, so it would be ~60 MB of texture allocated to be ignored.
+
+   NO EASING, ANYWHERE. PR15 stripped every transition off this panel for a
+   measured reason (see the #mrot comment above): a .2 s ease against an 83 ms
+   push leaves the layer permanently ~2.4 pushes behind the player, which IS the
+   "not 1 to 1" complaint. The camera inherits that rule -- it is placed from the
+   payload each frame and interpolates nothing.
+
+   HOUR is fixed and that is deliberate. The push carries no time of day, and a
+   minimap that goes dark at night is a minimap you cannot read; the panel is an
+   instrument, not a window. If the payload ever grows an hour, this is the one
+   line to change.
+
+   PITCH/BACK/RADIUS/FOV are the camera. RADIUS is a CULL reach, and it is now
+   the honest one: grid3d tests a sector's BOUNDING BOX against it (it used to
+   test the centroid, which forced every caller to inflate its radius by the
+   1600 m sector grid's 1131 m half-diagonal -- this panel asked for 2600 m to
+   see 700 m of ground, and drew 5707 buildings a frame for it on an always-on
+   layer over a software rasterizer).
+   1000 m is where the geometry lands. At zoom 500 the eye sits 477 m behind the
+   player and 611 m above them, and the top of a 50 deg frustum pitched 52 deg
+   down meets the ground 721 m ahead of the player and 568 m to either side --
+   918 m to the far corners. 1000 leaves room for a hill or a tall roof beyond
+   that ground line without pretending to cover the island.
+   That number is derived for zoom 500, which is what fn_hudWebPush pushes today
+   as a hard constant (the zoom control is explicitly not wired, see its line
+   163). Wire a zoom control and this line has to become a function of it.
+
+   Every failure path writes window.__apBootErr, because the in-game console is
+   unreachable (Esc closes the display instead of opening it) and a black panel
+   otherwise has no way to say why. */
+var M3={R:null,gl:null,ready:false,on:true,raf:0,last:0,dirty:false,
+        FPS:12,RADIUS:1000,TILERES:128,PITCH:52*Math.PI/180,BACK:1.55,
+        FOV:50*Math.PI/180,HOUR:12,OVERCAST:0};
+function m3Boot(){
+  /* THE RE-ENTRY GUARD IS M3.booting, NOT M3.R. M3.R is only assigned two async
+     hops down, so for the whole of the fetch+eval it is still null -- and this
+     function's other caller is a webglcontextrestored handler, which fires
+     exactly when a boot is most likely to be in flight (SwiftShader loses the
+     context AT boot roughly 1 run in 8 on the offline harness, so this is
+     measured, not theoretical). Guarded on M3.R alone, that restore starts a
+     SECOND boot: two create()s, two initAtlases(), two loadHF/buildTerrain/
+     loadBuildings, every asset fetched twice, and one atlas set plus one
+     terrain VBO orphaned in the GL driver per event -- on a layer that never
+     closes.
+     M3.gen is the other half. booting stops a concurrent boot from STARTING;
+     gen stops a boot that was superseded while in flight from INSTALLING its
+     results over the boot that replaced it, which is the worse failure of the
+     two -- a renderer built on a context that has since died draws nothing,
+     forever, while ready=true and both classes claim it works. */
+  if(M3.R||M3.booting||typeof A3API==='undefined'||!A3API.RequestFile)return;
+  var cv=$('mgl');
+  M3.gl=cv.getContext('webgl',{antialias:false,alpha:false,depth:true,preserveDrawingBuffer:false});
+  if(!M3.gl){window.__apBootErr='minimap: no webgl';return;}
+  if(!M3.hooked){
+    M3.hooked=true;
+    /* CONTEXT LOSS IS NOT HYPOTHETICAL and this layer cannot do what MALDEN GRID
+       does about it. map.html reloads the page; this one is the player's status
+       HUD and it never closes, so a loss left unhandled is a black square over
+       their world for the rest of the session, with nothing in any log.
+       So it DEGRADES: drop the two classes and the 2D tile panel is back on the
+       very next push. That is what the #map.is3d rules were written for. */
+    cv.addEventListener('webglcontextlost',function(e){
+      e.preventDefault();               // without this, 'restored' never fires
+      M3.ready=false; M3.raf=0; M3.R=null;
+      /* Supersede any boot still in flight: it is building on a dead context,
+         so its results must be discarded rather than installed, and it must not
+         be the thing that clears the flag for the re-boot that follows. */
+      M3.booting=false; M3.gen=(M3.gen||0)+1;
+      $('mgl').classList.remove('on'); $('map').classList.remove('is3d');
+      M3.lost=(M3.lost||0)+1;
+      M3.lostMsg='minimap: webgl context lost (x'+M3.lost+')';
+      window.__apBootErr=M3.lostMsg;
+      renderMap();                      // repaint the 2D panel now, not next push
+    });
+    /* Everything the module owned -- buffers, textures, programs -- died with the
+       context, so a restore is a full re-boot, not a resume. Rare enough that
+       re-fetching the assets is the right trade against keeping them resident. */
+    cv.addEventListener('webglcontextrestored',function(){ m3Boot(); });
+  }
+  M3.booting=true;
+  var gen=M3.gen=(M3.gen||0)+1;
+  /* End of THIS boot, and only this one. A superseded generation must not clear
+     the flag or write the error of the boot that replaced it. */
+  function done(msg){ if(gen!==M3.gen)return; M3.booting=false; if(msg)window.__apBootErr=msg; }
+  /* A script element with a src cannot work on this page -- no resolvable base
+     URL -- so the module is fetched and eval'd, the same way webui.js is. */
+  A3API.RequestFile('ui\\html\\grid3d.js').then(function(src){
+    if(gen!==M3.gen)return;                          // superseded mid-fetch
+    try{(0,eval)(src);}catch(e){done('minimap grid3d eval: '+e);return;}
+    if(!window.GRID3D){done('minimap: no GRID3D after eval');return;}
+    /* The context can die between the fetch starting and this landing, and the
+       lost/restored pair has already run by then. create() would build programs
+       and buffers on a corpse that nothing will ever rebuild. */
+    if(M3.gl.isContextLost()){done();return;}
+    M3.R=window.GRID3D.create(M3.gl,{detail:false,hero:false});
+    /* grid3d contract point 2: onDirty is how the module asks for another frame
+       -- an arriving satellite tile, a sector it could not finish this pass. Left
+       at its default no-op the panel silently stops filling in, with no error. */
+    M3.R.onDirty=m3Dirty;
+    M3.R.initAtlases();            // contract point 3: unset, everything is black
+    return Promise.all([A3API.RequestFile('ui\\html\\malden_hf.txt'),
+                        A3API.RequestFile('ui\\html\\malden_bld.txt')]);
+  }).then(function(a){
+    if(!a||gen!==M3.gen)return;                      // an earlier step bailed, or superseded
+    if(M3.gl.isContextLost()){done();return;}        // never claim ready on a dead context
+    M3.R.loadHF(a[0]); M3.R.buildTerrain(); M3.R.buildWater();
+    /* loadBuildings SLICES its parse and its sector build across the event loop
+       now (grid3d contract point 5), so it is a promise and this hop is not
+       optional -- without it the panel would announce itself ready over an
+       island that has not been built, and every guard downstream reads
+       M3.ready as "there is a world to draw". */
+    return M3.R.loadBuildings(a[1]);                 // no mesh lib: boxes only
+  }).then(function(r){
+    if(!r||gen!==M3.gen)return;                      // an earlier step bailed, or superseded
+    if(M3.gl.isContextLost()){done();return;}
+    M3.ready=true;
+    $('mgl').classList.add('on'); $('map').classList.add('is3d');
+    /* __apBootErr means "the panel is broken and here is why", so a recovered
+       panel must stop claiming to be broken. Cleared by IDENTITY, never
+       blindly: the bridge shim writes this same global for webui.js failures
+       and erasing one of those would hide a much worse problem. M3.lost keeps
+       the count, so a panel that is flapping is still visible. */
+    if(M3.lostMsg&&window.__apBootErr===M3.lostMsg)window.__apBootErr=null;
+    done();
+    m3Dirty();
+  }).catch(function(e){done('minimap assets: '+e);});
+}
+/* A push landed, or the renderer asked for another pass. Draw once, and keep
+   drawing only while something keeps asking -- then stop. */
+function m3Dirty(){ M3.dirty=true; if(!M3.raf) M3.raf=requestAnimationFrame(m3Frame); }
+function m3Frame(now){
+  M3.raf=0;
+  if(!M3.ready||!M3.on) return;
+  /* THE CAP HAS TO ALLOW FOR THE HOST'S OWN FRAME GRID. rAF only fires on the
+     compositor's vsync, so on a 60 Hz host the slots are 16.67 ms apart and the
+     first one at or beyond a bare 83.33 ms is 100 ms -- a 10 fps cap wearing a
+     12 fps label. One push in six then drew no frame at all, while renderMap()
+     went on repositioning the blips on all twelve, so the blips led the terrain
+     by up to a whole push: the same "not 1 to 1" complaint the easing was
+     stripped for, reintroduced by an off-by-one-vsync. Half a 60 Hz frame of
+     slack lands the cap on the 83.3 ms slot, which is the rate that was asked
+     for. THE CAP STAYS -- it is the whole reason an always-on webview is safe
+     to leave running; it is being made accurate, not loosened. */
+  if(now-M3.last < 1000/M3.FPS-8){ M3.raf=requestAnimationFrame(m3Frame); return; }
+  /* Cleared BEFORE the draw, never after: m3Draw is what sets it again, via
+     R.onDirty, when the renderer has unfinished work. Clearing afterwards would
+     throw that signal away and draw one wasted frame for every real one. */
+  M3.last=now; M3.dirty=false; m3Draw();
+  /* !M3.raf, because m3Draw can schedule one itself. R.onDirty is m3Dirty, the
+     module calls it from inside a draw pass when it could not finish (a sector
+     it ran out of build budget for), and m3Dirty sees M3.raf === 0 here -- it
+     was zeroed at the top of this callback -- so it schedules, and then this
+     line schedules a second callback for the same frame. Every drawn frame
+     would leak one more pending callback, and each of those re-arms both
+     branches again: the cap stops being a ceiling and becomes a floor.
+     Unreachable today only because the HUD skips the mesh library and nothing
+     else calls onDirty mid-draw, which is exactly the kind of "safe for now"
+     that stops being true when someone gives the panel real silhouettes. */
+  if(M3.dirty&&!M3.raf) M3.raf=requestAnimationFrame(m3Frame);
+}
+/* The chase camera's geometry, alone -- no GL, no lighting, no tile fetch.
+   m3Draw needs it every frame it actually paints (throttled to M3.FPS); the
+   blip projection below (renderMap -> R.setProjection) needs the SAME
+   formula on every push, unthrottled, so the two never disagree about where
+   the camera is. Factored out after this exact math bit once already (see
+   R.chaseVP's own comment): a second hand-copy of eye/target math is exactly
+   the kind of transposition risk that earns a shared function instead.
+   Returns null on the same 0x0-drawing-buffer guard m3Draw always had. */
+function m3ChaseVP(Mp){
+  var R=M3.R,gl=M3.gl;
+  if(!R||!gl||!Mp||!Mp.pos)return null;
+  var W=gl.drawingBufferWidth,H=gl.drawingBufferHeight;
+  if(!W||!H)return null;
+  var px=Mp.pos[0],py=Mp.pos[1],yaw=(Mp.dir||0)*Math.PI/180;
+  var d=(Mp.zoom||500)*M3.BACK, cp=Math.cos(M3.PITCH), sp=Math.sin(M3.PITCH);
+  var ch=R.hAt(px,py);
+  /* Behind the player along their heading, and above by the pitch. Compass
+     bearings run clockwise from north and north is +y, so "forward" is
+     (sin,cos) and "behind" is its negation -- no unwrapping needed here, unlike
+     #mrot's CSS rotation, because a direction vector cannot wind up. */
+  var ex=px-Math.sin(yaw)*d*cp, ey=py-Math.cos(yaw)*d*cp, eh=ch+d*sp;
+  var gh=R.hAt(ex,ey)+30; if(eh<gh)eh=gh;      // never let the eye sink into a hill
+  // two (x, y, altitude) triples -- eye, then what it looks at
+  var VP=R.chaseVP(ex,ey,eh, px,py,ch, W/H, M3.FOV);
+  return {VP:VP,W:W,H:H,d:d,px:px,py:py};
+}
+function m3Draw(){
+  var Mp=S.map,gl=M3.gl,R=M3.R;
+  if(!R||!Mp||!Mp.pos)return;
+  var cam=m3ChaseVP(Mp);
+  /* A context on its way out reports a 0x0 drawing buffer BEFORE the lost event
+     lands. Drawing into it is not merely wasted: H=0 makes mpp Infinity, which
+     silently drops every building out of its < 40 m/px tier, so the symptom
+     would be "the buildings stopped appearing", not "the context died". */
+  if(!cam)return;
+  var W=cam.W,H=cam.H,px=cam.px,py=cam.py,d=cam.d,VP=cam.VP;
+  var mpp=2*d*Math.tan(M3.FOV/2)/H;
+  var L=R.lighting(M3.HOUR,M3.OVERCAST,d);
+  gl.viewport(0,0,W,H);
+  gl.clearColor(R.FOG[0],R.FOG[1],R.FOG[2],1);   // the horizon colour, so fog has nothing to seam against
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+  gl.disable(gl.BLEND); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  // One resolution only -- this instance has no 256 atlas to put them in.
+  R.tiles.wantAround(px,py,mpp*Math.max(W,H)*1.4+d*0.8,M3.TILERES);
+  R.tiles.pump();
+  R.drawTerrain(VP,mpp,L.sun,L.amb,L.fogK);
+  R.drawWater(VP,L.sun,L.amb,L.fogK);
+  R.drawBuildings(VP,mpp,L.sun,L.amb,L.fogK,px,py,M3.RADIUS);
+}
+var ESCM={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+function esc(t){return String(t).replace(/[&<>"']/g,function(c){return ESCM[c]})}
+var LBL_M=500,LBL_OFF=.72;   /* PR14: label inside 500 m, sitting LBL_OFF rem below its icon */
+/* ---- PR15 #3: THE HEADING IS UNWRAPPED, NOT WRAPPED. -----------------------
+   The push sends a compass bearing, 0-359, so crossing north is a 359 -> 1 step
+   and rotate() took that literally: minus 358 degrees, the long way round. That
+   is the reported "snap 180 degree rotations" -- it is not a 180, it is up to a
+   359, and it fires every single time the player walks past north.
+   rotAcc is a CONTINUOUS angle instead. Each update adds the SHORTEST signed
+   delta, ((new - old + 540) mod 360) - 180, which is always in (-180, 180]; the
+   +540 keeps the operand positive so JS's sign-preserving % cannot bite. The
+   accumulator drifts past 360 and below 0 and that is the point: rotate(370deg)
+   and rotate(10deg) render identically, so nothing downstream cares, while the
+   step between two consecutive values is never more than half a turn.
+   350 -> 10 : ((10-350+540) mod 360) - 180 = (200) - 180 = +20, so rotAcc goes
+   350 -> 370. Twenty degrees clockwise, not 340 anti-clockwise.
+   EVERY rotation on the panel reads the SAME accumulator -- #mrot's -rotAcc and
+   the +rotAcc that keeps N, the blips and the labels upright -- so the two can
+   never be a wrap apart from each other. The GPS read-out below still prints the
+   wrapped 0-359 bearing, because that is a compass, not a transform. */
+var rotAcc=0,rotRaw=null;
+function unwrapDir(d){
+  d=+d||0;
+  if(rotRaw===null){rotRaw=d;rotAcc=d;return rotAcc;}
+  rotAcc+=((d-rotRaw+540)%360)-180;rotRaw=d;return rotAcc;
+}
+var CARD=['N','NE','E','SE','S','SW','W','NW'];
+var KIND={med:['+','var(--red)'],shop:['$','var(--acc)'],gas:['F','var(--amber)'],
+  garage:['G','var(--dim)'],atm:['A','var(--cyan)'],gang:['▩','var(--mag)'],
+  quest:['!','var(--amber)'],enemy:['✕','var(--mag)'],wp:['◆','var(--acc)'],
+  group:['●','var(--cyan)'],veh:['▲','var(--cyan)']};
+function fmt(n){n=Math.round(n);
+  if(n>=1e6)return '$'+(+(n/1e6).toFixed(n%1e6?2:0))+'M';
+  if(n>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+n}
+function tone(v){return v<=20?'var(--red)':v<40?'var(--amber)':''}
+function build(){
+  var h='';var y=0;
+  BARS.forEach(function(b,i){
+    var w=19.5-(2-i)*0.55; // subtle stagger: HP shortest? no — widest at bottom
+    h+='<div class="plate" id="p_'+b.id+'" style="bottom:'+((2-i)*2.95)+'rem;width:'+(17.8+i*0.85)+'rem">'+
+      '<div class="in"></div><div class="row">'+
+      '<div class="tile">'+GL[b.id]+'</div><span class="k">'+b.k+'</span>'+
+      '<div class="segs">'+Array(10).fill(0).map(function(_,s){return '<div class="seg"><i data-b="'+b.id+'" data-s="'+s+'"></i></div>'}).join('')+'</div>'+
+      '<span class="v" id="v_'+b.id+'"></span></div></div>';
+  });
+  h+='<div id="wplate" style="bottom:0"><div class="in"></div><div class="row">'+
+    '<div class="tile">'+GL.want+'</div><span class="k">WANTED</span>'+
+    '<div class="pips">'+Array(5).fill(0).map(function(_,i){return '<div class="pip" data-p="'+i+'"></div>'}).join('')+'</div>'+
+    '<span class="right"><span class="cap">BOUNTY</span><span class="amt" id="wamt"></span></span></div></div>';
+  $('stack').innerHTML=h;
+  $('stack').style.height='12.2rem';
+}
+function render(){
+  var off=S.wanted>0?3.15:0;
+  BARS.forEach(function(b,i){
+    $('p_'+b.id).style.bottom=(off+(2-i)*2.95)+'rem';
+    var v=Math.max(0,Math.min(100,S[b.id]||0));
+    var pl=$('p_'+b.id);
+    pl.style.setProperty('--tone',tone(v)||b.base);
+    pl.className='plate'+(v<=20?' crit':'');
+    $('v_'+b.id).textContent=Math.round(v);
+    Array.prototype.forEach.call(pl.querySelectorAll('.seg i'),function(el){
+      var s=+el.getAttribute('data-s');
+      var f=Math.max(0,Math.min(1,(v-s*10)/10));
+      el.style.transform='scaleX('+f+')';
+    });
+  });
+  var w=$('wplate');
+  w.className=S.wanted>0?'on':'';
+  if(S.wanted>0){
+    $('wamt').textContent='$'+Math.round(S.wanted).toLocaleString();
+    var lvl=TIERS.filter(function(t){return S.wanted>=t}).length;
+    Array.prototype.forEach.call(w.querySelectorAll('.pip'),function(el,i){
+      el.className='pip'+(i<lvl?' on':'')+(i===lvl-1?' blink':'');});
+  }
+  $('chips').innerHTML=(S.paused?'<span class="chipTag paused">▮▮ METERS PAUSED</span>':'')+
+    (S.regen?'<span class="chipTag regen">REGEN+</span>':'');
+  $('chips').style.bottom=(11+off)+'rem';
+  renderMap();
+}
+function renderMap(){
+  var M=S.map;if(!M)return;
+  var k=13/(M.zoom||500);            // rem per meter
+  var gs=100*k;                      // 100m grid, rem
+  var RD=unwrapDir(M.dir);           // PR15 #3: continuous, never wraps at north
+  $('mrot').style.transform='rotate('+(-RD)+'deg)';
+  /* The 2D satellite layer and the 2D sea STAY IN THE PAGE -- they are the
+     fallback when the renderer does not come up, and #map.is3d only hides them.
+     But hidden is not free: this runs on every push, so leaving it on would
+     fetch tiles, reposition every img and redraw a 320² water mask 12 times a
+     second for pixels nobody can see. Skipped while 3D is actually drawing, and
+     it comes straight back on the next push if it ever stops. */
+  if(!(M3.ready&&M3.on)){
+    wantHF(M.tiles);
+    drawTiles(M,k);
+    drawWater(M,k,M.tiles&&M.tiles.worldSize);
+  }
+  var mk=$('mmarks');
+  mk.style.backgroundSize=gs+'rem '+gs+'rem';
+  mk.style.backgroundPosition=((9.75-M.pos[0]*k)%gs)+'rem '+((9.75+M.pos[1]*k)%gs)+'rem';
+  /* Blip projection state for this push, computed ONCE (not per marker) and
+     unthrottled -- every push gets it fresh from the SAME m3ChaseVP() m3Draw
+     itself calls, so the blips never wait on the GL layer's 12 fps budget.
+     cam3 is null whenever 3D isn't up (M3 off, still booting, or a lost
+     context this frame), and every marker below falls back to the flat
+     placement in that case. */
+  var cam3=(M3.ready&&M3.on)?m3ChaseVP(M):null;
+  if(cam3)M3.R.setProjection(cam3.VP,cam3.W,cam3.H);
+  var rdRad=RD*Math.PI/180;
+  var h='';
+  [100,200].forEach(function(r){var d=2*r*k;
+    h+='<div class="ring" style="width:'+d+'rem;height:'+d+'rem"></div>';});
+  h+='<span id="mnorth" style="left:calc(50% - .3rem);top:calc(50% - 6.4rem);transform:rotate('+RD+'deg)">N</span>';
+  /* BLIP PLACEMENT (2026-09-08 fix). #mrot above still rotates the whole marks
+     layer by -RD for heading-up -- that part never changed, and neither did
+     the icon's own counter-rotation or the label offset below, because none
+     of them were ever coupled to WHAT dx/dy measures, only to the fact that
+     #mrot rotates by -RD around the panel centre. What changed is how dx,dy
+     (the PRE-rotation offset #mrot's rotation is about to apply) are found:
+
+     - 3D up: M3.R.project() gives the true panel PIXEL the world point lands
+       on through the tilted chase camera (same function map.html's own
+       marker/label overlay uses). Converting that to a centre-relative rem
+       offset gives the point AFTER #mrot's rotation -- so it is rotated by
+       +RD here first, undoing the rotation #mrot is about to apply, landing
+       dx,dy at the one pre-rotation position that ends up correct.
+     - Flat (3D off, or the projection returned null): the ORIGINAL flat
+       top-down offset, unchanged bit for bit -- see below.
+
+     RANGE IS TESTED IN THE FRAME THE MARK IS PLACED IN, and getting that
+     wrong was a real defect (fixed 2026-09-08, second pass). One world-metre
+     test used to serve both paths -- d > R/k, i.e. k*d > R -- and that is the
+     same question as "is it off the rim" only while the offset IS k*d, which
+     is to say only for the FLAT placement this projection replaced. Against
+     the chase camera it is not: measured at zoom 500, heading 0, flat ground,
+     a mark 226 m ahead sat at 2.74rem and one at 228 m snapped to the 5.90rem
+     rim -- while the panel went on drawing ground to ~610 m ahead and ~305 m
+     behind. Every mark from roughly 0.45x to 1.2x zoom was pinned to the edge,
+     detached from the thing it marks: the exact defect the projection above
+     exists to fix, let back in through the clip test, and scale-invariant in
+     zoom so no zoom level escaped it.
+     So a mark that PROJECTED is clipped on its PROJECTED radius -- it is off
+     the rim if and only if it lands off the rim. The world-metre test survives
+     on the flat/null path alone, where dx,dy really are (wx,wy)*k and the two
+     forms are algebraically the same test. A null projection under a live 3D
+     camera still clips unconditionally, because there is no projected place to
+     put it at all. Both paths then clamp along the direction from the panel
+     centre to wherever dx,dy landed, onto the same 5.9rem rim as before, and
+     the label (.mml) below rides the same flag, so icon and label stay
+     together whichever branch decided it. */
+  (M.marks||[]).forEach(function(m){
+    var kd=KIND[m.kind]||['•','var(--dim)'];
+    var wx=m.x-M.pos[0],wy=m.y-M.pos[1];
+    var d=Math.sqrt(wx*wx+wy*wy),R=5.9,clip;
+    var dx,dy,p=cam3?M3.R.project(m.x,m.y,2):null;
+    if(p){
+      var fx=(p[0]-cam3.W/2)*13/cam3.W, fy=-(p[1]-cam3.H/2)*13/cam3.H;
+      dx=fx*Math.cos(rdRad)+fy*Math.sin(rdRad);
+      dy=fy*Math.cos(rdRad)-fx*Math.sin(rdRad);
+      clip=Math.sqrt(dx*dx+dy*dy)>R;          // PROJECTED radius -- see above
+    } else {
+      /* Flat fallback -- either 3D is off, or the point is BEHIND THE CAMERA.
+         The latter is routine with a heading-up chase cam (anything close
+         behind the player), not an error: there is no perspective direction
+         to clamp along there, so this reuses the same compass bearing the
+         panel always drew, and forces the clip below to pull it onto the rim
+         like any other out-of-range mark -- never an unclamped null reaching
+         the DOM. */
+      dx=wx*k; dy=wy*k;
+      clip=cam3?true:(d>R/k);   // k*d > R, written before the scale instead of after
+    }
+    if(clip){var dd=Math.sqrt(dx*dx+dy*dy)||1;dx=dx/dd*R;dy=dy/dd*R;}
+    var extra=m.kind==='veh'?(m.dir||0):0;
+    h+='<span class="mm'+(clip?' dim':'')+'" style="left:calc(50% + '+dx+'rem);top:calc(50% - '+dy+
+      'rem);color:'+kd[1]+';transform:translate(-50%,-50%) rotate('+(RD+extra)+'deg)">'+
+      (m.kind==='group'?'<i class="dot"></i>':kd[0])+'</span>';
+    /* PR14: name label, inside LBL_M metres -- d is already world metres, so the
+       test is d<=LBL_M with no scaling, taken BEFORE the clip clamp above
+       rewrote dx/dy, so an edge-clamped mark inside 500 m still gets labelled and the
+       label rides the rim with it. The offset is rotated by the heading because #mrot spins the
+       whole marks layer by -dir: a straight-down screen offset is (-sin,-cos)*LBL_OFF in map
+       space, so the label stays UNDER its icon whichever way the player faces. esc() because a
+       payload is data, never markup, even though the push side cleans names as well.
+       Review-minor: that down-offset is ADDITIVE, so a CLIPPED mark's label lands as far out as
+       R+LBL_OFF = 6.62rem from centre -- past the 6.5rem panel edge, half-clipped by #map .in's
+       own overflow:hidden. A rim label is placed at radius R-LBL_OFF instead, along the SAME
+       direction as the (already-clamped) icon -- inside the rim rather than past it. The upright
+       counter-rotation below is untouched either way, and none of this cares whether dx,dy came
+       from the flat offset or the projected one above -- it is a pure offset in the same
+       pre-rotation frame either way. */
+    if(m.name&&d<=LBL_M){
+      var lx=dx,ly=dy;
+      if(clip){var lf=(R-LBL_OFF)/R;lx=dx*lf;ly=dy*lf;}
+      else{var rr=M.dir*Math.PI/180;lx=dx-LBL_OFF*Math.sin(rr);ly=dy-LBL_OFF*Math.cos(rr);}
+      h+='<span class="mml'+(clip?' dim':'')+'" style="left:calc(50% + '+lx+
+        'rem);top:calc(50% - '+ly+'rem);transform:translate(-50%,-50%) rotate('+
+        RD+'deg)">'+esc(m.name)+'</span>';
+    }
+  });
+  mk.innerHTML=h;
+  var dir=((M.dir%360)+360)%360;
+  $('deg').innerHTML=Math.round(dir)+'°<small>'+CARD[Math.round(dir/45)%8]+'</small>';
+  $('zm').textContent=(M.zoom||500)+'M';
+}
+/* ==== PR15 #1: THE SEA ======================================================
+   THE SATELLITE LAYER HAS NO WATER IN IT. That is the whole defect, and it is
+   not a tile-index bug -- the mapping below is provably right (see the note in
+   drawTiles). Arma composites the water surface at draw time; the layer this
+   page reads, a3\map_malden\data\layers\s_*_lco.paa, paints the SEABED, and on
+   Malden the seabed is sand. So a page that draws the layer raw -- which this
+   one did -- paints every square metre of ocean sand-coloured, which is exactly
+   what the owner reported. map.html never had the problem because it does not
+   draw the layer raw either: it draws its own water pass over the terrain
+   (buildWater/watP, map.html:334 and :257).
+   THE MASK COMES FROM ui\html\malden_hf.txt, the heightfield map.html already
+   fetches (map.html:1392) through the same A3API.RequestFile leg this page's own
+   shim uses for webui.js. No new asset, no bake, no server function, nothing
+   invented: where the terrain is below sea level, there is sea.
+   IT IS BUILT ONCE. 512 x 512 mask over the whole island is 25 m per pixel and
+   ~260k bilinear samples -- a one-off cost at first push, then every frame is a
+   single drawImage of the visible window. Redrawing the mask per push was the
+   alternative and is ~114k samples EVERY frame at 12 Hz, which is the per-frame
+   work core\web\README.md forbids.
+   THE COAST IS FEATHERED ON PURPOSE. The heightfield is sampled at 64 m, so its
+   coastline disagrees with the satellite's by tens of metres in places. Alpha
+   ramps with depth across SHORE..DEEP instead of switching at zero, so the
+   disagreement reads as a shallows gradient rather than as blue spilling onto a
+   visible beach -- and the layer stays under 1.0 alpha so the tile's own
+   coastline still reads through it. Hue is map.html's water base
+   (vec3(.016,.045,.038), map.html:262) lifted to read on a 13 rem panel. */
+var MASKPX=512,SHORE=1.5,DEEP=-10,SHC=[16,45,39],DPC=[6,17,15];
+var HF=null,mask=null,hfAsked=false;
+/* Behaviourally map.html's parseHF (map.html:285-299): file row 0 is the NORTH
+   edge, data is indexed from the SOUTH, and a truncated file returns null rather
+   than a half-island. */
+function parseHF(txt){
+  var lines=String(txt).split('\n'),meta=null,i0=0,i,L;
+  for(i=0;i<lines.length;i++){L=lines[i].trim();
+    if(!L||L.charAt(0)==='#')continue;
+    meta=L.split(/[\s,]+/).map(Number);i0=i+1;break;}
+  if(!meta||meta.length<2)return null;
+  var n=meta[0]|0,cell=meta[1];
+  if(n<2||!(cell>0))return null;
+  var data=new Float32Array(n*n),row=0;
+  for(i=i0;i<lines.length&&row<n;i++){L=lines[i].trim();if(!L)continue;
+    var vals=L.split(','),y=n-1-row;
+    if(vals.length<n)return null;
+    for(var c=0;c<n;c++)data[y*n+c]=+vals[c]||0;
+    row++;}
+  return row===n?{n:n,cell:cell,data:data}:null;
+}
+function buildMask(ws){
+  var n=HF.n,d=HF.data,cell=HF.cell,mpp=ws/MASKPX;
+  var cv=document.createElement('canvas');cv.width=cv.height=MASKPX;
+  var g=cv.getContext('2d'),im=g.createImageData(MASKPX,MASKPX),px=im.data;
+  for(var py=0;py<MASKPX;py++){
+    var wy=ws-(py+0.5)*mpp;                       // mask row 0 = NORTH, as the tiles are
+    var fy=Math.min(Math.max(wy/cell,0),n-1.001),y0=fy|0,ty=fy-y0;
+    for(var pi=0;pi<MASKPX;pi++){
+      var fx=Math.min(Math.max((pi+0.5)*mpp/cell,0),n-1.001),x0=fx|0,tx=fx-x0;
+      var a=d[y0*n+x0],b=d[y0*n+x0+1],c2=d[(y0+1)*n+x0],e=d[(y0+1)*n+x0+1];
+      var h=(a*(1-tx)+b*tx)*(1-ty)+(c2*(1-tx)+e*tx)*ty;
+      var f=(SHORE-h)/(SHORE-DEEP);
+      if(f<=0)continue;                            // dry land: leave it transparent
+      if(f>1)f=1;
+      var o=(py*MASKPX+pi)*4;
+      px[o]=SHC[0]+(DPC[0]-SHC[0])*f;px[o+1]=SHC[1]+(DPC[1]-SHC[1])*f;
+      px[o+2]=SHC[2]+(DPC[2]-SHC[2])*f;px[o+3]=235*f;
+    }
+  }
+  g.putImageData(im,0,0);return cv;
+}
+/* One request per session, and SELF-INVALIDATING in the same shape as the push
+   side's [0,0,0] marker guard: a heightfield whose extent does not match the
+   world being drawn is another world's file, and painting it would put sea over
+   dry land. Refused, and the panel is exactly what it was before -- no water,
+   no error, no broken image. */
+function wantHF(t){
+  if(hfAsked||!t||!t.hf||!t.worldSize)return;
+  if(typeof A3API==='undefined'||!A3API.RequestFile)return;
+  hfAsked=true;
+  try{
+    A3API.RequestFile(t.hf).then(function(txt){
+      var h=parseHF(txt);if(!h)return;
+      if(Math.abs((h.n-1)*h.cell-t.worldSize)>t.worldSize*0.1)return;
+      HF=h;mask=buildMask(t.worldSize);
+    },function(){});
+  }catch(e){}
+}
+/* One drawImage per render. The source rect is the same world window the tiles
+   are laid out over, so the sea cannot drift against them; it is clamped to the
+   mask and the destination clamped WITH it (a source rect that runs off the edge
+   is not portable), which is why standing on the map edge shows no water beyond
+   the island rather than a stretched last row. */
+function drawWater(M,k,ws){
+  var cv=$('mwater'),g=cv.getContext('2d');
+  g.clearRect(0,0,cv.width,cv.height);
+  if(!mask||!ws)return;
+  var halfM=9.75/k,s=MASKPX/ws,sw=2*halfM*s,z=cv.width/sw;
+  var sx=(M.pos[0]-halfM)*s,sy=(ws-(M.pos[1]+halfM))*s;
+  var ax=Math.max(0,sx),ay=Math.max(0,sy);
+  var bx=Math.min(MASKPX,sx+sw),by=Math.min(MASKPX,sy+sw);
+  if(bx<=ax||by<=ay)return;
+  g.drawImage(mask,ax,ay,bx-ax,by-ay,(ax-sx)*z,(ay-sy)*z,(bx-ax)*z,(by-ay)*z);
+}
+var tilePool={};
+function drawTiles(M,k){
+  var box=$('mtiles'),t=M.tiles,T=t&&t.tileMeters;
+  if(!T){box.innerHTML='';tilePool={};return;}
+  /* PR14: `ov` is the fraction of each tile IMAGE that is edge overlap -- Terrain Builder cuts
+     the game's own satellite layer with 16 px of it per edge on a 512 px tile, so one image
+     covers MORE ground than one tile step (1050.3 m against a 984.6 m step on Malden). Drawn at
+     T it would sit ~6.7% small under the blips. o = that overspill in metres per edge; absent
+     (an unpadded custom bake) it is 0 and the geometry below is the old one exactly. */
+  var ovf=+t.ov||0,o=ovf?ovf*T/(1-2*ovf):0,ts=(T+2*o)*k;
+  var need={},halfM=9.75/k;
+  var x0=Math.floor((M.pos[0]-halfM)/T),x1=Math.floor((M.pos[0]+halfM)/T);
+  var y0=Math.floor((M.pos[1]-halfM)/T),y1=Math.floor((M.pos[1]+halfM)/T);
+  /* PR14: `grid` is the tile count per side, stated rather than divided back out. The worldSize
+     form below is a float round-trip (T is itself worldSize/grid) and it is not reliable: over
+     54 plausible worldSize x grid pairs it lands one row PAST the edge on two of them, which
+     asks for a tile that is not there. It happens to be exact for Malden's 12800/13 -- both give
+     12 -- so this is removing a dependency on that luck, not fixing a live off-by-one. */
+  var mx=t.grid?t.grid-1:(t.worldSize?Math.ceil(t.worldSize/T)-1:1e9);
+  for(var tx=Math.max(0,x0);tx<=Math.min(mx,x1);tx++)
+  for(var ty=Math.max(0,y0);ty<=Math.min(mx,y1);ty++){
+    var key=tx+'_'+ty+'_'+(t.res||0),img=tilePool[key];   /* review-minor: res IN the key, see tileSig */
+    if(!img){img=document.createElement('img');
+      img.onload=function(){this.style.opacity=1};
+      tilePool[key]=img;box.appendChild(img);tileSrc(img,t,tx,ty);}   /* PR14: async, see below */
+    img.style.width=ts+'rem';img.style.height=ts+'rem';
+    img.style.left=(9.75+(tx*T-o-M.pos[0])*k)+'rem';
+    img.style.top=(9.75-((ty+1)*T+o-M.pos[1])*k)+'rem';
+    need[key]=1;
+  }
+  Object.keys(tilePool).forEach(function(key){
+    if(!need[key]){box.removeChild(tilePool[key]);delete tilePool[key];}});
+}
+/* PR14: was tileURL(), which returned A3API.RequestTexture(name) straight into img.src. That
+   call is a PROMISE in this host -- warm.html awaits it, webui.js's own texture() awaits it --
+   so the src stringified to "[object Promise]" and no tile could ever have loaded. Resolved
+   here instead. `pad` zero-pads both indices and `flipRow` counts the second one from the NORTH
+   edge, which is what the game's own layer naming needs (s_012_000_lco.paa is the north-east
+   corner) while this page's ty counts north from 0 at the SOUTH edge. Both absent gives the old
+   unpadded, south-first name, so an existing custom bake is unaffected.
+   Review-minor: a miss does not reject -- RequestTexture resolves it with a ~23 char stub
+   (documented engine defect, see bugreport_requesttexture.md), so the promise branch below
+   always fires. webui.js's own texture() already guards this exact stub with a length floor
+   (webui/ui/webui.js:144-147, >128); the same guard applies here. A short result just leaves
+   the tile unpainted -- no console spam, nothing assigned -- rather than painting the stub in. */
+function tileSrc(img,t,tx,ty){
+  if(t.base==='demo'){img.src=demoTile(tx,ty);return;}
+  var a=tx,b=(t.flipRow&&t.grid)?t.grid-1-ty:ty,pd=+t.pad||0;
+  if(pd>0){a=('0000000'+a).slice(-pd);b=('0000000'+b).slice(-pd);}
+  var name=t.base+a+'_'+b+(t.ext||'');
+  try{
+    if(typeof A3API!=='undefined'&&A3API.RequestTexture){
+      var r=t.res?A3API.RequestTexture(name,t.res):A3API.RequestTexture(name);
+      if(r&&typeof r.then==='function'){
+        r.then(function(u){if(typeof u==='string'&&u.length>128)img.src=u},function(){});
+        return;
+      }
+      if(typeof r==='string'&&r.length>128)img.src=r;
+      return;
+    }
+  }catch(e){}
+  img.src=name;
+}
+var demoTiles={};
+function demoTile(tx,ty){
+  var key=tx+'_'+ty;if(demoTiles[key])return demoTiles[key];
+  var c=document.createElement('canvas');c.width=c.height=128;var g=c.getContext('2d');
+  var n=((tx*73856093)^(ty*19349663))>>>0;
+  function rnd(){n=(n*1103515245+12345)>>>0;return (n>>>8)/16777216}
+  g.fillStyle='#141f18';g.fillRect(0,0,128,128);
+  for(var i=0;i<26;i++){var r=6+rnd()*22;
+    g.fillStyle=['#18261c','#1b2b20','#22331f','#1a2a2a','#233824'][Math.floor(rnd()*5)];
+    g.beginPath();g.arc(rnd()*128,rnd()*128,r,0,7);g.fill();}
+  g.strokeStyle='rgba(96,110,100,.55)';g.lineWidth=2;
+  if(rnd()>.35){g.beginPath();g.moveTo(0,rnd()*128);
+    g.bezierCurveTo(50,rnd()*128,80,rnd()*128,128,rnd()*128);g.stroke();}
+  if(rnd()>.5){g.beginPath();g.moveTo(rnd()*128,0);
+    g.bezierCurveTo(rnd()*128,60,rnd()*128,90,rnd()*128,128);g.stroke();}
+  demoTiles[key]=c.toDataURL();return demoTiles[key];
+}
+if(HAS){
+  AP.on('hud',function(d){if(!d)return;
+    ['hp','h2o','food','wanted'].forEach(function(k){if(typeof d[k]==='number')S[k]=d[k]});
+    S.paused=!!d.paused;S.regen=!!d.regen;
+    if(d.map)S.map=d.map;render();m3Dirty();});
+  /* PR15 #2: the fast lane. pos/dir alone, on its own channel, at 8 Hz on top of
+     the 4 Hz full payload -- 12 pos/dir updates a second against the 4 the panel
+     used to get. It is 81 bytes of ExecJS against the full payload's 1110, so
+     tripling the motion rate costs +14.6% bytes and +8 one-way calls a second
+     (fn_hudWebInit's inner loop has the arithmetic).
+     renderMap(), NOT render(): the vitals stack, the wanted plate and the chips
+     are change-driven and have no business being rebuilt 12 times a second. */
+  AP.on('hudmap',function(d){if(!d)return;
+    if(d.pos)S.map.pos=d.pos;
+    if(typeof d.dir==='number')S.map.dir=d.dir;
+    /* m3Dirty(), NOT a draw: the 3D panel is rAF-scheduled and rate-limited on
+       its own clock, so the fast lane marks it and moves on. That is what keeps
+       12 Hz of pushes from becoming 12 Hz of unconditional GL work AND what
+       makes the panel go completely still the moment the pushes stop. */
+    renderMap();m3Dirty();});
+}else{
+  $('demo').style.display='block';
+  var P=S.map.pos;
+  S.map.tiles={base:'demo',tileMeters:400,worldSize:12800};
+  S.map.marks=[
+   {x:P[0]+120,y:P[1]+80,kind:'med'},{x:P[0]-90,y:P[1]+140,kind:'shop'},
+   {x:P[0]+200,y:P[1]-60,kind:'gas'},{x:P[0]-160,y:P[1]-120,kind:'garage'},
+   {x:P[0]+40,y:P[1]+35,kind:'atm'},{x:P[0]+260,y:P[1]+220,kind:'gang'},
+   {x:P[0]-60,y:P[1]+90,kind:'group'},{x:P[0]+150,y:P[1]+170,kind:'group'},
+   {x:P[0]-30,y:P[1]-80,kind:'veh',dir:205},{x:P[0],y:P[1]+320,kind:'wp'},
+   {x:P[0]-220,y:P[1]+40,kind:'enemy'},{x:P[0]+90,y:P[1]-180,kind:'quest'}];
+  var SC={
+   '1':{hp:100,h2o:86,food:92,wanted:0,paused:false,regen:true},
+   '2':{hp:74,h2o:34,food:58,wanted:0,paused:false,regen:false},
+   '3':{hp:22,h2o:12,food:18,wanted:0,paused:false,regen:false},
+   '4':{hp:61,h2o:55,food:47,wanted:612000,paused:false,regen:false},
+   '5':{hp:80,h2o:70,food:66,wanted:130000,paused:true,regen:true},
+   '0':{hp:100,h2o:100,food:100,wanted:0,paused:false,regen:false}};
+  document.addEventListener('keydown',function(e){
+    var k=e.key.toLowerCase();
+    if(SC[k]){Object.keys(SC[k]).forEach(function(x){S[x]=SC[k][x]});render();return;}
+    var nud={q:['hp',10],a:['hp',-10],w:['h2o',10],s:['h2o',-10],e:['food',10],d:['food',-10]}[k];
+    if(nud){S[nud[0]]=Math.max(0,Math.min(100,S[nud[0]]+nud[1]));render();return;}
+    if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
+      S.map.dir=((S.map.dir+(e.key==='ArrowRight'?15:-15))%360+360)%360;render();}
+    else if(e.key==='ArrowUp'){var r=S.map.dir*Math.PI/180;
+      S.map.pos[0]+=Math.sin(r)*25;S.map.pos[1]+=Math.cos(r)*25;render();}
+  });
+}
+build();render();m3Boot();
+</script>
+</body></html>

@@ -1,0 +1,286 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: transparent; }
+  .sheet { display: grid; grid-template-columns: repeat(8, 128px); width: 1024px; }
+  .cell { width: 128px; height: 128px; display: grid; place-items: center; }
+  .tile {
+    width: 120px; height: 120px;
+    border-radius: 27px;
+    background: linear-gradient(180deg, var(--t1), var(--t2));
+    border: 2px solid rgba(255,255,255,.17);
+    box-shadow: inset 0 2px 0 rgba(255,255,255,.30);
+    display: grid; place-items: center;
+    color: #fbfdfa;
+    --cut: var(--t2);
+  }
+  .tile svg { width: 62%; height: 62%; display: block; }
+  .a-ice      { --t1:#232b23; --t2:#121712; color:#c8f53a; --cut:#0c110c; border-color: rgba(200,245,58,.5); }
+  .a-market   { --t1:#232b23; --t2:#121712; color:#c8f53a; --cut:#0c110c; border-color: rgba(200,245,58,.5); }
+  .a-hack     { --t1:#a85cf7; --t2:#7c34e8; }
+  .a-admin    { --t1:#5b8dd6; --t2:#3560a8; }
+  .a-camera   { --t1:#6b7889; --t2:#46505f; }
+  .a-group    { --t1:#46a0f8; --t2:#2470e8; }
+  .a-gang     { --t1:#d04052; --t2:#992432; }
+  .a-captures { --t1:#f98a2b; --t2:#e05e0a; }
+  .a-perks    { --t1:#22c08a; --t2:#0f8f60; }
+  .a-talents  { --t1:#f056a8; --t2:#c22884; }
+  .a-infamy   { --t1:#ff7038; --t2:#e03020; }
+  .a-keychain { --t1:#e0ac3c; --t2:#b07c16; }
+  .a-licenses { --t1:#2cbfad; --t2:#128877; }
+  .a-settings { --t1:#97a2ae; --t2:#5e6873; }
+  .a-wallpaper{ --t1:#38cfea; --t2:#149fbe; }
+  .a-achieve  { --t1:#f2c220; --t2:#d08e08; }
+  .a-titles   { --t1:#7379f2; --t2:#4a48d0; }
+  .a-housing  { --t1:#f6a03c; --t2:#e0741a; }
+  .a-quests   { --t1:#c08040; --t2:#8f5a24; }
+  .a-phone    { --t1:#40d468; --t2:#1ea84a; }
+  .a-casino   { --t1:#e84e52; --t2:#b81e28; }
+  .a-browser  { --t1:#42a6f2; --t2:#1c6cd6; }
+  .a-robotaxi { --t1:#f8d030; --t2:#e8b00e; color:#181d14; --cut:#f4c92a; }
+  .a-owner    { --t1:#f26a4c; --t2:#d8402a; }
+  .a-sync     { --t1:#34b4ee; --t2:#0c7cc0; }
+  .a-money    { --t1:#1fb479; --t2:#0c8254; }
+  .a-message  { --t1:#38cc5e; --t2:#18a63e; }
+  .a-inventory{ --t1:#b07a4a; --t2:#845426; }
+  .a-wanted   { --t1:#4a6f9e; --t2:#2e4c74; }
+  .a-gangsonline { --t1:#8a63f0; --t2:#5f3cd0; }
+  .a-bounty   { --t1:#c9922e; --t2:#96660f; }
+  .a-prestige { --t1:#3e6ab8; --t2:#26478c; }
+  .a-honor    { --t1:#d04878; --t2:#9c2a52; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="g-ice" viewBox="0 0 48 48">
+      <path d="M13 15l11 9-11 9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M26 34h10" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="g-hack" viewBox="0 0 48 48">
+      <path d="M27.5 4L11 27.5h8.5L16 44l17-23.5h-8.5L27.5 4z" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-admin" viewBox="0 0 48 48">
+      <path d="M24 4l14 5.4V21c0 9.6-6 16.6-14 19.4C16 37.6 10 30.6 10 21V9.4L24 4z" fill="currentColor"/>
+      <path d="M17.5 23.5l4.8 4.8L31 19" fill="none" stroke="var(--cut)" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="g-camera" viewBox="0 0 48 48">
+      <path d="M17.5 10h13l3 5H40a3 3 0 0 1 3 3v18a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V18a3 3 0 0 1 3-3h6.5l3-5z" fill="currentColor"/>
+      <circle cx="24" cy="26" r="8" fill="var(--cut)"/>
+      <circle cx="24" cy="26" r="4.6" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-group" viewBox="0 0 48 48">
+      <circle cx="31.5" cy="18" r="5.4" fill="currentColor" opacity=".72"/>
+      <path d="M24.5 40c.4-6.8 3.6-10.6 8-10.6 4.6 0 7.6 3.8 8 10.6h-16z" fill="currentColor" opacity=".72"/>
+      <circle cx="18" cy="16.5" r="6.6" fill="currentColor"/>
+      <path d="M6.5 40c0-8 4.8-12.4 11.5-12.4S29.5 32 29.5 40h-23z" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-gang" viewBox="0 0 48 48">
+      <circle cx="12.5" cy="16" r="4.8" fill="currentColor" opacity=".68"/>
+      <path d="M4.5 37c.4-6.4 3.4-9.8 8-9.8 2 0 3.6.7 4.9 1.9-2 2-3.2 4.7-3.6 7.9H4.5z" fill="currentColor" opacity=".68"/>
+      <circle cx="35.5" cy="16" r="4.8" fill="currentColor" opacity=".68"/>
+      <path d="M43.5 37c-.4-6.4-3.4-9.8-8-9.8-2 0-3.6.7-4.9 1.9 2 2 3.2 4.7 3.6 7.9h9.3z" fill="currentColor" opacity=".68"/>
+      <circle cx="24" cy="17.5" r="6.4" fill="currentColor"/>
+      <path d="M13 40c0-7.6 4.6-11.8 11-11.8S35 32.4 35 40H13z" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-captures" viewBox="0 0 48 48">
+      <rect x="13" y="6" width="4.6" height="36" rx="2.3" fill="currentColor"/>
+      <path d="M20 9h17l-4.6 7L37 23H20V9z" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-perks" viewBox="0 0 48 48">
+      <path d="M24 5l5.9 12 13.1 1.9-9.5 9.2 2.3 13L24 34.9l-11.8 6.2 2.3-13L5 18.9 18.1 17 24 5z" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-talents" viewBox="0 0 48 48">
+      <path d="M17 7c-5.5 0-9.5 4-9.5 9 0 1.8-2.5 3.2-2.5 6.5S7.5 27 7.5 29c0 5 4 9 9.5 9 2.8 0 5-1 7-3 2 2 4.2 3 7 3 5.5 0 9.5-4 9.5-9 0-2 2.5-3.2 2.5-6.5S40.5 17.8 40.5 16c0-5-4-9-9.5-9-2.8 0-5 1-7 3-2-2-4.2-3-7-3z" fill="currentColor"/>
+      <path d="M24 11v26M24 19h-7.5M24 27h7.5" fill="none" stroke="var(--cut)" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="14.5" cy="19" r="2" fill="var(--cut)"/>
+      <circle cx="33.5" cy="27" r="2" fill="var(--cut)"/>
+    </symbol>
+    <symbol id="g-infamy" viewBox="0 0 48 48">
+      <path d="M25 4c1.5 7.5-9.5 12-9.5 21.5a10.5 10.5 0 0 0 21 0c0-4.4-2.2-7.6-4.7-10.4.3 4.6-2.1 6.8-4.3 7.7 1.2-4.6-.8-12.6-2.5-18.8z" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-keychain" viewBox="0 0 48 48">
+      <circle cx="24" cy="14.5" r="8" fill="none" stroke="currentColor" stroke-width="5.4"/>
+      <rect x="21.3" y="21" width="5.4" height="21" rx="2.7" fill="currentColor"/>
+      <rect x="24" y="30" width="8.4" height="4.6" rx="2.3" fill="currentColor"/>
+      <rect x="24" y="37" width="6.6" height="4.6" rx="2.3" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-licenses" viewBox="0 0 48 48">
+      <rect x="5" y="11" width="38" height="26" rx="4" fill="currentColor"/>
+      <circle cx="15" cy="21" r="3.6" fill="var(--cut)"/>
+      <path d="M9 31.5c.4-3.6 2.9-5.7 6-5.7s5.6 2.1 6 5.7H9z" fill="var(--cut)"/>
+      <rect x="25" y="17.5" width="13" height="3.4" rx="1.7" fill="var(--cut)"/>
+      <rect x="25" y="25" width="13" height="3.4" rx="1.7" fill="var(--cut)"/>
+    </symbol>
+    <symbol id="g-settings" viewBox="0 0 48 48">
+      <g fill="currentColor">
+        <rect x="21.4" y="4" width="5.2" height="9" rx="2.6"/>
+        <rect x="21.4" y="35" width="5.2" height="9" rx="2.6"/>
+        <rect x="21.4" y="4" width="5.2" height="9" rx="2.6" transform="rotate(90 24 24)"/>
+        <rect x="21.4" y="35" width="5.2" height="9" rx="2.6" transform="rotate(90 24 24)"/>
+        <rect x="21.4" y="4" width="5.2" height="9" rx="2.6" transform="rotate(45 24 24)"/>
+        <rect x="21.4" y="35" width="5.2" height="9" rx="2.6" transform="rotate(45 24 24)"/>
+        <rect x="21.4" y="4" width="5.2" height="9" rx="2.6" transform="rotate(-45 24 24)"/>
+        <rect x="21.4" y="35" width="5.2" height="9" rx="2.6" transform="rotate(-45 24 24)"/>
+      </g>
+      <circle cx="24" cy="24" r="10.6" fill="none" stroke="currentColor" stroke-width="6.2"/>
+    </symbol>
+    <symbol id="g-wallpaper" viewBox="0 0 48 48">
+      <circle cx="33.5" cy="13.5" r="4.8" fill="currentColor"/>
+      <path d="M4 39l12.5-17 8 10.5 4.5-5.5L44 39H4z" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-achieve" viewBox="0 0 48 48">
+      <path d="M14 6h20v9c0 6.6-4.4 11-10 11s-10-4.4-10-11V6z" fill="currentColor"/>
+      <path d="M14 9H7v3.5c0 4.4 3 7.2 7 7.4M34 9h7v3.5c0 4.4-3 7.2-7 7.4" fill="none" stroke="currentColor" stroke-width="3.6"/>
+      <rect x="21.4" y="25" width="5.2" height="8" fill="currentColor"/>
+      <rect x="13.5" y="33" width="21" height="5.6" rx="2" fill="currentColor"/>
+      <rect x="16.5" y="38.6" width="15" height="3.4" rx="1.7" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-titles" viewBox="0 0 48 48">
+      <path d="M13 5h22a2 2 0 0 1 2 2v36l-13-8.5L11 43V7a2 2 0 0 1 2-2z" fill="currentColor"/>
+      <path d="M24 12l2.1 4.2 4.9.7-3.5 3.4.8 4.7-4.3-2.2-4.3 2.2.8-4.7-3.5-3.4 4.9-.7L24 12z" fill="var(--cut)"/>
+    </symbol>
+    <symbol id="g-market" viewBox="0 0 48 48">
+      <path d="M7 36l10.5-11 6.5 6L38 16" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M29 14h11v11" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="g-housing" viewBox="0 0 48 48">
+      <path d="M24 5L4 22h6v19h28V22h6L24 5z" fill="currentColor"/>
+      <rect x="19.5" y="28" width="9" height="13" rx="1.5" fill="var(--cut)"/>
+    </symbol>
+    <symbol id="g-quests" viewBox="0 0 48 48">
+      <rect x="9" y="5" width="30" height="38" rx="4.5" fill="currentColor"/>
+      <path d="M15 15l2.4 2.4 4-4.4M15 25l2.4 2.4 4-4.4" fill="none" stroke="var(--cut)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="25" y="14.4" width="9" height="3.2" rx="1.6" fill="var(--cut)"/>
+      <rect x="25" y="24.4" width="9" height="3.2" rx="1.6" fill="var(--cut)"/>
+      <rect x="14.5" y="33" width="19" height="3.2" rx="1.6" fill="var(--cut)"/>
+    </symbol>
+    <symbol id="g-phone" viewBox="0 0 48 48">
+      <g transform="scale(2)"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.24 1.02l-2.21 2.2z" fill="currentColor"/></g>
+    </symbol>
+    <symbol id="g-casino" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="17.5" fill="currentColor"/>
+      <g fill="var(--cut)">
+        <rect x="21.8" y="6.2" width="4.4" height="4" rx="1.6"/>
+        <rect x="21.8" y="37.8" width="4.4" height="4" rx="1.6"/>
+        <rect x="21.8" y="6.2" width="4.4" height="4" rx="1.6" transform="rotate(60 24 24)"/>
+        <rect x="21.8" y="37.8" width="4.4" height="4" rx="1.6" transform="rotate(60 24 24)"/>
+        <rect x="21.8" y="6.2" width="4.4" height="4" rx="1.6" transform="rotate(-60 24 24)"/>
+        <rect x="21.8" y="37.8" width="4.4" height="4" rx="1.6" transform="rotate(-60 24 24)"/>
+      </g>
+      <circle cx="24" cy="24" r="10.2" fill="none" stroke="var(--cut)" stroke-width="2.6"/>
+      <circle cx="24" cy="24" r="4.4" fill="var(--cut)"/>
+    </symbol>
+    <symbol id="g-browser" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="16.5" fill="none" stroke="currentColor" stroke-width="4.6"/>
+      <path d="M31.5 16.5l-4.6 9.4-9.4 4.6 4.6-9.4 9.4-4.6z" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-robotaxi" viewBox="0 0 48 48">
+      <rect x="19" y="4.5" width="10" height="5" rx="1.6" fill="currentColor"/>
+      <path d="M12.5 12h23l3.5 10.5c1.8.9 3 2.7 3 5V38h-6l-1.2-3.4H13.2L12 38H6V27.5c0-2.3 1.2-4.1 3-5L12.5 12z" fill="currentColor"/>
+      <path d="M15 16h18l2.2 6.5H12.8L15 16z" fill="var(--cut)"/>
+      <circle cx="13.5" cy="29.5" r="2.6" fill="var(--cut)"/>
+      <circle cx="34.5" cy="29.5" r="2.6" fill="var(--cut)"/>
+    </symbol>
+    <symbol id="g-owner" viewBox="0 0 48 48">
+      <circle cx="20" cy="14.5" r="7" fill="currentColor"/>
+      <path d="M7 40c0-8.6 5.6-13.2 13-13.2 2.6 0 5 .6 6.9 1.8-3.1 1.9-4.9 5.3-4.4 9L23 40H7z" fill="currentColor"/>
+      <g fill="currentColor">
+        <rect x="32.6" y="24.5" width="3.4" height="4.6" rx="1.4"/>
+        <rect x="32.6" y="38" width="3.4" height="4.6" rx="1.4"/>
+        <rect x="32.6" y="24.5" width="3.4" height="4.6" rx="1.4" transform="rotate(90 34.3 33.5)"/>
+        <rect x="32.6" y="38" width="3.4" height="4.6" rx="1.4" transform="rotate(90 34.3 33.5)"/>
+        <rect x="32.6" y="24.5" width="3.4" height="4.6" rx="1.4" transform="rotate(45 34.3 33.5)"/>
+        <rect x="32.6" y="38" width="3.4" height="4.6" rx="1.4" transform="rotate(45 34.3 33.5)"/>
+        <rect x="32.6" y="24.5" width="3.4" height="4.6" rx="1.4" transform="rotate(-45 34.3 33.5)"/>
+        <rect x="32.6" y="38" width="3.4" height="4.6" rx="1.4" transform="rotate(-45 34.3 33.5)"/>
+      </g>
+      <circle cx="34.3" cy="33.5" r="5.6" fill="none" stroke="currentColor" stroke-width="3.4"/>
+    </symbol>
+    <symbol id="g-sync" viewBox="0 0 48 48">
+      <path d="M14 36a9 9 0 0 1-1.8-17.8A11.5 11.5 0 0 1 34.6 15 8.5 8.5 0 0 1 34 36H14z" fill="currentColor"/>
+      <path d="M17.5 30.5v-9m0 0l-4 4m4-4l4 4M30.5 21.5v9m0 0l-4-4m4 4l4-4" fill="none" stroke="var(--cut)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="g-money" viewBox="0 0 48 48">
+      <rect x="4.5" y="13" width="39" height="22" rx="3.5" fill="currentColor"/>
+      <circle cx="24" cy="24" r="6.6" fill="var(--cut)"/>
+      <path d="M24 19.4v9.2M21.8 21.6h3.4a2 2 0 0 1 0 4h-2.4a2 2 0 0 0 0 4h3.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+      <rect x="9" y="21.5" width="4" height="5" rx="1.6" fill="var(--cut)"/>
+      <rect x="35" y="21.5" width="4" height="5" rx="1.6" fill="var(--cut)"/>
+    </symbol>
+    <symbol id="g-message" viewBox="0 0 48 48">
+      <path d="M24 7C13 7 5 13.8 5 22.5c0 5 2.7 9.3 7 12.1-.3 2.4-1.4 4.6-3.3 6.3 3.4.2 6.6-.8 9.1-2.6 1.9.5 4 .7 6.2.7 11 0 19-6.8 19-15.5S35 7 24 7z" fill="currentColor"/>
+      <circle cx="15.5" cy="22.5" r="2.7" fill="var(--cut)"/>
+      <circle cx="24" cy="22.5" r="2.7" fill="var(--cut)"/>
+      <circle cx="32.5" cy="22.5" r="2.7" fill="var(--cut)"/>
+    </symbol>
+    <symbol id="g-inventory" viewBox="0 0 48 48">
+      <path d="M17 15v-3.5a7 7 0 0 1 14 0V15" fill="none" stroke="currentColor" stroke-width="4.2"/>
+      <path d="M9.5 15h29l2 22.5a4 4 0 0 1-4 4.5h-25a4 4 0 0 1-4-4.5L9.5 15z" fill="currentColor"/>
+      <path d="M17 21v1a7 7 0 0 0 14 0v-1" fill="none" stroke="var(--cut)" stroke-width="3.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="g-wanted" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="13" fill="none" stroke="currentColor" stroke-width="4.4"/>
+      <path d="M24 3.5V11M24 37v7.5M3.5 24H11M37 24h7.5" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round"/>
+      <circle cx="24" cy="24" r="3.6" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-gangsonline" viewBox="0 0 48 48">
+      <path d="M24 13L12.5 34M24 13l11.5 21M12.5 34h23" fill="none" stroke="currentColor" stroke-width="3.6"/>
+      <circle cx="24" cy="11" r="5.6" fill="currentColor"/>
+      <circle cx="11.5" cy="35" r="5.6" fill="currentColor"/>
+      <circle cx="36.5" cy="35" r="5.6" fill="currentColor"/>
+    </symbol>
+    <symbol id="g-bounty" viewBox="0 0 48 48">
+      <path d="M19 12l-4-6.5h18L29 12z" fill="currentColor"/>
+      <path d="M18.5 14h11c5.5 3.4 9.5 9.3 9.5 15.5C39 37.5 32.5 43 24 43S9 37.5 9 29.5C9 23.3 13 17.4 18.5 14z" fill="currentColor"/>
+      <path d="M24 21v13M21.4 23.4h3.6a2.1 2.1 0 0 1 0 4.2h-2a2.1 2.1 0 0 0 0 4.2h3.6" fill="none" stroke="var(--cut)" stroke-width="2.6" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="g-prestige" viewBox="0 0 48 48">
+      <path d="M24 4l13 9.5-4.4 5.2L24 12.6l-8.6 6.1L11 13.5z" fill="currentColor"/>
+      <path d="M24 17l13 9.5-4.4 5.2-8.6-6.1-8.6 6.1L11 26.5z" fill="currentColor"/>
+      <path d="M24 30l13 9.5-4.4 5.2-8.6-6.1-8.6 6.1L11 39.5z" fill="currentColor" opacity=".55"/>
+    </symbol>
+    <symbol id="g-honor" viewBox="0 0 48 48">
+      <path d="M15 4h7l4.5 16-6.8 2z" fill="currentColor" opacity=".8"/>
+      <path d="M33 4h-7l-4.5 16 6.8 2z" fill="currentColor"/>
+      <circle cx="24" cy="31.5" r="10.5" fill="currentColor"/>
+      <path d="M24 25.5l1.9 3.8 4.2.6-3 3 .7 4.2-3.8-2-3.8 2 .7-4.2-3-3 4.2-.6L24 25.5z" fill="var(--cut)"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="sheet">
+  <div class="cell"><div class="tile a-ice"><svg><use href="#g-ice"/></svg></div></div>
+  <div class="cell"><div class="tile a-hack"><svg><use href="#g-hack"/></svg></div></div>
+  <div class="cell"><div class="tile a-admin"><svg><use href="#g-admin"/></svg></div></div>
+  <div class="cell"><div class="tile a-camera"><svg><use href="#g-camera"/></svg></div></div>
+  <div class="cell"><div class="tile a-group"><svg><use href="#g-group"/></svg></div></div>
+  <div class="cell"><div class="tile a-gang"><svg><use href="#g-gang"/></svg></div></div>
+  <div class="cell"><div class="tile a-captures"><svg><use href="#g-captures"/></svg></div></div>
+  <div class="cell"><div class="tile a-perks"><svg><use href="#g-perks"/></svg></div></div>
+  <div class="cell"><div class="tile a-talents"><svg><use href="#g-talents"/></svg></div></div>
+  <div class="cell"><div class="tile a-infamy"><svg><use href="#g-infamy"/></svg></div></div>
+  <div class="cell"><div class="tile a-keychain"><svg><use href="#g-keychain"/></svg></div></div>
+  <div class="cell"><div class="tile a-licenses"><svg><use href="#g-licenses"/></svg></div></div>
+  <div class="cell"><div class="tile a-settings"><svg><use href="#g-settings"/></svg></div></div>
+  <div class="cell"><div class="tile a-wallpaper"><svg><use href="#g-wallpaper"/></svg></div></div>
+  <div class="cell"><div class="tile a-achieve"><svg><use href="#g-achieve"/></svg></div></div>
+  <div class="cell"><div class="tile a-titles"><svg><use href="#g-titles"/></svg></div></div>
+  <div class="cell"><div class="tile a-market"><svg><use href="#g-market"/></svg></div></div>
+  <div class="cell"><div class="tile a-housing"><svg><use href="#g-housing"/></svg></div></div>
+  <div class="cell"><div class="tile a-quests"><svg><use href="#g-quests"/></svg></div></div>
+  <div class="cell"><div class="tile a-phone"><svg><use href="#g-phone"/></svg></div></div>
+  <div class="cell"><div class="tile a-casino"><svg><use href="#g-casino"/></svg></div></div>
+  <div class="cell"><div class="tile a-browser"><svg><use href="#g-browser"/></svg></div></div>
+  <div class="cell"><div class="tile a-robotaxi"><svg><use href="#g-robotaxi"/></svg></div></div>
+  <div class="cell"><div class="tile a-owner"><svg><use href="#g-owner"/></svg></div></div>
+  <div class="cell"><div class="tile a-sync"><svg><use href="#g-sync"/></svg></div></div>
+  <div class="cell"><div class="tile a-money"><svg><use href="#g-money"/></svg></div></div>
+  <div class="cell"><div class="tile a-message"><svg><use href="#g-message"/></svg></div></div>
+  <div class="cell"><div class="tile a-inventory"><svg><use href="#g-inventory"/></svg></div></div>
+  <div class="cell"><div class="tile a-wanted"><svg><use href="#g-wanted"/></svg></div></div>
+  <div class="cell"><div class="tile a-gangsonline"><svg><use href="#g-gangsonline"/></svg></div></div>
+  <div class="cell"><div class="tile a-bounty"><svg><use href="#g-bounty"/></svg></div></div>
+  <div class="cell"><div class="tile a-prestige"><svg><use href="#g-prestige"/></svg></div></div>
+  <div class="cell"><div class="tile a-honor"><svg><use href="#g-honor"/></svg></div></div>
+</div>

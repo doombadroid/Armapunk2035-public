@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmployeeRole {
+  store_manager
+  assistant_store_manager
+  gray_shirt
+  red_shirt
+  commercial_sales_manager
+  commercial_manager
+  commercial_driver
+  hub_coordinator
+  hub_specialist
+  picker
+  hub_driver
+}
+
+enum ShiftCoverageRole {
+  manager
+  staff
+}
+
+enum EmploymentType {
+  full_time
+  part_time
+}
+
+enum ShiftStatus {
+  draft
+  published
+}
+
+enum BudgetChargeMode {
+  primary_department
+  worked_department
+}
+
+model Department {
+  id                  String             @id
+  name                String
+  payBudget           Float
+  payPeriodLengthDays Int
+  budgetChargeMode    BudgetChargeMode   @default(primary_department)
+  employees           Employee[]
+  shifts              Shift[]
+  coverageRules       CoverageRule[]
+  openHours           OpenHoursRule[]
+}
+
+model CoverageRule {
+  id                  String               @id
+  departmentId        String
+  dayOfWeek           Int?
+  startTime           String
+  endTime             String
+  department          Department           @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  requiredRoles       CoverageRequirement[]
+  alternativeRoleSets CoverageAlternative[]
+}
+
+model CoverageRequirement {
+  id             String        @id
+  coverageRuleId String
+  role           EmployeeRole
+  count          Int
+  coverageRule   CoverageRule  @relation(fields: [coverageRuleId], references: [id], onDelete: Cascade)
+}
+
+model CoverageAlternative {
+  id             String          @id
+  coverageRuleId String
+  coverageRule   CoverageRule    @relation(fields: [coverageRuleId], references: [id], onDelete: Cascade)
+  requirements   AlternativeRoleRequirement[]
+}
+
+model AlternativeRoleRequirement {
+  id                    String               @id
+  coverageAlternativeId String
+  role                  EmployeeRole
+  count                 Int
+  coverageAlternative   CoverageAlternative  @relation(fields: [coverageAlternativeId], references: [id], onDelete: Cascade)
+}
+
+model OpenHoursRule {
+  id           String      @id
+  departmentId String
+  dayOfWeek    Int
+  openTime     String
+  closeTime    String
+  department   Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+}
+
+model Employee {
+  id                        String            @id
+  name                      String
+  role                      EmployeeRole
+  primaryDepartmentId       String
+  crossTrainedDepartmentIds String[]
+  employmentType            EmploymentType
+  hourlyRate                Float
+  weeklyHourCap             Float
+  weeklyHourFloor           Float
+  department                Department        @relation(fields: [primaryDepartmentId], references: [id])
+  shifts                    Shift[]
+  availability              Availability[]
+  dayRestrictions           DayRestriction[]
+  timeRestriction           TimeRestriction?
+}
+
+model Shift {
+  id                    String             @id
+  employeeId            String?
+  departmentId          String
+  start                 DateTime
+  end                   DateTime
+  requiredRole          ShiftCoverageRole
+  requiredEmployeeRoles EmployeeRole[]
+  status                ShiftStatus
+  employee              Employee?          @relation(fields: [employeeId], references: [id])
+  department            Department         @relation(fields: [departmentId], references: [id])
+}
+
+model Availability {
+  id         String   @id
+  employeeId String
+  dayOfWeek  Int
+  startTime  String
+  endTime    String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model DayRestriction {
+  id         String   @id
+  employeeId String
+  dayOfWeek  Int
+  reason     String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model TimeRestriction {
+  id            String   @id
+  employeeId    String   @unique
+  earliestStart String
+  latestEnd     String
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}

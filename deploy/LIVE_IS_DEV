@@ -1,0 +1,12 @@
+Owner call 2026-09-08: for now, the .96 box IS the dev server.
+
+While this file exists:
+  - deploy/push-96.sh does NOT enforce the 22:00-09:00 deploy freeze (it still refuses a dirty
+    tree, so every live build is still reproducible from a commit).
+  - "stage only, the owner triggers restarts" is suspended: deploy and restart .96 freely.
+  - the dev box's own server (~/arma3server_dev on samurai, port 2342) is not the test target;
+    test on .96.
+
+DELETE THIS FILE when the closed test opens to players. That single deletion restores the freeze,
+and it is the cue to bring back the rest of the live discipline: stage-only deploys, owner-called
+restarts, and branch+PR instead of committing to main (CLAUDE.md "Working rules").

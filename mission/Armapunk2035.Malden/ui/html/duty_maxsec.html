@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>MAXSEC — duty terminal</title>
+<script>
+/* ---- BRIDGE SHIM (hand-applied, the same block ui\html\landing.html carries;
+   tools/install_casino_pages.py's SHIM is the installer-generated twin, and
+   ui/html/storage.html + ui/html/carradio.html are the other hand-applied ones).
+   Hand-applied for the landing's reason: this is a ONE-page family with no
+   per-page rewrites to automate, and the designer's file is already
+   viewport-responsive (html{font-size:clamp(11px,1.6vh,20px)}).
+
+   RE-DROPPING A NEW DESIGNER REVISION: keep this block, and replace everything
+   from the line below the shim's closing script tag down to the end of the
+   document with the new file's body. NEVER type the shim's own closing tag
+   sequence anywhere inside this comment -- an HTML script element ends at the
+   FIRST occurrence of that sequence in its content, comments included, and that
+   is exactly how the landing's shim died once (commit 4a2a2cb5: the rest of the
+   block rendered as page text and window.AP never armed).
+
+   window.WEBUI does not exist while this page's own script runs; the bridge is
+   INJECTED afterwards. Anything that touches it at load is silently deaf, which
+   is how the first web shop shipped.
+
+   AP is defined here, synchronously, before the page's script -- so the page's
+   `typeof AP!=='undefined'&&AP&&AP.on` test passes and its no-AP DEMO mode
+   (which fakes an {ok:true} 450 ms after every dutyStart, and would let a player
+   watch a sign-on "succeed" that never left the client) never arms.
+
+   THE PAGE CALLS BACK, IT DOES NOT AWAIT, and that is the one shape difference
+   from the landing's copy of this shim. Its own helper is
+   `AP.call(name, args, cb)` -- a THIRD callback argument, which webui.js's
+   promise-returning call(name, args, timeout) knows nothing about. Left
+   unbridged, dutyStart's answer would resolve into nothing and GO would sit on
+   "REPORTING..." for the rest of the session. The wrapper below invokes cb with
+   the resolved value and still returns the promise, so both shapes work.
+
+   AP.texture is deliberately absent: this page loads no game content. -------- */
+(function () {
+  var subs = {}, queued = [], W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  /* Instrumentation, same as the casino's and the landing's: the browser console
+     is unreachable in game -- Esc opens it and closes the dialog -- so a deaf
+     page has to be able to say why on its own surface. */
+  window.__apSubs = subs;
+  /* A throw inside a channel handler is CAUGHT by webui.js and console.error'd,
+     and the console is unreachable in game -- so a payload the page cannot read
+     looks exactly like a payload that never arrived. Wrapping every handler
+     records the first failure where a diagnostic can print it. */
+  function guard(n, f) {
+    return function (v) {
+      try { return f(v); }
+      catch (e) { if (!window.__apHandlerErr) window.__apHandlerErr = n + ": " + e; throw e; }
+    };
+  }
+  window.AP = {
+    __shim: true,
+    on: function (n, f) {
+      (subs[n] = subs[n] || []).push(guard(n, f));
+      if (W) W.on(n, subs[n][subs[n].length - 1]);
+    },
+    call: function (n, a) {
+      if (W) return W.call(n, a || [], 20000);
+      return new Promise(function (res, rej) { queued.push([n, a || [], res, rej]); });
+    },
+    handle: function (n, f) { if (W) W.handle(n, f); }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    W.on("duty", function () { window.__apGotDuty = true; });
+    queued.forEach(function (q) { W.call(q[0], q[1], 20000).then(q[2], q[3]); });
+    queued = [];
+  });
+  /* The page's arm() has no rejection path: a REJECTED promise (the 20 s shim
+     timeout above, or an SQF handler that threw) would never clear S.busy and
+     GO would stay disabled on "REPORTING...". AP_fnc_dutyTermBridge answers
+     every dutyStart inside 16 s by construction (AP_fnc_dutyRequest's own 15 s
+     deadline plus its up-to-1 s quote-settle wait), comfortably inside the 20 s
+     above, so the timeout is the belt-and-braces case -- turn a rejection into
+     the page's own refusal shape so the toast fires and the button comes back.
+     Together with the cb bridge, this is the ONLY behavioural addition to the
+     designer's file. */
+  var _rawCall = window.AP.call;
+  window.AP.call = function (n, a, cb) {
+    var p = _rawCall(n, a).catch(function () {
+      return { ok: false, err: "NO ANSWER FROM THE SERVER -- TRY AGAIN" };
+    });
+    if (typeof cb !== "function") { return p; }
+    p.then(function (v) {
+      try { cb(v); }
+      catch (e) { if (!window.__apCbErr) window.__apCbErr = n + ": " + e; }
+    });
+    return p;
+  };
+  /* A script src cannot work here -- the page has no resolvable base URL and the
+     src quietly resolves to nothing. SQF injects the same file too and webui.js
+     is idempotent, so whichever lands first wins. */
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else {
+    window.__apBootErr = "no A3API on this page";
+  }
+})();
+</script>
+
+<style>
+:root{
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --scr:#06090a; --bezel:#11191c; --panel:#0a1517; --well:#081114;
+  --acc:#46d8e8; --amber:#ffb020; --red:#ff5a3c; --mint:#33ffbb;
+  --ink:#d9edf0; --body:#b3c7ca; --dim:#7d959a; --faint:#43585d;
+  --line:rgba(70,216,232,.16); --hair:rgba(217,237,240,.08);
+}
+html{font-size:clamp(10px,1.55vh,20px)}
+html,body{margin:0;height:100%;font-family:var(--sans);color:var(--ink)}
+body{background:radial-gradient(60rem 40rem at 50% 30%,#0a1214,var(--scr) 74%);overflow:hidden}
+a{color:var(--acc)}a:hover{color:var(--ink)}
+#frame{position:fixed;inset:0;display:grid;place-items:center;padding:1.4rem}
+#shell{width:min(35rem,94vw);height:min(54rem,94vh);background:var(--bezel);border:1px solid rgba(217,237,240,.1);
+  border-radius:1.5rem;padding:.6rem;box-shadow:0 1.6rem 4rem rgba(0,0,0,.55);display:flex}
+#screen{position:relative;flex:1;min-height:0;background:rgba(8,17,20,.92);border:1px solid var(--line);
+  border-radius:.95rem;display:flex;flex-direction:column;overflow:hidden}
+#sb{display:flex;align-items:center;gap:.8rem;padding:.42rem .95rem;font-family:var(--mono);font-size:.5rem;
+  letter-spacing:.18em;color:var(--faint);border-bottom:1px solid var(--hair)}
+#sb .net{margin-left:auto;color:var(--dim)}
+#hd{padding:.85rem 1rem .7rem;border-bottom:1px solid var(--line);font-family:var(--mono)}
+#hd .t{font-size:.8rem;font-weight:800;letter-spacing:.22em;color:var(--acc)}
+#hd .st{font-size:.54rem;letter-spacing:.16em;color:var(--faint);margin-left:.6rem}
+#hd .w{display:block;margin-top:.4rem;font-size:.56rem;letter-spacing:.14em;color:var(--dim)}
+#hd .w b{color:var(--ink)}
+#hd .x{position:absolute;top:.95rem;right:.9rem;font-size:.74rem;color:var(--faint);cursor:pointer;padding:.1rem .25rem}
+#hd .x:hover{color:var(--ink)}
+#roster{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;padding:.5rem 1rem;border-bottom:1px solid var(--hair);
+  font-family:var(--mono);font-size:.5rem;letter-spacing:.14em;color:var(--faint)}
+#roster b{color:var(--dim);font-weight:600}
+#rows{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:.5rem;padding:.75rem .8rem;
+  scrollbar-width:thin;scrollbar-color:#26383c transparent}
+.row{display:flex;gap:.75rem;align-items:center;border:1px solid rgba(125,149,154,.28);background:var(--well);
+  border-left:3px solid transparent;padding:.6rem .75rem;cursor:pointer;min-height:4.6rem}
+.row:hover{border-color:var(--dim)}
+.row.sel{border-color:var(--acc);border-left-color:var(--acc);background:rgba(70,216,232,.07)}
+.row .glyph{flex:none;width:3rem;display:grid;place-items:center}
+.row .mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:.28rem}
+.row .nm{font-family:var(--mono);font-size:.7rem;font-weight:800;letter-spacing:.2em;color:var(--ink)}
+.row.sel .nm{color:var(--acc)}
+.row .ds{font-size:.6rem;line-height:1.4;color:var(--body);text-wrap:pretty}
+.row .ln{font-family:var(--mono);font-size:.46rem;letter-spacing:.12em;color:var(--faint)}
+.row .side{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:.4rem}
+.row .req{font-family:var(--mono);font-size:.48rem;letter-spacing:.13em;padding:.1rem .4rem;
+  border:1px solid rgba(125,149,154,.35);color:var(--dim);white-space:nowrap}
+.row .req.lock{color:var(--amber);border-color:rgba(255,176,32,.45)}
+.row .ct{font-family:var(--mono);font-size:.48rem;letter-spacing:.13em;color:var(--faint);white-space:nowrap}
+.row .ct b{color:var(--acc);font-weight:600}
+.row.lk{opacity:.55}
+.row.lk.sel{opacity:.85;border-color:var(--amber);border-left-color:var(--amber);background:rgba(255,176,32,.05)}
+.row.lk.sel .nm{color:var(--amber)}
+#ft{display:flex;flex-direction:column;gap:.55rem;padding:.7rem .95rem .85rem;border-top:1px solid var(--line)}
+#fmsg{font-family:var(--mono);font-size:.54rem;letter-spacing:.12em;color:var(--dim);min-height:1.5em;text-wrap:pretty}
+#fmsg.lock{color:var(--amber)}
+#go{font-family:var(--mono);font-size:.68rem;font-weight:800;letter-spacing:.22em;padding:.72rem;cursor:pointer;
+  border:1px solid var(--acc);background:var(--acc);color:#04262b;width:100%}
+#go:hover{filter:brightness(1.12)}
+#go:disabled{background:transparent;border-color:rgba(125,149,154,.35);color:var(--faint);cursor:default;filter:none}
+#go.armed{background:var(--amber);border-color:var(--amber);color:#241300;animation:pulse 1s infinite}
+@keyframes pulse{50%{filter:brightness(1.25)}}
+#fkeys{font-family:var(--mono);font-size:.46rem;letter-spacing:.14em;color:var(--faint);text-align:center}
+#toast{position:absolute;left:50%;bottom:7.6rem;transform:translateX(-50%);padding:.5rem 1rem;border:1px solid var(--red);
+  color:var(--red);background:rgba(6,9,10,.94);font-family:var(--mono);font-size:.56rem;letter-spacing:.14em;
+  opacity:0;pointer-events:none;transition:opacity .25s;white-space:nowrap;z-index:3}
+#toast.on{opacity:1}
+#toast.ok{border-color:var(--mint);color:var(--mint)}
+</style></head><body>
+<div id="frame"><div id="shell"><div id="screen" data-screen-label="Duty terminal">
+  <div id="sb"><span>MAXSEC MDT</span><span id="stn"></span><span class="net">NET ▲ SECURE</span></div>
+  <div id="hd"><span class="t">DUTY TERMINAL</span><span class="st">v2.3</span>
+    <span class="w" id="off"></span><span class="x" id="xbtn">✕</span></div>
+  <div id="roster"></div>
+  <div id="rows"></div>
+  <div id="ft"><span id="fmsg"></span><button id="go">GO ON DUTY</button>
+    <span id="fkeys">1-5 SELECT · ENTER CONFIRM · ESC CLOSE</span></div>
+  <div id="toast"></div>
+</div></div></div>
+<script>
+'use strict';
+var RANKS=['','CADET','PATROL OFFICER','CORPORAL','SERGEANT','LIEUTENANT','CAPTAIN','CHIEF OF POLICE'];
+function g(p){return '<svg width="40" height="40" viewBox="0 0 24 24" fill="none">'+p+'</svg>';}
+var C='#46d8e8',CF='rgba(70,216,232,.16)';
+var ROLES=[
+ {id:'patrol',nm:'PATROL',min:1,
+  ds:'Beat coverage and first response across the grid.',
+  ln:'APB RESPONSE · TICKET · ARREST · IMPOUND · RADAR',
+  gl:g('<path d="m12 2.8 7.2 2.6v6.2c0 4.6-3 8-7.2 9.6-4.2-1.6-7.2-5-7.2-9.6V5.4z" fill="'+CF+'" stroke="'+C+'" stroke-width="1.5"/><path d="M12 7v3.4M12 13v3.4" stroke="'+C+'" stroke-width="1.7"/>')},
+ {id:'warrant',nm:'WARRANT',min:3,
+  ds:'Fugitive tracking and warrant service.',
+  ln:'BOUNTY CIRCLES · WARRANT SERVICE · MAN TRACKER',
+  gl:g('<circle cx="12" cy="12" r="7.4" fill="'+CF+'" stroke="'+C+'" stroke-width="1.5"/><circle cx="12" cy="12" r="1.6" fill="'+C+'"/><path d="M12 2.2v4M12 17.8v4M2.2 12h4M17.8 12h4" stroke="'+C+'" stroke-width="1.5"/>')},
+ {id:'medic',nm:'MEDIC',min:3,
+  ds:'Field medicine under fire for officers and detainees.',
+  ln:'REVIVE + TRIAGE · EMT SUPPLIES · COMBAT MEDICINE',
+  gl:g('<rect x="4" y="4" width="16" height="16" rx="2.5" fill="'+CF+'" stroke="'+C+'" stroke-width="1.5"/><path d="M10.7 7.6h2.6v3.1h3.1v2.6h-3.1v3.1h-2.6v-3.1H7.6v-2.6h3.1z" fill="'+C+'"/>')},
+ {id:'scd',nm:'STREET CRIME DIVISION',scd:true,min:1,
+  ds:'Undercover. Plainclothes, unmarked rides, embedded intel.',
+  ln:'PLAINCLOTHES · UNMARKED VEHICLES · EMBEDDED INTEL',
+  gl:g('<path d="M4 13.4c2.3-1.1 5-1.7 8-1.7s5.7.6 8 1.7" stroke="'+C+'" stroke-width="1.5"/><path d="M5 13.8a3.1 3.1 0 1 0 6.2.4 3.1 3.1 0 0 0-6.2-.4zm7.8.4a3.1 3.1 0 1 0 6.2-.4 3.1 3.1 0 0 0-6.2.4z" fill="'+CF+'" stroke="'+C+'" stroke-width="1.5"/><path d="M11.2 14h1.6" stroke="'+C+'" stroke-width="1.5"/>')},
+ {id:'all',nm:'ALL',min:6,
+  ds:'Every duty flag at once. Command oversight.',
+  ln:'PATROL + WARRANT + MEDIC · MAXTAC ACTIVATION',
+  gl:g('<path d="M12 2.6l2.5 5.6 6.1.6-4.6 4.1 1.3 6-5.3-3.1-5.3 3.1 1.3-6-4.6-4.1 6.1-.6z" fill="'+CF+'" stroke="'+C+'" stroke-width="1.5" stroke-linejoin="round"/><circle cx="12" cy="11.6" r="1.6" fill="'+C+'"/>')}];
+var S={station:'PRECINCT 01 — CENTRAL',officer:{name:'V. KOVAC',rank:4,scd:false},
+  counts:{patrol:6,warrant:2,medic:1,scd:1,all:1},sel:0,armed:false,busy:false};
+var HAS=typeof AP!=='undefined'&&AP&&AP.on;
+var $=function(id){return document.getElementById(id)};
+function reqLabel(r){return r.scd?'SCD WHITELIST':r.min<=1?'ANY RANK':RANKS[r.min].split(' ')[0]+'+ (RANK '+r.min+')'}
+function locked(r){return r.scd?!S.officer.scd:S.officer.rank<r.min}
+function buildRows(){
+  $('rows').innerHTML=ROLES.map(function(r,i){
+    return '<div class="row" data-i="'+i+'"><div class="glyph">'+r.gl+'</div>'+
+      '<div class="mid"><span class="nm">'+r.nm+'</span><span class="ds">'+r.ds+'</span>'+
+      '<span class="ln">'+r.ln+'</span></div>'+
+      '<div class="side"><span class="req" data-req="'+i+'"></span><span class="ct" data-ct="'+i+'"></span></div></div>';
+  }).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('.row'),function(el){
+    el.onclick=function(){var i=+el.getAttribute('data-i');
+      if(S.sel===i&&!locked(ROLES[i])){arm();return;} S.sel=i;S.armed=false;render();};
+  });
+}
+function render(){
+  $('stn').textContent='// '+S.station;
+  $('off').innerHTML='OFFICER <b>'+S.officer.name+'</b> · '+RANKS[S.officer.rank]+' ('+S.officer.rank+')'+
+    (S.officer.scd?' · <b>SCD</b>':'');
+  var tot=0;ROLES.forEach(function(r){tot+=S.counts[r.id]||0});
+  $('roster').innerHTML='<span>ON DUTY <b>'+tot+'</b></span>'+ROLES.map(function(r){
+    return '<span>'+(r.scd?'SCD':r.nm)+' <b>'+(S.counts[r.id]||0)+'</b></span>'}).join('');
+  ROLES.forEach(function(r,i){
+    var el=document.querySelector('.row[data-i="'+i+'"]'),lk=locked(r);
+    el.className='row'+(S.sel===i?' sel':'')+(lk?' lk':'');
+    var rq=document.querySelector('[data-req="'+i+'"]');
+    rq.className='req'+(lk?' lock':''); rq.textContent=reqLabel(r);
+    document.querySelector('[data-ct="'+i+'"]').innerHTML='<b>'+(S.counts[r.id]||0)+'</b> ON DUTY';
+  });
+  var r=ROLES[S.sel],lk=locked(r),go=$('go'),fm=$('fmsg');
+  go.disabled=lk||S.busy;
+  go.className=S.armed?'armed':'';
+  go.textContent=S.busy?'REPORTING…':S.armed?'CONFIRM '+(r.scd?'SCD':r.nm):'GO ON DUTY';
+  fm.className=lk?'lock':'';
+  fm.textContent=lk?(r.scd?'REQUIRES SCD WHITELIST — APPLY VIA COMMAND'
+      :'REQUIRES '+RANKS[r.min]+' (RANK '+r.min+') — YOU ARE '+RANKS[S.officer.rank]+' ('+S.officer.rank+')')
+    :S.armed?'CONFIRM: REPORT FOR '+(r.scd?'SCD':r.nm)+' DUTY':'DUTY ROLE: '+(r.scd?'SCD':r.nm)+' — '+r.ds;
+}
+var tt=null;
+function toast(msg,ok){var t=$('toast');t.textContent=msg;t.className='on'+(ok?' ok':'');
+  clearTimeout(tt);tt=setTimeout(function(){t.className=''},2200);}
+function arm(){
+  var r=ROLES[S.sel]; if(locked(r)||S.busy)return;
+  if(!S.armed){S.armed=true;render();return;}
+  S.armed=false;S.busy=true;render();
+  call('dutyStart',[r.id],function(res){
+    S.busy=false;
+    if(res&&res.ok){toast('ON DUTY — '+(r.scd?'SCD':r.nm),true);
+      if(!HAS){S.counts[r.id]++;} }
+    else toast((res&&res.err)||'DUTY START FAILED');
+    render();
+  });
+}
+function call(n,a,cb){
+  if(HAS){AP.call(n,a,cb);return;}
+  setTimeout(function(){cb({ok:true})},450); // demo: always ok
+}
+function closePage(){ if(HAS)AP.call('dutyClose',[]); else toast('CLOSE (demo)'); }
+$('go').onclick=arm;
+$('xbtn').onclick=closePage;
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){ if(S.armed){S.armed=false;render();} else closePage(); }
+  else if(e.key==='Enter'){arm();}
+  else if(e.key==='ArrowUp'||e.key==='ArrowDown'){
+    S.sel=(S.sel+(e.key==='ArrowDown'?1:4))%5;S.armed=false;render();}
+  else if(e.key>='1'&&e.key<='5'){S.sel=+e.key-1;S.armed=false;render();}
+  else if(!HAS&&(e.key==='r'||e.key==='R')){S.officer.rank=S.officer.rank%7+1;S.armed=false;render();}
+  else if(!HAS&&(e.key==='w'||e.key==='W')){S.officer.scd=!S.officer.scd;S.armed=false;render();}
+});
+if(HAS){AP.on('duty',function(d){
+  if(!d)return;
+  if(d.station)S.station=d.station;
+  if(d.officer)S.officer=d.officer;
+  if(d.counts)S.counts=d.counts;
+  S.armed=false;S.busy=false;render();
+});}
+buildRows();render();
+</script>
+</body></html>

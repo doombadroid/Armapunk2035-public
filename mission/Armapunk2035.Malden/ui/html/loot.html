@@ -1,0 +1,315 @@
+<!doctype html>
+<!-- LOOT — LOOT CARD (design 1a). Self-contained, game-ready: inline CSS/JS,
+     no libs, no network, no storage. AP stub behind a guard.
+     Replaces the suitcase interaction (Land_Suitcase_F + AP_droppedItems,
+     merged within 6 m, 20–30 min TTL, opened by aiming + interact).
+
+     THE DESIGN: a coat-pocket panel anchored beside the crosshair, sized to
+     its contents. +1 skims a unit, STACK takes the row, TAKE ALL fills to
+     your weight cap and reports what stayed behind. Dirty money credits cash
+     directly (fn_pickupItem path) — no +1, whole stack only. The TTL is the
+     honest despawn clock from fn_cleanup (danger under 5 min). In game the
+     backdrop is the world; this file ships a dim placeholder + crosshair dot.
+
+     CONTRACT (page defines it; SQF matches; server owns the case)
+       AP.on("loot", { id, label, dist, despawn, youWt, youCap,
+                       items:[{ id, name, qty, wt, money }] })
+         — pushed when the interact key fires; re-pushed on ANY case change
+           (two players on one case reconcile on the push, first call wins)
+       AP.call("lootTake", [caseId, itemId, qty]) // -> { ok, msg, left, cash }
+       AP.call("lootAll",  [caseId])              // -> { ok, taken, left }
+     The page renders pushes verbatim — it never subtracts from the case
+     itself. despawn counts down locally between pushes for display only.
+
+     WHAT ANIMATES: the header LED pulse and the 1 Hz TTL text — both CSS/
+     interval, no rAF. Esc closes (game-side). -->
+<html><head><meta charset="utf-8"><title>LOOT — suitcase</title>
+<script>
+/* ---- BRIDGE SHIM (installed by tools/install_shop_pages.py) ---------------
+   AP defined synchronously so the page's dev stub never installs; on()/call()
+   queue until webui.js lands. AP.texture goes straight to A3API -- no bridge
+   round-trip, cached by the page. */
+(function () {
+  var subs = {}, queued = [], W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  window.__apSubs = subs;
+  window.AP = {
+    __shim: true,
+    on: function (n, f) { (subs[n] = subs[n] || []).push(f); if (W) W.on(n, f); },
+    call: function (n, a) {
+      if (W) return W.call(n, a || [], 20000);
+      return new Promise(function (res, rej) { queued.push([n, a || [], res, rej]); });
+    },
+    texture: function (p, s) {
+      if (typeof A3API === "undefined" || !A3API.RequestTexture) return Promise.reject(new Error("no A3API"));
+      /* ALPHA TRIM. BI gear icons draw the art left-aligned inside a large
+         transparent canvas, so object-fit:contain centres the CANVAS, not the
+         weapon. Crop to the alpha bounding box before handing it to the page. */
+      return A3API.RequestTexture(p, s).then(function (durl) {
+        return new Promise(function (res) {
+          var im = new Image();
+          im.onload = function () {
+            try {
+              var cv = document.createElement("canvas");
+              cv.width = im.width; cv.height = im.height;
+              var g = cv.getContext("2d");
+              g.drawImage(im, 0, 0);
+              var d = g.getImageData(0, 0, cv.width, cv.height).data;
+              var x0 = cv.width, y0 = cv.height, x1 = 0, y1 = 0;
+              for (var y = 0; y < cv.height; y++) for (var x = 0; x < cv.width; x++) {
+                if (d[(y * cv.width + x) * 4 + 3] > 10) {
+                  if (x < x0) x0 = x; if (x > x1) x1 = x;
+                  if (y < y0) y0 = y; if (y > y1) y1 = y;
+                }
+              }
+              if (x1 <= x0 || y1 <= y0) return res(durl);
+              var pad = 2, w = x1 - x0 + 1 + pad * 2, h = y1 - y0 + 1 + pad * 2;
+              var out = document.createElement("canvas"); out.width = w; out.height = h;
+              out.getContext("2d").drawImage(cv, x0 - pad, y0 - pad, w, h, 0, 0, w, h);
+              res(out.toDataURL("image/png"));
+            } catch (e) { res(durl); }
+          };
+          im.onerror = function () { res(durl); };
+          im.src = durl;
+        });
+      });
+    },
+    handle: function (n, f) { if (W) W.handle(n, f); }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    queued.forEach(function (q) { W.call(q[0], q[1], 20000).then(q[2], q[3]); });
+    queued = [];
+    W.call("log", ["armory page up"]);   // instant readiness drain
+    /* FLAIR: same page, three uniforms. The payload names the theme; the shim
+       applies it so the designer's file stays untouched. */
+    ["wshop", "cshop"].forEach(function (ch) {
+      W.on(ch, function (v) {
+        if (v && v.flair !== undefined) document.body.setAttribute("data-flair", v.flair || "");
+      });
+    });
+  });
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else { window.__apBootErr = "no A3API on this page"; }
+})();
+</script>
+<style>
+:root{
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --scr2:#0a121c; --panel:#0c1622; --panel2:#0e1a28;
+  --acc:#f5a623; --acc2:#54b0ff; --danger:#ff4d4d; --amber:#54b0ff;
+  --ink:#dbe6f2; --dim:#7d8b9e; --faint:#3c4a5c; --line:rgba(245,166,35,.15);
+}
+html,body{margin:0;height:100%;background:#07090a;font-family:var(--sans)}
+#stage{position:fixed;inset:0;display:grid;place-items:center;
+  background:radial-gradient(ellipse at 50% 30%,#141a17,#07090a 75%)}
+#frame{width:min(96vw,192vh);aspect-ratio:2/1;position:relative}
+#frame::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 62%,rgba(245,166,35,.06),transparent 30%)}
+.xhair{position:absolute;left:50%;top:58%;width:5px;height:5px;margin:-2px;border-radius:50%;background:rgba(255,255,255,.5)}
+/* the card — anchored beside the crosshair */
+#card{position:absolute;left:54%;top:24%;width:21rem;background:var(--panel);border:1px solid var(--line);border-radius:.7rem;
+  box-shadow:0 18px 44px rgba(0,0,0,.6);display:flex;flex-direction:column;overflow:hidden}
+#card::after{content:"";position:absolute;inset:0;z-index:40;pointer-events:none;opacity:.22;
+  background:repeating-linear-gradient(180deg,transparent 0 2px,rgba(0,0,0,.2) 2px 3px)}
+.hdr{flex:none;display:flex;align-items:center;gap:.6rem;padding:.55rem .8rem;background:var(--scr2);border-bottom:1px solid var(--line);font-family:var(--mono)}
+.led{width:.45rem;height:.45rem;border-radius:50%;background:var(--acc);box-shadow:0 0 .5rem var(--acc);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.ttl{margin-left:auto;font-size:.6rem;letter-spacing:.1em;color:var(--faint);font-variant-numeric:tabular-nums}
+.list{flex:none;max-height:14.5rem;overflow-y:auto;padding:.4rem .5rem;display:flex;flex-direction:column;gap:.28rem}
+.row{display:flex;align-items:center;gap:.5rem;height:2.3rem;flex:none;padding:0 .55rem;background:var(--panel2);border:1px solid var(--line);border-radius:.5rem}
+.row .dot{width:.4rem;height:.4rem;border-radius:50%;flex:none}
+.row .nm{flex:1;min-width:0;font-size:.76rem;font-weight:550;color:#eaf0f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .wt{font-family:var(--mono);font-size:.58rem;color:var(--faint)}
+.row .qty{font-family:var(--mono);font-size:.76rem;color:var(--ink);width:2.4rem;text-align:right;font-variant-numeric:tabular-nums}
+.mini{flex:none;border:1px solid var(--line);background:transparent;color:var(--acc2);border-radius:.3rem;
+  font-family:var(--mono);font-size:.54rem;font-weight:700;letter-spacing:.06em;padding:.26rem .4rem;cursor:pointer}
+.mini:hover{border-color:rgba(84,176,255,.5);background:rgba(84,176,255,.08)}
+.empty{padding:1.4rem;text-align:center;font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;color:var(--faint)}
+.foot{flex:none;padding:.5rem .6rem;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:.4rem}
+.takeall{flex:none;height:2.2rem;border-radius:.5rem;font-family:var(--mono);font-size:.66rem;font-weight:700;letter-spacing:.12em;cursor:pointer;
+  border:1px solid rgba(245,166,35,.5);background:rgba(245,166,35,.16);color:var(--acc)}
+.takeall:hover{background:rgba(245,166,35,.26)}
+.takeall:disabled{border-color:rgba(60,74,92,.35);background:transparent;color:#34435a;cursor:not-allowed}
+.wtline{display:flex;align-items:center;gap:.5rem;font-family:var(--mono);font-size:.56rem;color:var(--faint)}
+.bar{flex:1;height:.3rem;border-radius:.15rem;background:var(--scr2);overflow:hidden}
+.bar span{display:block;height:100%;border-radius:.15rem;background:var(--amber);transition:width .2s ease}
+.flash{margin-left:auto;font-family:var(--mono);font-size:.56rem;letter-spacing:.04em;color:var(--faint);white-space:nowrap}
+*::-webkit-scrollbar{width:5px}*::-webkit-scrollbar-thumb{background:#22332a;border-radius:3px}
+</style></head><body>
+<div id="stage"><div id="frame">
+  <span class="xhair"></span>
+  <div id="card" data-screen-label="Loot card">
+    <div class="hdr">
+      <span class="led"></span>
+      <span style="color:var(--acc);font-weight:800;font-size:.8rem;letter-spacing:.24em" id="label">SUITCASE</span>
+      <span class="ttl" id="ttl"></span>
+    </div>
+    <div class="list" id="list"></div>
+    <div class="foot">
+      <button class="takeall" id="takeAll">TAKE ALL — FILLS TO CAP</button>
+      <div class="wtline">
+        <span id="youWt">YOU —</span>
+        <div class="bar"><span id="youBar" style="width:0%"></span></div>
+        <span class="flash" id="flash"></span>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<script>
+/* ---- AP stub (dev only — the real bridge replaces it). The stub IS the
+   server here: it owns the case, applies weight maths, and re-pushes the
+   whole payload after every take — exactly what SQF should do. ---- */
+if (typeof AP === "undefined") window.AP = (function () {
+  const subs = {}, last = {};
+  const push = (n, v) => { last[n] = v; (subs[n] || []).forEach(f => f(JSON.parse(JSON.stringify(v)))); };
+  const CAP = 90;
+  let youWt = 62, cash = 14200, despawn = 1620;
+  const ITEMS = [
+    { id:"dirty",    name:"Dirty Money", qty:25000, wt:0,  money:true },
+    { id:"goldbar",  name:"Gold Bar",    qty:3,     wt:12, money:false },
+    { id:"ducttape", name:"Duct Tape",   qty:2,     wt:1,  money:false },
+    { id:"lockpick", name:"Lockpick",    qty:4,     wt:1,  money:false },
+    { id:"medkit",   name:"MediKit",     qty:1,     wt:2,  money:false }
+  ];
+  const payload = () => ({ id:"case_412", label:"SUITCASE", dist:2, despawn, youWt, youCap:CAP,
+    items:ITEMS.filter(i => i.qty > 0).map(i => ({ id:i.id, name:i.name, qty:i.qty, wt:i.wt, money:i.money })) });
+  push("loot", payload());
+  setInterval(() => { despawn = Math.max(0, despawn - 1); }, 1000);   // server clock; page displays its own
+  const takeOne = (it, qty) => {
+    if (it.money) { const got = it.qty; it.qty = 0; cash += got; return { taken:got, money:true }; }
+    const room = it.wt ? Math.floor((CAP - youWt) / it.wt) : it.qty;
+    const n = Math.max(0, Math.min(qty, it.qty, room));
+    it.qty -= n; youWt += n * it.wt;
+    return { taken:n, short: n < qty && it.qty > 0 };
+  };
+  return {
+    on(n, f) { (subs[n] = subs[n] || []).push(f); if (n in last) f(JSON.parse(JSON.stringify(last[n]))); },
+    call(name, a) {
+      a = a || [];
+      if (name === "lootTake") {
+        const it = ITEMS.find(i => i.id === a[1]);
+        if (!it || it.qty <= 0) return Promise.resolve({ ok:false, msg:"stack already taken" });
+        const r = takeOne(it, a[2] | 0);
+        push("loot", payload());
+        if (r.money) return Promise.resolve({ ok:true, msg:"+$" + r.taken.toLocaleString() + " cash", left:0, cash });
+        if (!r.taken) return Promise.resolve({ ok:false, msg:"no room — " + it.name + " needs " + it.wt + " wt", left:it.qty });
+        return Promise.resolve({ ok:true, msg:"+" + r.taken + " " + it.name + (r.short ? " — cap hit, " + it.qty + " left" : ""), left:it.qty, cash });
+      }
+      if (name === "lootAll") {
+        let taken = 0, left = 0, gotCash = 0;
+        ITEMS.forEach(it => {
+          if (it.qty <= 0) return;
+          const r = takeOne(it, it.qty);
+          if (r.money) gotCash += r.taken; else taken += r.taken;
+          left += it.qty;
+        });
+        push("loot", payload());
+        return Promise.resolve({ ok:true, taken, left,
+          msg:(gotCash ? "+$" + gotCash.toLocaleString() + " · " : "") + "+" + taken + " ITEMS" + (left ? " — CAP HIT, " + left + " LEFT" : " — CASE CLEARED") });
+      }
+      return Promise.resolve({ ok:true });
+    },
+    _push:push
+  };
+})();
+
+const $ = s => document.querySelector(s);
+function fit() { document.documentElement.style.fontSize = Math.max(9, $("#frame").getBoundingClientRect().width / 75) + "px"; }
+window.addEventListener("resize", fit); fit();
+const F = n => "$" + Math.round(n).toLocaleString();
+
+let loot = null, ttl = 0, flashT = null;
+function say(m, bad) {
+  const el = $("#flash");
+  el.textContent = m; el.style.color = bad ? "var(--danger)" : "var(--acc)";
+  clearTimeout(flashT);
+  flashT = setTimeout(() => { el.textContent = ""; el.style.color = "var(--faint)"; }, 2600);
+}
+function renderTTL() {
+  const mm = String(Math.floor(ttl / 60)).padStart(2, "0"), ss = String(ttl % 60).padStart(2, "0");
+  const el = $("#ttl");
+  el.textContent = "DESPAWN " + mm + ":" + ss;
+  el.style.color = ttl < 300 ? "var(--danger)" : "var(--faint)";
+}
+setInterval(() => { if (loot) { ttl = Math.max(0, ttl - 1); renderTTL(); } }, 1000);
+
+function render() {
+  if (!loot) return;
+  $("#label").textContent = loot.label;
+  const rows = loot.items.filter(i => i.qty > 0);
+  if (!rows.length) {
+    $("#list").innerHTML = '<div class="empty">CASE EMPTY — DESPAWNS SHORTLY</div>';
+  } else {
+    $("#list").innerHTML = rows.map(i =>
+      '<div class="row"><span class="dot" style="background:' + (i.money || i.id === "goldbar" ? "var(--amber)" : "var(--acc2)") + '"></span>' +
+      '<span class="nm">' + i.name + '</span>' +
+      '<span class="wt">' + (i.wt ? i.wt + " WT" : "—") + '</span>' +
+      '<span class="qty">' + (i.money ? "$" + Math.round(i.qty / 1000) + "K" : "×" + i.qty) + '</span>' +
+      (i.money ? "" : '<button class="mini" data-id="' + i.id + '" data-q="1">+1</button>') +
+      '<button class="mini" data-id="' + i.id + '" data-q="' + i.qty + '">STACK</button></div>').join("");
+    [...$("#list").querySelectorAll(".mini")].forEach(b => b.onclick = () =>
+      AP.call("lootTake", [loot.id, b.dataset.id, +b.dataset.q]).then(r =>
+        say((r.msg || "").toUpperCase(), r.ok === false)));
+  }
+  const b = $("#takeAll");
+  b.textContent = rows.length ? "TAKE ALL — FILLS TO CAP" : "CASE EMPTY";
+  b.disabled = !rows.length;
+  $("#youWt").textContent = "YOU " + loot.youWt + " / " + loot.youCap;
+  const pct = Math.min(100, loot.youWt / loot.youCap * 100);
+  const bar = $("#youBar");
+  bar.style.width = pct + "%";
+  bar.style.background = loot.youWt > loot.youCap * .85 ? "var(--danger)" : "var(--amber)";
+}
+$("#takeAll").onclick = () =>
+  AP.call("lootAll", [loot.id]).then(r => say((r.msg || "").toUpperCase(), r.ok === false));
+AP.on("loot", v => { loot = v; ttl = v.despawn; renderTTL(); render(); });
+</script>
+<style>
+/* __WINFIT__ (installer): windowed control -- no letterbox slab, rem follows the control */
+
+/* windowed: the card IS the control; the crosshair + stage belong to the game */
+#card{position:fixed!important;inset:0!important;left:0!important;top:0!important;width:auto!important}
+#stage{background:transparent!important}
+#frame::before{display:none!important}
+.xhair{display:none!important}
+
+/* flair: APD amber, NG green -- the payload's word, applied by the shim */
+body[data-flair="tal"]{--gold:#f5a623;--acc:#f5a623;--acc2:#54b0ff;--line:rgba(245,166,35,.15);
+  --panel:#0c1622;--panel2:#0e1a28;--scr2:#0a121c;--ink:#dbe6f2;--dim:#7d8b9e;--faint:#3c4a5c}
+body[data-flair="med"]{--gold:#7ad06d;--acc:#7ad06d;--line:rgba(122,208,109,.16)}
+html,body{background:transparent!important}
+#stage{background:transparent!important}
+#frame{width:100%!important;height:100%!important;aspect-ratio:auto!important}
+</style>
+<script>
+/* WHEEL SHIM: scroll the nearest scrollable ancestor by hand. Native wheel
+   scrolling has not proven itself in a WINDOWED control; this is deterministic
+   either way, and preventDefault stops any double-scroll where native works. */
+document.addEventListener("wheel", function (e) {
+  var el = e.target;
+  while (el && el !== document.body) {
+    var st = getComputedStyle(el);
+    if (/(auto|scroll)/.test(st.overflowY) && el.scrollHeight > el.clientHeight + 1) {
+      el.scrollTop += e.deltaY;
+      e.preventDefault();
+      return;
+    }
+    el = el.parentElement;
+  }
+}, { passive: false });
+(function __winfit(){
+  function fit(){
+    var w = window.innerWidth, h = window.innerHeight;
+    document.documentElement.style.fontSize = Math.max(9, Math.min(w/21, h/26)) + "px";
+  }
+  window.addEventListener("resize", fit); fit();
+})();
+</script>
+</body></html>

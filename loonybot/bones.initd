@@ -1,0 +1,29 @@
+#!/sbin/openrc-run
+# Install (owner, needs sudo):
+#   sudo install -m 0755 bones-svc.sh /usr/local/bin/bones
+#   sudo install -m 0755 bones.initd  /etc/init.d/bones
+#   sudo rc-update add bones default
+#   sudo rc-service bones start
+# Toggle off:  set config.json bones.enabled=false (bones.py exits) OR sudo rc-service bones stop
+name="Ben Bones"
+description="LooneyBin AI conspiracy voice -- Grok-powered looner posts + replies"
+
+command="/usr/local/bin/bones"
+command_user="timb:timb"
+
+supervisor="supervise-daemon"
+pidfile="/run/bones.pid"
+respawn_delay=10
+respawn_max=0
+output_log="/var/log/bones/bones.log"
+error_log="/var/log/bones/bones.log"
+
+depend() {
+    need net
+    use dns
+    after firewall
+}
+
+start_pre() {
+    checkpath -d -o timb:timb /var/log/bones
+}

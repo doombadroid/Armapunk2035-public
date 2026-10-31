@@ -1,0 +1,19 @@
+[Unit]
+Description=Armapunk 2035 portal (Next.js, armapunk.com behind the armapunk cloudflared tunnel)
+Documentation=file:///home/timb/Armapunk2035/PORTAL_SPEC.md
+After=network-online.target docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/timb/armapunk-portal
+Environment=NODE_ENV=production
+Environment=PORT=3011
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3011
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

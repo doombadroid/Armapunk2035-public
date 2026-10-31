@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>holo v3</title>
+<!--
+  Holographic livery, v3 (owner 2026-09-06: "pure html 3d"). Rendered by UI-on-texture (display
+  AP_uiTexHolo) straight onto the car's own hidden selections -- no shell, no geometry. The depth
+  is faked HERE, from one vector SQF pushes ~30 Hz on channel "view": the camera's position in the
+  car's model space, [x right, y forward, z up, distance]. Three depth layers slide against each
+  other by that vector's tangential part (parallax), and the title is an extruded stack that fans
+  out with the angle. Straight on it is flat art; along the panel the layers separate.
+  Transparent ground: the paint shows through everywhere nothing is drawn.
+  Self-contained: the browser sandbox forbids fetch, fonts and external files.
+-->
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1024" height="1024"></canvas>
+<script>
+(function () {
+  var cv = document.getElementById("c"), ctx = cv.getContext("2d");
+  var W = cv.width, H = cv.height, t0 = performance.now(), frame = 0, views = 0;
+  var C1 = "0,255,220", C2 = "255,0,140", C3 = "0,140,255";
+  var view = [0, -1, 0.3, 5];            // until SQF says otherwise: looking from the side, slightly above
+
+  // ---- the bridge, booted from the page (A3API.RequestFile is the boot path that always works) ----
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (src) { try { (0, eval)(src); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  }
+  var subscribed = false;
+  function subscribe() {
+    if (subscribed || typeof window.WEBUI === "undefined") return;
+    subscribed = true;
+    window.WEBUI.on("view", function (v) { if (v && v.length >= 3) { view = v.map(Number); views++; } });
+  }
+
+  // parallax: the eye's tangential offset. x across the car, z up -- the two axes that move the
+  // layers when you walk round or crouch. Layers at depth d shift by k*d (near > far, opposite sign)
+  function shift(depth) {
+    var ex = view[0], ez = view[2] - 0.3;
+    return [ex * depth * 140, -ez * depth * 140];
+  }
+  function grid(off, col, alpha, dx, dy) {
+    ctx.strokeStyle = "rgba(" + col + "," + alpha + ")"; ctx.lineWidth = 2;
+    var n = 14;
+    for (var i = 0; i <= n; i++) {
+      var v = ((i / n) + off) % 1, y = H * (1 - v * v) + dy;
+      ctx.beginPath(); ctx.moveTo(dx, y); ctx.lineTo(W + dx, y); ctx.stroke();
+      var x = (i / n) * W + dx;
+      ctx.beginPath(); ctx.moveTo(x, H + dy); ctx.lineTo(W / 2 + (x - W / 2) * 0.15 + dx, dy); ctx.stroke();
+    }
+  }
+  function label(txt, y, size, col, alpha, dx, dy) {
+    ctx.font = "bold " + size + "px monospace"; ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(" + col + "," + alpha + ")"; ctx.fillText(txt, W / 2 + dx, y + dy);
+  }
+  function tick() {
+    var t = (performance.now() - t0) / 1000; frame++;
+    subscribe();
+    ctx.clearRect(0, 0, W, H);
+    var g = (Math.random() < 0.06) ? (Math.random() * 30 - 15) : 0;
+    var far = shift(-1.0), mid = shift(0.0), near = shift(1.0);   // far slides WITH the eye, near AGAINST it
+    // far layer: dim wide grid
+    grid((t * 0.15) % 1, C3, 0.35, far[0] + g, far[1]);
+    // mid layer: the main cyan grid, on the paint
+    grid((t * 0.25) % 1, C1, 0.85, mid[0] + g, mid[1]);
+    // near layer: magenta grid, sparse, floats above
+    ctx.save(); ctx.globalAlpha = 0.5; grid((t * 0.4) % 1, C2, 1, near[0] - g, near[1]); ctx.restore();
+    // the title: an extruded stack -- 12 copies from far to near, colour ramping, so the angle fans it
+    for (var k = 0; k < 12; k++) {
+      var d = -1 + k / 5.5, s = shift(d), a = 0.12 + 0.07 * k;
+      label("HOLO", H * 0.42, 220, k < 6 ? C3 : C1, a, s[0], s[1]);
+    }
+    var pulse = 0.6 + 0.4 * Math.sin(t * 2);
+    label("HOLO", H * 0.42, 220, C1, pulse, near[0], near[1]);
+    label("ARMAPUNK 2035", H * 0.55, 72, C2, 0.9, near[0] * 0.6, near[1] * 0.6);
+    // scan line, thin
+    var sy = (t * 0.5 % 1) * H;
+    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.fillRect(0, sy - 2, W, 4);
+    // glitch tears
+    if (g !== 0) { for (var j = 0; j < 5; j++) { var ty = Math.random() * H, th = 8 + Math.random() * 40; var img = ctx.getImageData(0, ty, W, th); ctx.putImageData(img, Math.random() * 60 - 30, ty); } }
+    // telemetry: f = frames drawn, v = view vectors received, then the vector itself
+    ctx.textAlign = "left"; ctx.font = "20px monospace"; ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillText("f " + frame + "  v " + views + "  [" + view[0] + " " + view[1] + " " + view[2] + "] " + view[3] + "m", 8, H - 8);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

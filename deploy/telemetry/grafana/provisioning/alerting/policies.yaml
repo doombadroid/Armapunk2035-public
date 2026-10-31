@@ -1,0 +1,10 @@
+# Root notification policy: everything to Discord, one message per alert name, first delivery
+# after 30 s, updates every 5 min, a still-firing alert repeated every 4 h.
+apiVersion: 1
+policies:
+  - orgId: 1
+    receiver: discord-armapunk
+    group_by: ['alertname']
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h

@@ -1,0 +1,141 @@
+*.pbo
+*.log
+*.swp
+.DS_Store
+*.bak
+*.bak-*
+*.DAMAGED.bak
+__pycache__/
+*.pyc
+venv/
+.venv/
+*-venv/
+
+# --- secrets + runtime state: live creds/state stay LOCAL, use the .example/.template files ---
+loonybot/*config.json
+!loonybot/config.example.json
+loonybot/clankr_state.json
+loonybot/*.ranknicks.json
+server/extdb3-conf.ini
+deploy/secrets.env
+!deploy/secrets.example.env
+deploy/.rotate_db_pw
+beserver.cfg
+beserver_x64.cfg
+deploy/battleye/beserver.cfg
+deploy/battleye/beserver_x64.cfg
+*.biprivatekey
+*.token
+*.pem
+
+# --- backups / archives (large, regenerable) ---
+deploy/asset_backups/
+deploy/db_backups/
+deploy/pbo_backups/
+*.tar.gz
+
+# --- large binary assets / generated tool data (3GB+; keep the repo lean) ---
+vehicle_skins_png/
+asy-strip-tool/
+
+# --- deploy runtime flags ---
+deploy/.repack_on_restart
+deploy/.deploy_freeze
+
+# --- removed content: kept out of the repo (owner 2026-06-25) ---
+docs/
+reference/
+legal.md
+mentalasylum.md
+asy-donor-crate-removal.md
+REBRAND-TODO.md
+asylum-suggestions-scrape/
+deploy/patchnote_override.txt
+
+# --- sync cruft (2026-07-14 full on-box reconcile): backups / runtime state / deploy flags, all regenerable ---
+*.bak_*
+*.pre-sync-bak
+/.repack_on_restart
+deploy/.*_done
+loonybot/*_state.json
+loonybot/*.out
+arma_textures/
+*.bak2
+# Eden round-trip tooling staged into the mission dir (symlinked editor; never ship/commit)
+mission/LooneyBin.Altis/mapImportAll.sqf
+mission/LooneyBin.Altis/mapExportAll.sqf
+mission/LooneyBin.Altis/mapImportAll_data.sqf
+mission/LooneyBin.Altis/compExport.sqf
+mission/LooneyBin.Altis/compImport.sqf
+mission/LooneyBin.Altis/edenImport.sqf
+mission/LooneyBin.Altis/edenExport.sqf
+mission/LooneyBin.Altis/edenImport_data.sqf
+tools/.mapdata_all_count
+mission/LooneyBin.Altis/core/config/fn_mapData.sqf.bak
+
+# session/tooling artifacts -- never commit
+skill-observations/
+scratchpad/skill-observations/
+scratchpad/newyork_redist_*/
+deploy/.nd_migrated
+# road-dump intermediate: regenerable from debug/roadDump.sqf on the dev server
+build/roaddump_malden.log
+build/mapexport_malden.log
+build/mapdata_new_entries.sqf
+build/
+
+# subagent-driven-development scratch (briefs, reports, review packages, ledger)
+.superpowers/
+MaldenEdit.Malden/
+
+# @Armapunk2035 client mod build output. workshop_item.vdf / workshop_preview.png under here are
+# deliberately tracked (they are the publish kit, not build product) and stay tracked regardless.
+radio/dist/
+
+# Third-party art vendored into radio/addon/<prefix>/ is NOT committed: ~164 MB of .paa/.p3d that
+# git cannot delta-compress and that belongs to outside creators. radio/addon/PROVENANCE.md records
+# the upstream source and permission status for each tree. Configs, model.cfg and PROVENANCE.md ARE
+# committed, so the build wiring survives a clone even though the binaries must be re-obtained.
+radio/addon/**/*.paa
+radio/addon/**/*.p3d
+radio/addon/**/*.p3d.mlod
+radio/addon/**/*.ogv
+radio/addon/**/*.rvmat
+radio/addon/**/*.rtm
+!radio/addon/ap_anims/anims/*.rtm
+radio/addon/**/*.jpg
+radio/addon/**/*.png
+radio/addon/**/texHeaders.bin
+scratchpad/skyscraper/node_modules/
+scratchpad/skyscraper/tower_dump*.json
+scratchpad/skyscraper/tower_patched.mjs
+scratchpad/skyscraper/*.p3d
+scratchpad/skyscraper/package*.json
+textures_png/a3/
+scratchpad/skyscraper/*_dump.json
+scratchpad/skyscraper/*_patched.mjs
+scratchpad/skyscraper/*dump*.json
+
+# dev PostgreSQL credentials — never commit
+deploy/postgres/.env
+deploy/telemetry/.env
+*.bak
+*.orig
+*~
+scratchpad/skyscraper/vending_signs/.tiles/
+
+# written by deploy/push-96.sh on every live push (provenance without git on the box)
+DEPLOYED_COMMIT
+radio/.env
+deploy/patchnote_override.txt.draft
+
+# Armapunk Pixel v3: the reference game's data tables and fidelity oracles are source, not scratch
+!website/src/lib/pixel/reference/
+!website/src/components/pixel/__tests__/reference/
+
+# Armapunk launcher release staging: licensed third-party files (iMMERSE, ReShade, allocator,
+# DXVK) that must never be committed. LAUNCHER_SPEC.md §5.
+launcher-release/
+launcher/core/target/
+launcher/src-tauri/target/
+launcher/src-tauri/gen/

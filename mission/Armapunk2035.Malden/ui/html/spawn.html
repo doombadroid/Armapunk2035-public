@@ -1,0 +1,768 @@
+<!doctype html>
+<!-- DECK SPAWN — the wake-point picker, on the real 3D island.
+
+     Built from the owner's SPOOL MK-II mockup (spawn.zip, 2026-09-11). The
+     mockup's map pane was an explicit placeholder ("AP.texture SATMAP MOSAIC");
+     it is now a WebGL canvas + 2D overlay driven by ui/html/grid3d.js, the same
+     shared renderer behind MALDEN GRID (map.html) and the HUD minimap. The
+     chrome, the list, the DEPLOY-button-as-progress-bar and the .tal palette are
+     the mockup's, unchanged in intent. The dev #demo strip is gone, as its README
+     asked.
+
+     CONTRACT (core/web/fn_spawnWebBridge.sqf matches this and adds nothing):
+       AP.on("spawn", { rows:[{id,label,kind,x,y,near,reason}], side, redeploy,
+                        respawned })
+            id      = the row's INDEX in the SQF list; the deploy verb re-derives
+                      the row from it, so it must not be reordered client-side.
+            reason  = "" when the point is usable; any text means the row is
+                      greyed and un-deployable, and the text says why.
+       AP.call("spawnReady", [])    -> answered by the first "spawn" push
+       AP.call("spawnDeploy", [id]) -> { ok, msg }
+       AP.call("spawnCancel", [])   -> SQF closes the dialog
+
+     THE CAMERA TARGETS THE SELECTED POINT, NEVER THE PLAYER. map.html opens on
+     the player; this screen cannot, because while it is up the player is frozen
+     at map centre at 50 km (fn_spawnMenu's hold) and a player-centred camera
+     looks at empty sky. It opens on the island, then flies to whichever row is
+     selected -- the first one on the first push.
+
+     THE CAMERA BLOCK IS A REDUCED COPY of map.html's, and this says so rather
+     than pretending otherwise. grid3d.js is the shared half; extracting
+     map.html's camera into a second shared module is a bigger refactor than this
+     screen earns. Reduced, not forked-and-grown: no search, no waypoints, no
+     group blips, no holograms, no cartel rings, no admin layer, no 2D toggle.
+     The calibration constants and the camMat/project path are identical, so a
+     blip offset is tuned in the same place (OV_PX / ROW0_NORTH / SWAP_XY) and
+     grid3d.js's own header still applies.
+
+     Esc closes the dialog -- the game handles it; no page handler, and the
+     opener treats a close without a deploy as "hand the screen to the native
+     menu" so nobody is stranded. -->
+<html lang="en"><head><meta charset="utf-8"><title>DECK — SPAWN</title>
+<script>
+/* Bridge self-boot -- the mandatory head block, verbatim from map.html.
+   window.WEBUI does not exist while this script runs; the page pulls webui.js
+   itself and the SQF fallback injection covers the rest. A <script src> has no
+   base URL to resolve against here and would silently resolve to nothing. */
+window.WEBUIReady = new Promise(function (resolve) { window.__webuiReady = resolve; });
+if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+  A3API.RequestFile("webui\\ui\\webui.js")
+    .then(function (src) { (0, eval)(src); })
+    .catch(function (e) { console.error("bridge self-load failed, waiting for SQF injection", e); });
+}
+</script>
+<style>
+:root{--scr:#050b09;--scr2:#0a1310;--panel:#0c1712;--panel2:#0e1a15;
+--acc:#c9e21a;--acc2:#33ffbb;--danger:#ff5a3c;--amber:#ffb020;--ice:#5fd3ff;--violet:#b57bff;
+--ink:#dcefe0;--dim:#7f938a;--faint:#465a51;--line:rgba(201,226,26,.15);
+--mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif}
+/* .tal = the duty palette (MaxSec / Trauma). Applied from the push's `side`. */
+body.tal{--scr:#050a10;--scr2:#0a121c;--panel:#0c1622;--panel2:#0e1a28;
+--acc:#f5a623;--acc2:#54b0ff;--danger:#ff4d4d;--amber:#54b0ff;
+--ink:#dbe6f2;--dim:#7d8b9e;--faint:#3c4a5c;--line:rgba(245,166,35,.15)}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#07090a}
+body{color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}button{font:inherit;color:inherit;cursor:pointer}
+*::-webkit-scrollbar{width:6px}*::-webkit-scrollbar-thumb{background:#22332a;border-radius:3px}
+@keyframes apPulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes apScan{0%{background-position:0 0}100%{background-position:0 3px}}
+@keyframes apFlicker{0%,100%{opacity:.46}47%{opacity:.5}52%{opacity:.42}}
+@keyframes apDrift{0%{transform:translateY(-30%)}100%{transform:translateY(130%)}}
+@keyframes apSpin{0%{background-position:0 0}100%{background-position:0 -14px}}
+.spool-fit{position:absolute;inset:0;overflow:hidden}
+.spool-root{position:absolute;left:50%;top:50%;width:1034px;height:494px;
+  transform:translate(-50%,-50%) scale(var(--spool-scale,1));transform-origin:center center;
+  --w:976px;--pop:1;--popY:0px;--popS:1;--edge:0;--rail:1;--dur:1150ms}
+.spool-root[data-phase="1"]{--w:0px;--pop:1;--popY:0px;--popS:1;--edge:1;--rail:0}
+.spool-root[data-phase="0"]{--w:0px;--pop:0;--popY:14px;--popS:.72;--edge:1;--rail:0}
+.spool-pop{display:flex;justify-content:center;opacity:var(--pop);
+  transform:translateY(var(--popY)) scale(var(--popS));
+  transition:opacity .3s ease,transform .34s cubic-bezier(.16,1,.3,1)}
+.spool-body{position:relative;display:flex;align-items:stretch;filter:drop-shadow(0 26px 42px rgba(0,0,0,.6))}
+.spool{position:relative;flex:none;width:58px;border-radius:29px;z-index:4;
+  background:linear-gradient(90deg,#0d1211,#404c48 38%,#222b28 62%,#0b0f0e);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.1);
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:16px 0}
+.spool-cap{width:22px;height:22px;border-radius:50%;background:#151b19;box-shadow:inset 0 0 0 1px #000,inset 0 2px 4px rgba(0,0,0,.8)}
+.spool-spindle{width:26px;height:150px;border-radius:13px;box-shadow:inset 0 0 0 1px #000;
+  background:repeating-linear-gradient(180deg,#2b3532 0 5px,#161d1b 5px 7px)}
+.spool-root[data-phase="1"] .spool-spindle{animation:apSpin .9s linear infinite}
+.spool-led{width:5px;height:34px;border-radius:3px;background:var(--acc);box-shadow:0 0 7px rgba(201,226,26,.7)}
+.spool-root:not([data-phase="2"]) .spool-led{background:rgba(201,226,26,.55);animation:apPulse 1.8s ease-in-out infinite}
+.spool-clip{position:relative;height:494px;overflow:hidden;width:var(--w);transition:width var(--dur) cubic-bezier(.22,.9,.24,1)}
+.spool-bezel{position:relative;width:976px;height:494px;box-sizing:border-box;overflow:hidden;
+  padding:11px 12px 11px 4px;border-radius:0 14px 14px 0;
+  background:linear-gradient(170deg,#232d2a,#101715 60%);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.spool-screen{position:relative;width:960px;height:100%;overflow:hidden;border-radius:0 8px 8px 0;
+  background:radial-gradient(ellipse at 45% 18%,#0c1712,#050b09 74%);box-shadow:inset 0 0 0 1px #000;
+  display:flex;flex-direction:column}
+.spool-edge{position:absolute;right:0;top:0;bottom:0;width:2px;pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(201,226,26,.55),transparent);
+  opacity:var(--edge);transition:opacity .25s ease}
+.spool-rail{position:absolute;right:-5px;top:0;bottom:0;width:10px;border-radius:5px;z-index:6;
+  background:linear-gradient(90deg,#39443f,#141a18);box-shadow:0 0 0 1px #000;
+  opacity:var(--rail);transition:opacity .3s ease}
+.scanlines{position:absolute;inset:0;z-index:9;pointer-events:none;opacity:.5;
+  background:repeating-linear-gradient(180deg,transparent 0 2px,rgba(0,0,0,.22) 2px 3px);
+  animation:apScan 5.5s linear infinite,apFlicker 6.1s ease-in-out infinite}
+.glowband{position:absolute;left:0;right:0;height:26%;z-index:9;pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(201,226,26,.03),transparent);animation:apDrift 11s linear infinite}
+.hdr{flex:none;position:relative;z-index:3;display:flex;align-items:center;gap:1rem;padding:.62rem 1rem;
+  background:var(--scr2);border-bottom:1px solid var(--line);font-family:var(--mono)}
+.livedot{width:.5rem;height:.5rem;border-radius:50%;flex:none;background:var(--acc);
+  box-shadow:0 0 .55rem var(--acc);animation:apPulse 2.4s ease-in-out infinite}
+.hdr-os{color:var(--acc);font-weight:800;font-size:1rem;letter-spacing:.3em;white-space:nowrap}
+.hdr-app{color:var(--acc2);font-size:.72rem;font-weight:600;letter-spacing:.28em;white-space:nowrap}
+.hdr-crumb{color:var(--faint);font-size:.68rem;letter-spacing:.26em;white-space:nowrap}
+.hdr-right{margin-left:auto;display:flex;align-items:baseline;gap:1.2rem;color:#c9d8cd;
+  font-size:.68rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hdr-right b{color:var(--acc2);font-weight:600}
+.body{position:relative;z-index:2;flex:1;min-height:0;display:flex;gap:.7rem;padding:.7rem}
+/* ==== map pane: the 3D island ============================================== */
+.map{flex:1.4;position:relative;border:1px solid var(--line);border-radius:.7rem;overflow:hidden;background:#05090c}
+.map canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#gl{cursor:grab}#gl.drag{cursor:grabbing}
+#ov{pointer-events:none}
+.map .cap{position:absolute;left:.6rem;bottom:.45rem;font-family:var(--mono);font-size:.46rem;
+  letter-spacing:.12em;color:var(--faint);z-index:3;pointer-events:none}
+.map .zread{position:absolute;right:.6rem;bottom:.45rem;font-family:var(--mono);font-size:.46rem;
+  letter-spacing:.12em;color:var(--faint);z-index:3;pointer-events:none}
+#loading{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:3;
+  font-family:var(--mono);color:var(--faint);font-size:.6rem;letter-spacing:.2em;pointer-events:none}
+.zbtns{position:absolute;right:.5rem;top:.5rem;display:flex;flex-direction:column;gap:.25rem;z-index:4}
+.zbtns button{width:1.7rem;height:1.7rem;border:1px solid var(--line);border-radius:.3rem;
+  background:rgba(12,22,18,.9);color:var(--acc);font:700 .8rem var(--mono);line-height:1}
+.zbtns button:hover{border-color:var(--acc)}
+/* ==== list ================================================================= */
+.side{flex:1;display:flex;flex-direction:column;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:.7rem;display:flex;flex-direction:column;flex:1;min-height:0}
+.panel-hd{flex:none;display:flex;align-items:center;gap:.6rem;padding:.6rem .85rem;border-bottom:1px solid var(--line)}
+.label{font-family:var(--mono);font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+.meta{font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;color:var(--faint)}
+.scroller{flex:1;min-height:0;overflow-y:auto;padding:.45rem .6rem;display:flex;flex-direction:column;gap:.35rem}
+.srow{flex:none;min-height:2.9rem;display:flex;align-items:center;gap:.5rem;padding:.25rem .6rem;text-align:left;
+  background:var(--panel2);border:1px solid var(--line);border-radius:.55rem}
+.srow:hover{border-color:rgba(201,226,26,.35)}
+.srow[aria-current]{border-color:rgba(201,226,26,.5);background:rgba(201,226,26,.1)}
+.srow .nm{flex:1;min-width:0}
+.srow .nm b{display:block;font-size:.72rem;font-weight:600;color:#eaf2ec;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow .nm span{font-family:var(--mono);font-size:.5rem;color:var(--faint);letter-spacing:.06em;
+  display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* A locked row KEEPS ITS PLACE and explains itself where it stands. A row that
+   disappears is indistinguishable from a point that was deleted, which is what
+   the native menu did and what players asked about. */
+.srow.lock{opacity:.5;cursor:not-allowed;border-style:dashed}
+.srow.lock:hover{border-color:var(--line)}
+.srow.lock .nm span{color:var(--danger)}
+.chip{font-family:var(--mono);font-size:.48rem;font-weight:700;letter-spacing:.1em;padding:.12rem .35rem;
+  border-radius:.28rem;background:rgba(255,255,255,.045);color:var(--dim);flex:none}
+.chip.home{color:var(--acc)} .chip.gang{color:var(--violet)} .chip.city{color:var(--acc2)}
+.chip.duty{color:var(--ice)} .chip.near{color:var(--amber)}
+.commit{flex:none;padding:.55rem .85rem;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:.4rem}
+.deploy{position:relative;height:2.7rem;border-radius:.55rem;overflow:hidden;
+  border:1px solid rgba(201,226,26,.45);background:rgba(201,226,26,.12);color:var(--acc);
+  font-family:var(--mono);font-size:.74rem;font-weight:800;letter-spacing:.22em}
+.deploy[disabled]{opacity:.4;cursor:not-allowed}
+.deploy .fill{position:absolute;inset:0;width:0;background:rgba(201,226,26,.32)}
+.deploy .t{position:relative;z-index:1}
+.status{font-family:var(--mono);font-size:.54rem;color:var(--faint);min-height:1rem;display:flex;align-items:center}
+.status.bad{color:var(--danger)}
+#connect{position:absolute;inset:0;z-index:8;display:grid;place-items:center;background:rgba(5,11,9,.94)}
+#connect.off{display:none}
+#connect .in{display:flex;flex-direction:column;align-items:center;gap:.9rem;font-family:var(--mono)}
+#connect .t1{color:var(--acc);font-weight:800;font-size:1rem;letter-spacing:.34em}
+#connect .t2{color:var(--dim);font-size:.62rem;letter-spacing:.26em}
+#cbar{width:16rem;height:.35rem;border:1px solid var(--line);border-radius:.3rem;overflow:hidden}
+#cbar i{display:block;height:100%;width:0;background:var(--acc);transition:width 1s linear}
+#connect .t3{color:var(--faint);font-size:.55rem;letter-spacing:.2em;min-height:1rem}
+</style></head>
+<body>
+<div class="spool-fit" id="fit"><div class="spool-root" id="spool" data-phase="0"><div class="spool-pop">
+  <div class="spool-body">
+    <div class="spool"><div class="spool-cap"></div><div class="spool-spindle"></div><div class="spool-led"></div><div class="spool-cap"></div></div>
+    <div class="spool-clip"><div class="spool-bezel"><div class="spool-screen">
+      <div class="scanlines"></div><div class="glowband"></div>
+      <div id="connect"><div class="in">
+        <span class="t1">WAKE PROTOCOL</span><span class="t2" id="csub">MALDEN GRID · SESSION START</span>
+        <div id="cbar"><i></i></div><span class="t3" id="cst">LOCATING BODY…</span>
+      </div></div>
+      <header class="hdr">
+        <span class="livedot"></span><span class="hdr-os">NEON AEGEAN</span>
+        <span class="hdr-app" id="appname">DEPLOY</span>
+        <span class="hdr-crumb">MALDEN / WAKE POINTS</span>
+        <span class="hdr-right"><span>POINTS <b id="hcount">—</b></span><span>GRID <b id="hgrid">—</b></span></span>
+      </header>
+      <div class="body">
+        <div class="map" id="map">
+          <canvas id="gl"></canvas><canvas id="ov"></canvas>
+          <div id="loading">BOOTING TERRAIN</div>
+          <div class="zbtns">
+            <button id="zin" title="zoom in">+</button>
+            <button id="zout" title="zoom out">−</button>
+            <button id="zwide" title="whole island">◻</button>
+          </div>
+          <span class="cap">GRID3D · ENGINE SATELLITE + BUILDING MESHES</span>
+          <span class="zread" id="zread"></span>
+        </div>
+        <div class="side"><div class="panel">
+          <div class="panel-hd"><span class="label">Wake points</span><span class="meta" id="avail" style="margin-left:auto">—</span></div>
+          <div class="scroller" id="list"></div>
+          <div class="commit">
+            <div class="status" id="msg">PICK A WAKE POINT.</div>
+            <button class="deploy" id="deploy" disabled><span class="fill"></span><span class="t">DEPLOY</span></button>
+          </div>
+        </div></div>
+      </div>
+    </div></div></div>
+  </div>
+</div></div></div>
+<script>
+"use strict";
+/* ==== calibration (verbatim from map.html / grid3d.js) ===================== */
+var MAP_M = 12800, GRID = 13, TILE_PX = 512;
+var OV_PX = 16;          // satellite layers are cut with an edge overlap; 16px is the TB default
+var ROW0_NORTH = true;   // s_*_000 row sits at the NORTH edge
+var SWAP_XY = false;     // s_COL_ROW
+var SPAN = MAP_M / GRID;
+var K = SPAN / (TILE_PX - 2 * OV_PX);
+var EXT = TILE_PX * K;
+
+/* ==== standalone stub — the real bridge always wins ========================
+   Lets the page be reviewed in a browser (tools/test_webpages.py, headless
+   Chrome) instead of only in game, where the console is unreachable because Esc
+   closes the dialog. Answers EVERY method the page calls on the real bus: a stub
+   missing one throws inside the WEBUIReady .then as a silent unhandled
+   rejection and every handler registered after it is never reached -- the exact
+   trap map.html's own stub comment records. */
+if (typeof A3API === "undefined") (function mock() {
+  function hMock(x, y) {
+    var h = (Math.sin(x*7e-4)*.5 + Math.sin(y*5.3e-4+1.7)*.5 + Math.sin((x+y)*3.1e-4)*.6) * 26 + 30;
+    var dx = (x-6400)/6400, dy = (y-6400)/6400, d = Math.sqrt(dx*dx+dy*dy);
+    return h * Math.max(0, 1.12 - d*1.25) - 6;
+  }
+  window.A3API = {
+    RequestFile: function (p) {
+      return new Promise(function (res) { setTimeout(function () {
+        if (/grid3d\.js/.test(p)) { res(window.__STUB_GRID3D || ""); }
+        else if (/malden_hf/.test(p)) {
+          var n = 128, rows = ["# " + n + " " + (MAP_M/n)];
+          for (var r = 0; r < n; r++) { var line = [];
+            for (var c = 0; c < n; c++) line.push(hMock(c*MAP_M/n, MAP_M - r*MAP_M/n).toFixed(1));
+            rows.push(line.join(",")); }
+          res(rows.join("\n"));
+        } else res("");
+      }, 40); });
+    },
+    RequestTexture: function (p, sz) {
+      return new Promise(function (res) { setTimeout(function () {
+        var cv = document.createElement("canvas"); cv.width = cv.height = sz;
+        var g = cv.getContext("2d"); g.fillStyle = "#16221a"; g.fillRect(0, 0, sz, sz);
+        res(cv.toDataURL());
+      }, 60); });
+    }
+  };
+  var bus = { _h: {}, on: function (ch, fn) { (this._h[ch] = this._h[ch] || []).push(fn); },
+              _push: function (ch, d) { (this._h[ch] || []).forEach(function (f) { f(d); }); },
+              call: function (verb, args) {
+                if (verb === "spawnDeploy") return Promise.resolve({ ok: true, msg: "STUB DEPLOY" });
+                return Promise.resolve(null); },
+              ask: function () { return Promise.resolve(false); },
+              handle: function () {},
+              get: function () { return null; } };
+  setTimeout(function () {
+    window.__webuiReady(bus);
+    bus._push("spawn", { side: "civ", redeploy: false, respawned: false, rows: [
+      { id: 0, label: "La Trinite",     kind: "city", x: 6180, y: 8420, near: 7,  reason: "" },
+      { id: 1, label: "Larche",         kind: "city", x: 4260, y: 5980, near: 2,  reason: "" },
+      { id: 2, label: "La Port",        kind: "city", x: 7550, y: 4120, near: 0,  reason: "" },
+      { id: 3, label: "Chapoi",         kind: "city", x: 9100, y: 6600, near: 1,  reason: "" },
+      { id: 4, label: "The Shed",       kind: "home", x: 5320, y: 7210, near: -1, reason: "" },
+      { id: 5, label: "Gang Building",  kind: "gang", x: 8320, y: 7740, near: 4,  reason: "CONTESTED -- ACTIVE WAR ZONE" },
+      { id: 6, label: "Governor Office",kind: "duty", x: 0,    y: 0,    near: -1, reason: "POSITION UNRESOLVED" }
+    ] });
+  }, 120);
+})();
+
+/* The shared renderer. Null until loadRenderer() lands; draw() returns early
+   while it is, exactly as map.html's does. */
+var R = null;
+var el = function (id) { return document.getElementById(id); };
+
+/* ==== chrome fit =========================================================== */
+var ASSEMBLY_W = 1034, ASSEMBLY_H = 494, SCREEN_W = 960, REM_MIN = 11.5;
+function chromeFit() {
+  var w = innerWidth, h = innerHeight; if (!w || !h) return;
+  el("spool").style.setProperty("--spool-scale", Math.min(w/ASSEMBLY_W, h/ASSEMBLY_H) * .96);
+  document.documentElement.style.fontSize = Math.max(REM_MIN, SCREEN_W/75) + "px";
+}
+
+/* ==== GL setup ============================================================= */
+var cv = el("gl"), ov = el("ov"), o2 = ov.getContext("2d");
+var gl = cv.getContext("webgl", { antialias: true, alpha: false, depth: true,
+  preserveDrawingBuffer: false, powerPreference: "high-performance" });
+cv.addEventListener("webglcontextlost", function (e) { e.preventDefault(); });
+var W = 0, H = 0;
+
+/* ==== camera (reduced copy of map.html's; see the page header) ============== */
+var cam = { tx: MAP_M/2, ty: MAP_M/2, dist: 15000, yaw: 0, tilt: 0 };
+var FOV = 55*Math.PI/180, DMIN = 220, DMAX = 17000;
+/* The fly-to: close enough that the streets of the wake point read, tilted
+   enough that the buildings do. Same numbers as map.html's HOME_*, because the
+   question they answer is the same one. */
+var HOME_DIST = 900, HOME_TILT = 52*Math.PI/180;
+var VP = new Float32Array(16), PM = new Float32Array(16), VM = new Float32Array(16);
+var eye = [0, 0, 0], camBasis = { r: [1,0,0], u: [0,0,-1], f: [0,-1,0] };
+function camClamp() {
+  cam.tx = Math.max(-800, Math.min(MAP_M+800, cam.tx));
+  cam.ty = Math.max(-800, Math.min(MAP_M+800, cam.ty));
+  cam.dist = Math.max(DMIN, Math.min(DMAX, cam.dist));
+  cam.tilt = Math.max(0, Math.min(70*Math.PI/180, cam.tilt));
+}
+function camMat() {
+  var th = Math.max(R.hAt(cam.tx, cam.ty), 0);
+  var s = Math.sin(cam.tilt);
+  var ox = Math.sin(cam.yaw)*s, oy = Math.cos(cam.tilt), oz = Math.cos(cam.yaw)*s;
+  eye[0] = cam.tx + ox*cam.dist; eye[1] = th + oy*cam.dist; eye[2] = -cam.ty + oz*cam.dist;
+  var eh = R.hAt(eye[0], -eye[2]) + 14;
+  if (eye[1] < eh) eye[1] = eh;
+  var rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw);
+  var fx = cam.tx-eye[0], fy = th-eye[1], fz = -cam.ty-eye[2];
+  var fl = 1/Math.hypot(fx, fy, fz); fx*=fl; fy*=fl; fz*=fl;
+  var cux = -rz*fy, cuy = rz*fx - rx*fz, cuz = rx*fy;
+  var ul = 1/(Math.hypot(cux, cuy, cuz)||1);
+  camBasis.r = [rx, 0, rz]; camBasis.f = [fx, fy, fz]; camBasis.u = [cux*ul, cuy*ul, cuz*ul];
+  R.mPersp(PM, FOV, W/H, Math.max(2, cam.dist*0.004), cam.dist*6 + 26000);
+  R.mLook(VM, eye[0], eye[1], eye[2], cam.tx, th, -cam.ty, cux*ul, cuy*ul, cuz*ul);
+  R.mMul(VP, PM, VM);
+  R.setProjection(VP, W, H);   // keeps R.project() pointed at THIS page's camera
+}
+function mPerPx() { return 2*cam.dist*Math.tan(FOV/2)/H; }
+
+/* ==== frame pump =========================================================== */
+/* Nothing animates at idle: rAF runs only while a gesture or a fly-to is live,
+   and a data push paints ONE frame and stops. Same rule as map.html. */
+var needs = false, raf = 0, gestureOn = false, anims = [];
+function dirty() { needs = true; if (!raf) raf = requestAnimationFrame(frame); }
+function frame(now) {
+  raf = 0;
+  var animAct = stepAnims(now || performance.now());
+  if (!needs && !animAct && !gestureOn) return;
+  needs = false;
+  draw();
+  if (needs || gestureOn || anims.length) raf = requestAnimationFrame(frame);
+}
+function stepAnims(now) {
+  /* Returns true whenever ANY animation was stepped this call -- including one
+     that just finished. It used to return only "still running", so the step that
+     completed a fly-to moved the camera and then told frame() there was nothing to
+     draw: the pins were left painted one step short of where the camera ended.
+     Same defect, same fix, as map.html's copy of this pump. */
+  var stepped = anims.length > 0;
+  for (var i = anims.length-1; i >= 0; i--) {
+    var a = anims[i], t = Math.min(1, (now-a.t0)/a.ms), e = t*(2-t);
+    a.fn(e);
+    if (t >= 1) anims.splice(i, 1);
+  }
+  return stepped;
+}
+function animTo(props, ms) {
+  var from = { tx: cam.tx, ty: cam.ty, dist: cam.dist, yaw: cam.yaw, tilt: cam.tilt };
+  anims.push({ t0: performance.now(), ms: ms||420, fn: function (e) {
+    for (var k in props) cam[k] = from[k] + (props[k]-from[k])*e;
+    camClamp();
+  }});
+  dirty();
+}
+function flyTo(p, animate) {
+  if (!p || typeof p.x !== "number" || (p.x === 0 && p.y === 0)) return false;
+  if (animate) animTo({ tx: p.x, ty: p.y, dist: HOME_DIST, tilt: HOME_TILT, yaw: 0 }, 420);
+  else { cam.tx = p.x; cam.ty = p.y; cam.dist = HOME_DIST; cam.tilt = HOME_TILT; cam.yaw = 0;
+         camClamp(); dirty(); }
+  return true;
+}
+
+/* ==== satellite gate (map.html's, same reasoning) ========================== */
+/* Declared above their only reader: a var initialised further down is undefined
+   -- and so falsy, and so an OPEN gate -- for any draw that beats it. */
+var satWait = true, allow256 = false, satPending = true;
+var SAT_GATE_MS = 2000;
+
+/* ==== render =============================================================== */
+var env = { hour: 12, overcast: 0 };
+function draw() {
+  if (!R) return;                 // grid3d.js has not landed yet
+  camClamp(); camMat();
+  var mpp = mPerPx(), L = R.lighting(env.hour, env.overcast, cam.dist);
+  gl.viewport(0, 0, W, H);
+  gl.clearColor(R.FOG[0], R.FOG[1], R.FOG[2], 1);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+  gl.disable(gl.BLEND); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  var span = mpp*Math.max(W, H)*1.4 + cam.dist*0.8;
+  var c0 = Math.max(0, (cam.tx-span)/SPAN|0), c1 = Math.min(GRID-1, (cam.tx+span)/SPAN|0);
+  var r0 = Math.max(0, (MAP_M-(cam.ty+span))/SPAN|0), r1 = Math.min(GRID-1, (MAP_M-(cam.ty-span))/SPAN|0);
+  if (!satWait) for (var r = r0; r <= r1; r++) for (var c = c0; c <= c1; c++) {
+    var tcx = c*SPAN+SPAN/2, tcy = MAP_M-r*SPAN-SPAN/2;
+    var pr = Math.hypot(tcx-cam.tx, tcy-cam.ty);
+    R.tiles.want(c, r, 128, pr);
+    if (allow256 && mpp < 10 && pr < 3600) R.tiles.want(c, r, 256, pr-10000);
+  }
+  R.tiles.updateHero(mpp, cam.tx, cam.ty);
+  R.tiles.pump();
+
+  R.drawTerrain(VP, mpp, L.sun, L.amb, L.fogK);
+  R.drawWater(VP, L.sun, L.amb, L.fogK);
+  R.drawBuildings(VP, mpp, L.sun, L.amb, L.fogK, cam.tx, cam.ty, cam.dist*3.0 + 4200);
+  drawPins();
+  el("zread").textContent = "1px = " + (mpp < 10 ? mpp.toFixed(1) : mpp.toFixed(0)) + "m";
+}
+
+/* Pins live on the 2D overlay, never in GL -- map.html's rule, and the reason
+   text has to be legible at any zoom. */
+function drawPins() {
+  o2.setTransform(1, 0, 0, 1, 0, 0); o2.clearRect(0, 0, W, H);
+  var css = getComputedStyle(document.body);
+  var ACC = css.getPropertyValue("--acc").trim() || "#c9e21a";
+  var ACC2 = css.getPropertyValue("--acc2").trim() || "#33ffbb";
+  var BAD = css.getPropertyValue("--danger").trim() || "#ff5a3c";
+  var fs = Math.max(9, Math.round(H/46));
+  o2.font = "700 " + fs + "px ui-monospace, monospace";
+  o2.textAlign = "center"; o2.textBaseline = "middle";
+  rows.forEach(function (p, i) {
+    if (p.x === 0 && p.y === 0) return;            // unresolved: no pin, the row still says why
+    /* R.project returns [px, py], or null when the point is behind the camera or
+       past the far plane -- NOT an object. Reading .x/.y off it yields undefined,
+       which canvas swallows without an error: the arc is drawn at NaN and the
+       screen shows a perfect map with no pins on it. Caught by the offline
+       harness, which is the only place this page can be read at all. */
+    var s = R.project(p.x, p.y, 2);
+    if (!s) return;
+    var sx = s[0], sy = s[1];
+    var sel = (i === cur), locked = !!p.reason;
+    var col = locked ? BAD : (sel ? ACC : ACC2);
+    var rad = sel ? fs*.62 : fs*.42;
+    o2.globalAlpha = locked ? .55 : 1;
+    o2.beginPath(); o2.arc(sx, sy, rad, 0, 6.2832);
+    o2.fillStyle = col; o2.fill();
+    o2.lineWidth = 2; o2.strokeStyle = col;
+    o2.beginPath(); o2.arc(sx, sy, rad + fs*.5, 0, 6.2832); o2.stroke();
+    if (sel || locked) {
+      var t = p.label.toUpperCase(), tw = o2.measureText(t).width;
+      o2.globalAlpha = locked ? .7 : .92;
+      o2.fillStyle = "rgba(5,11,9,.82)";
+      o2.fillRect(sx - tw/2 - 5, sy - rad - fs*2.1, tw + 10, fs*1.5);
+      o2.strokeStyle = col; o2.lineWidth = 1;
+      o2.strokeRect(sx - tw/2 - 5, sy - rad - fs*2.1, tw + 10, fs*1.5);
+      o2.fillStyle = col;
+      o2.fillText(t, sx, sy - rad - fs*1.35);
+    }
+    o2.globalAlpha = 1;
+  });
+}
+
+function fit() {
+  var r = cv.parentElement.getBoundingClientRect();
+  W = Math.max(1, Math.round(r.width)); H = Math.max(1, Math.round(r.height));
+  cv.width = W; cv.height = H; ov.width = W; ov.height = H;
+  var fitD = MAP_M/(2*Math.tan(FOV/2))*1.12;
+  DMAX = fitD*1.25;
+  if (cam.dist > DMAX) cam.dist = DMAX;
+  dirty();
+}
+window.addEventListener("resize", function () { chromeFit(); fit(); });
+
+/* ==== input: drag-orbit, wheel zoom, the three buttons ===================== */
+var drag = null;
+cv.addEventListener("mousedown", function (ev) {
+  drag = { x: ev.clientX, y: ev.clientY, yaw: cam.yaw, tilt: cam.tilt };
+  gestureOn = true; cv.classList.add("drag"); dirty();
+});
+window.addEventListener("mousemove", function (ev) {
+  if (!drag) return;
+  cam.yaw  = drag.yaw  + (ev.clientX - drag.x) * 0.006;
+  cam.tilt = drag.tilt + (ev.clientY - drag.y) * 0.004;
+  camClamp(); dirty();
+});
+window.addEventListener("mouseup", function () {
+  if (!drag) return;
+  drag = null; gestureOn = false; cv.classList.remove("drag"); dirty();
+});
+cv.addEventListener("wheel", function (ev) {
+  ev.preventDefault();
+  cam.dist *= (ev.deltaY > 0 ? 1.18 : 1/1.18);
+  camClamp(); dirty();
+}, { passive: false });
+el("zin").onclick  = function () { animTo({ dist: Math.max(DMIN, cam.dist/1.8) }, 260); };
+el("zout").onclick = function () { animTo({ dist: Math.min(DMAX, cam.dist*1.8) }, 260); };
+el("zwide").onclick = function () {
+  animTo({ tx: MAP_M/2, ty: MAP_M/2, dist: DMAX/1.25, tilt: 0, yaw: 0 }, 420);
+};
+
+/* ==== the list ============================================================= */
+var rows = [], cur = -1, side = "civ", redeploy = false, deploying = false;
+var IDLE_MSG = "PICK A WAKE POINT.";
+function gridRef(x, y) {
+  /* Arma's own 3-digit grid: easting from the west edge, northing from the
+     SOUTH edge, 100 m squares. Cosmetic, and derived here rather than sent,
+     because it is arithmetic on a number the page already has. */
+  var e = Math.floor(x/100), n = Math.floor(y/100);
+  var p = function (v) { return ("00" + Math.max(0, v)).slice(-3); };
+  return p(e) + " " + p(n);
+}
+function sub(p) {
+  var bits = [];
+  if (p.reason) bits.push(p.reason);
+  else {
+    bits.push("GRID " + gridRef(p.x, p.y));
+    if (p.near > 0) bits.push(p.near + (p.near === 1 ? " PLAYER NEAR" : " PLAYERS NEAR"));
+  }
+  return bits.join(" · ");
+}
+function select(i) {
+  cur = i; paintList();
+  flyTo(rows[i], true);
+  var p = rows[i];
+  el("hgrid").textContent = (p && !(p.x === 0 && p.y === 0)) ? gridRef(p.x, p.y) : "—";
+  var b = el("deploy"), t = b.querySelector(".t");
+  if (!p) { b.disabled = true; t.textContent = "DEPLOY"; return; }
+  b.disabled = !!p.reason || deploying;
+  t.textContent = p.reason ? "UNAVAILABLE" : ("DEPLOY ▸ " + p.label.toUpperCase());
+}
+function paintList() {
+  var list = el("list");
+  list.innerHTML = "";
+  rows.forEach(function (p, i) {
+    var r = document.createElement("button");
+    r.className = "srow" + (p.reason ? " lock" : "");
+    if (i === cur) r.setAttribute("aria-current", "true");
+    var nm = document.createElement("span"); nm.className = "nm";
+    var b = document.createElement("b"); b.textContent = p.label;
+    var s = document.createElement("span"); s.textContent = sub(p);
+    nm.appendChild(b); nm.appendChild(s);
+    var chip = document.createElement("span");
+    chip.className = "chip " + (p.kind || "city");
+    chip.textContent = (p.kind || "city").toUpperCase();
+    r.appendChild(nm); r.appendChild(chip);
+    /* A locked row is still SELECTABLE -- the camera flies there and the pin
+       lights up, so the player can see what "contested" means -- it just cannot
+       be deployed to. The refusal lives on the button, not in a dead row. */
+    r.onclick = function () { select(i); };
+    list.appendChild(r);
+  });
+  var usable = rows.filter(function (p) { return !p.reason; }).length;
+  el("avail").textContent = usable + " / " + rows.length + " AVAILABLE";
+  el("hcount").textContent = String(rows.length);
+}
+function setMsg(text, bad) {
+  var m = el("msg");
+  m.textContent = text;
+  m.className = bad ? "status bad" : "status";
+  clearTimeout(m._t);
+  if (bad) m._t = setTimeout(function () { m.textContent = IDLE_MSG; m.className = "status"; }, 6000);
+}
+
+/* ==== deploy =============================================================== */
+/* The button IS the progress bar (the mockup's pattern, same as Loadouts). The
+   fill is honest about what it is: the request is in flight and SQF owns the
+   screen from the moment it answers ok -- it closes this dialog itself. A
+   refusal stops the fill, prints the reason and re-arms the button. */
+el("deploy").onclick = function () {
+  if (deploying || cur < 0) return;
+  var p = rows[cur];
+  if (!p || p.reason) { setMsg("DEPLOY REFUSED — " + (p ? p.reason : "NO POINT SELECTED"), true); return; }
+  var b = this, f = b.querySelector(".fill"), t = b.querySelector(".t");
+  deploying = true; b.disabled = true;
+  t.textContent = "WAKING…";
+  var pct = 0, iv = setInterval(function () {
+    pct = Math.min(92, pct + 4); f.style.width = pct + "%";
+  }, 50);
+  var done = function (ok, msg) {
+    clearInterval(iv);
+    if (ok) { f.style.width = "100%"; t.textContent = "ON THE GROUND ✓"; setMsg(msg || "ARRIVING…", false); return; }
+    f.style.width = "0"; deploying = false;
+    t.textContent = "DEPLOY ▸ " + p.label.toUpperCase();
+    b.disabled = false;
+    setMsg(msg || "DEPLOY REFUSED", true);
+  };
+  window.WEBUIReady.then(function (AP) {
+    return AP.call("spawnDeploy", [p.id]);
+  }).then(function (v) {
+    if (v && v.ok) done(true, v.msg); else done(false, v && v.msg);
+  }).catch(function (e) { done(false, "LINK FAILED — " + e); });
+};
+
+/* ==== boot ================================================================= */
+/* RequestFile + eval, the same path webui.js takes: a <script src> has no base
+   URL to resolve against here. A page that reaches its first draw with no
+   GRID3D says so on its own surface, because the in-game console is
+   unreachable (Esc closes the dialog). The race and the `won` guard are
+   map.html's, for map.html's reasons: RequestFile's behaviour on a missing or
+   stuck file was never characterised, and a timer that fires after a WIN would
+   write a lie into the page's one diagnostic. */
+function loadRenderer() {
+  if (typeof A3API === "undefined" || !A3API.RequestFile) {
+    window.__apBootErr = "no A3API -- grid3d.js cannot load";
+    return Promise.reject(new Error(window.__apBootErr));
+  }
+  var won = false;
+  return Promise.race([
+    A3API.RequestFile("ui\\html\\grid3d.js").then(function (s) { won = true; return s; }),
+    new Promise(function (_, rej) { setTimeout(function () {
+      if (won) return;
+      window.__apBootErr = "grid3d.js fetch timed out after 8s";
+      rej(new Error(window.__apBootErr));
+    }, 8000); })
+  ]).then(function (src) {
+    try { (0, eval)(src); } catch (e) { window.__apBootErr = "grid3d eval: " + e; throw e; }
+    if (!window.GRID3D) { window.__apBootErr = "grid3d.js loaded but defined no GRID3D"; throw new Error("no GRID3D"); }
+    R = window.GRID3D.create(gl);
+    R.onDirty = dirty;
+    R.onFirstTile = function () { var l = el("loading"); if (l) l.style.display = "none"; };
+    return R;
+  });
+}
+function satAtlas(res) {
+  return Promise.race([
+    A3API.RequestFile("ui\\html\\malden_sat" + res + ".txt").catch(function () { return ""; }),
+    new Promise(function (ok) { setTimeout(function () { ok(""); }, 8000); })
+  ]).then(function (t) {
+    if (!t) return false;
+    return R.tiles.loadAtlas(res, t).then(function () { return true; });
+  }).catch(function (e) { console.error("sat atlas " + res + " unusable, per-tile path", e); return false; });
+}
+function loadSatAtlases() {
+  setTimeout(function () { if (satWait) { satWait = false; dirty(); } }, SAT_GATE_MS);
+  return satAtlas(128).then(function (ok128) {
+    satWait = false;
+    if (!ok128) { satPending = false; dirty(); return false; }
+    dirty();
+    return satAtlas(256).then(function (ok256) {
+      satPending = false; allow256 = true; dirty(); return ok256;
+    });
+  });
+}
+function lateFeed(file) {
+  return Promise.race([
+    A3API.RequestFile("ui\\html\\" + file).catch(function () { return ""; }),
+    new Promise(function (res) { setTimeout(function () { res(""); }, 8000); })
+  ]);
+}
+function applyFeed(load, txt, what) {
+  return load(txt).catch(function (e) { console.error(what, e); return load(""); });
+}
+/* Boxes first, real silhouettes after the opening view has arrived: the mesh
+   library is 3.0 MB and ~1 s of BLOCKED main thread, which would starve the
+   satellite tiles this screen is mostly made of. grid3d.js falls back to a box
+   per row while it is absent. map.html's reasoning, unchanged. */
+function loadLateFeeds() {
+  return Promise.all([lateFeed("malden_msh.txt"), lateFeed("malden_fen.txt")])
+    .then(function (a) {
+      var lib = null;
+      return applyFeed(R.loadMeshLib, a[0], "mesh library unparsable, boxes only")
+        .then(function (v) { lib = v; return applyFeed(R.loadFences, a[1], "fence feed unparsable, no fences"); })
+        .then(function (fen) {
+          if (!lib && !(fen && fen.length)) return null;
+          return R.rebuildSectors().then(function () { dirty(); });
+        });
+    });
+}
+chromeFit();
+var startD = MAP_M/(2*Math.tan(FOV/2))*1.05;
+cam.dist = startD;
+fit();
+
+loadRenderer().then(function () {
+  R.initAtlases();
+  R.buildWater();
+  dirty();
+  return A3API.RequestFile("ui\\html\\malden_hf.txt");
+}).then(function (txt) {
+  if (R.loadHF(txt)) { R.buildTerrain(); dirty(); }
+  el("loading").textContent = "ACQUIRING SATELLITE";
+  loadSatAtlases();                                  // in flight, not chained
+  return A3API.RequestFile("ui\\html\\malden_bld.txt");
+}).then(function (txt) {
+  if (!txt) return;
+  return R.loadBuildings(txt).then(function () { dirty(); });
+}).then(function () {
+  var polls = 0, kicked = false, iv = setInterval(function () {
+    polls++;
+    var idle = !satPending && R && R.tiles && R.tiles.busy() === 0;
+    if (!kicked && (idle || polls >= 24)) { kicked = true; loadLateFeeds(); }
+    if (idle || polls >= 120) { clearInterval(iv); if (!allow256) { allow256 = true; dirty(); } }
+  }, 250);
+}).catch(function (e) {
+  console.error("terrain feed failed", e);
+  el("loading").textContent = "TERRAIN FEED OFFLINE — " + (window.__apBootErr || e);
+});
+
+/* ==== the boot overlay (the mockup's WAKE PROTOCOL) ======================== */
+/* It is NOT a loading gate: the screen is live underneath it and the first push
+   lifts it. fn_spawnWebOpen cuts the engine's own AP_loadingScreen layer when
+   this page takes the screen, precisely so there is one of these and not two. */
+function openDeck() {
+  var sp = el("spool");
+  sp.dataset.phase = "0";
+  setTimeout(function () { sp.dataset.phase = "1"; }, 60);
+  setTimeout(function () { sp.dataset.phase = "2"; }, 180);
+  var c = el("connect"), bar = document.querySelector("#cbar i"), st = el("cst");
+  c.classList.remove("off");
+  bar.style.transition = "none"; bar.style.width = "0";
+  requestAnimationFrame(function () { requestAnimationFrame(function () {
+    bar.style.transition = "width 1.4s linear"; bar.style.width = "100%"; }); });
+  st.textContent = "LOCATING BODY…";
+  setTimeout(function () { st.textContent = "HANDSHAKE · spawnReady…"; }, 420);
+  setTimeout(function () { st.textContent = "STREAMING SATELLITE…"; }, 900);
+}
+function closeOverlay() {
+  var c = el("connect");
+  if (c) c.classList.add("off");
+}
+openDeck();
+/* A push that never arrives must not leave the player looking at a boot splash
+   with no way past it: lift the overlay on a deadline too. The list underneath
+   is empty in that case and says so, which is a screen they can Esc out of into
+   the native menu -- a splash that never lifts is not. */
+setTimeout(closeOverlay, 6000);
+
+/* ==== bridge =============================================================== */
+window.WEBUIReady.then(function (AP) {
+  /* Readiness handshake, and it is load-bearing for more than politeness: SQF
+     cannot see PageLoaded for url= pages, so it waits for ANY inbound message
+     before draining its ExecJS queue. One call in, drained instantly. */
+  AP.call("log", ["spawn page up"]);
+  AP.on("spawn", function (d) {
+    if (!d) return;
+    side = d.side || "civ";
+    redeploy = !!d.redeploy;
+    document.body.classList.toggle("tal", side !== "civ");
+    el("appname").textContent = redeploy ? "REDEPLOY" : "DEPLOY";
+    el("csub").textContent = redeploy ? "MALDEN GRID · REDEPLOY"
+      : (d.respawned ? "MALDEN GRID · RESPAWN" : "MALDEN GRID · SESSION START");
+    var first = rows.length === 0;
+    /* The repush tick (2 s) must not fight the player's hand: keep the current
+       selection across a repush, and only fly the camera on the FIRST payload
+       or when the selected row vanished. */
+    var keptLabel = (cur >= 0 && rows[cur]) ? rows[cur].label : null;
+    rows = d.rows || [];
+    if (keptLabel !== null) {
+      cur = rows.findIndex(function (p) { return p.label === keptLabel; });
+    }
+    if (cur < 0 || cur >= rows.length) {
+      /* Open on the first USABLE row; fall back to the first row at all, so a
+         list that is entirely locked still shows the player why. */
+      var firstOk = rows.findIndex(function (p) { return !p.reason; });
+      cur = firstOk >= 0 ? firstOk : (rows.length ? 0 : -1);
+      if (cur >= 0) flyTo(rows[cur], !first);
+    }
+    paintList();
+    if (cur >= 0) select(cur);
+    if (rows.length === 0) setMsg("NO WAKE POINTS — PRESS ESC FOR THE BASIC MENU.", true);
+    closeOverlay();
+  });
+});
+</script>
+</body></html>

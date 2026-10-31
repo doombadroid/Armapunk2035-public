@@ -1,0 +1,2824 @@
+{
+ "cities": [
+  {
+   "id": "kavala",
+   "name": "Kavala",
+   "blurb": "Western capital. Orchards, oyster beds and the island's worst-kept weed trade.",
+   "x": 3500,
+   "y": 12800,
+   "demand": 1
+  },
+  {
+   "id": "neochori",
+   "name": "Neochori",
+   "blurb": "Timber country. Lumber mills, the spirit distillery and a quiet black market.",
+   "x": 8700,
+   "y": 18200,
+   "demand": 1.06
+  },
+  {
+   "id": "athira",
+   "name": "Athira",
+   "blurb": "Central crossroads. Every processor on the island has a branch here.",
+   "x": 14100,
+   "y": 18400,
+   "demand": 1
+  },
+  {
+   "id": "pyrgos",
+   "name": "Pyrgos",
+   "blurb": "Southern port. Salt, fish, and the ephedra fields up in the hills.",
+   "x": 16800,
+   "y": 12500,
+   "demand": 1.04
+  },
+  {
+   "id": "sofia",
+   "name": "Sofia",
+   "blurb": "Far east. Salt mines, gold pans, and the heroin trade nobody talks about.",
+   "x": 25700,
+   "y": 21300,
+   "demand": 1.12
+  }
+ ],
+ "sites": [
+  {
+   "id": "kav_apple",
+   "name": "Apple Orchard",
+   "cityId": "kavala",
+   "legal": true,
+   "mode": "gather",
+   "from": "Apple Field",
+   "output": "apple",
+   "yield": 12,
+   "stamina": 3,
+   "skill": "harvesting"
+  },
+  {
+   "id": "kav_peach",
+   "name": "Peach Grove",
+   "cityId": "kavala",
+   "legal": true,
+   "mode": "gather",
+   "from": "Peaches Field",
+   "output": "peach",
+   "yield": 12,
+   "stamina": 3,
+   "skill": "harvesting"
+  },
+  {
+   "id": "kav_cotton",
+   "name": "Cotton Field",
+   "cityId": "kavala",
+   "legal": true,
+   "mode": "gather",
+   "from": "Cotton Field",
+   "output": "cottonR",
+   "yield": 3,
+   "stamina": 5,
+   "skill": "harvesting",
+   "license": "farming",
+   "minLevel": 2
+  },
+  {
+   "id": "kav_gin",
+   "name": "Cotton Gin",
+   "cityId": "kavala",
+   "legal": true,
+   "mode": "process",
+   "from": "Cotton Gin",
+   "output": "cotton",
+   "input": "cottonR",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 2
+  },
+  {
+   "id": "kav_quarry",
+   "name": "Kavala Quarry",
+   "cityId": "kavala",
+   "legal": true,
+   "mode": "gather",
+   "from": "Quarry",
+   "output": "sand",
+   "yield": 4,
+   "stamina": 5,
+   "skill": "harvesting",
+   "license": "mining",
+   "minLevel": 2
+  },
+  {
+   "id": "kav_glass",
+   "name": "Glass Furnace",
+   "cityId": "kavala",
+   "legal": true,
+   "mode": "process",
+   "from": "Mineral Processing",
+   "output": "glass",
+   "input": "sand",
+   "inputPer": 2,
+   "yield": 2,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 2
+  },
+  {
+   "id": "kav_oilf",
+   "name": "Oil Field",
+   "cityId": "kavala",
+   "legal": true,
+   "mode": "gather",
+   "from": "Oil Field / Hydrogen Sulfate Mine",
+   "output": "oilu",
+   "yield": 3,
+   "stamina": 6,
+   "skill": "harvesting",
+   "license": "oil",
+   "minLevel": 4
+  },
+  {
+   "id": "kav_oilp",
+   "name": "Oil Processing",
+   "cityId": "kavala",
+   "legal": true,
+   "mode": "process",
+   "from": "Oil Processing",
+   "output": "oilp",
+   "input": "oilu",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 4
+  },
+  {
+   "id": "kav_oyster",
+   "name": "Oyster Beds",
+   "cityId": "kavala",
+   "legal": true,
+   "mode": "gather",
+   "from": "Oyster Field",
+   "output": "oysteru",
+   "yield": 3,
+   "stamina": 5,
+   "skill": "harvesting",
+   "license": "diving",
+   "minLevel": 4,
+   "jackpot": [
+    "pearl",
+    0.08,
+    1
+   ]
+  },
+  {
+   "id": "kav_cook",
+   "name": "Oyster Kitchen",
+   "cityId": "kavala",
+   "legal": true,
+   "mode": "process",
+   "from": "Wong's Food & Liquor",
+   "output": "oysterp",
+   "input": "oysteru",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 4
+  },
+  {
+   "id": "kav_goldpan",
+   "name": "Goldpan Site",
+   "cityId": "kavala",
+   "legal": true,
+   "mode": "gather",
+   "from": "Goldpan Site",
+   "output": "sand",
+   "yield": 2,
+   "stamina": 8,
+   "skill": "harvesting",
+   "license": "mining",
+   "minLevel": 10,
+   "jackpot": [
+    "goldnugget",
+    0.045,
+    1
+   ]
+  },
+  {
+   "id": "kav_weed",
+   "name": "Weed Field",
+   "cityId": "kavala",
+   "legal": false,
+   "mode": "gather",
+   "from": "Weed Field",
+   "output": "cannabis",
+   "yield": 4,
+   "stamina": 5,
+   "skill": "harvesting",
+   "minLevel": 2
+  },
+  {
+   "id": "kav_weedp",
+   "name": "Weed Processing",
+   "cityId": "kavala",
+   "legal": false,
+   "mode": "process",
+   "from": "Weed Processing",
+   "output": "marijuana",
+   "input": "cannabis",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 2
+  },
+  {
+   "id": "kav_uranium",
+   "name": "Uranium Mine",
+   "cityId": "kavala",
+   "legal": false,
+   "mode": "gather",
+   "from": "Uranium Mine",
+   "output": "uraniumu",
+   "yield": 3,
+   "stamina": 9,
+   "skill": "harvesting",
+   "license": "cartel",
+   "minLevel": 21
+  },
+  {
+   "id": "kav_nuclear",
+   "name": "Nuclear Plant",
+   "cityId": "kavala",
+   "legal": false,
+   "mode": "process",
+   "from": "Nuclear Power Plant",
+   "output": "uraniump",
+   "input": "uraniumu",
+   "inputPer": 2,
+   "yield": 2,
+   "stamina": 8,
+   "skill": "refining",
+   "license": "cartel",
+   "minLevel": 24,
+   "jackpot": [
+    "element115",
+    0.01,
+    1
+   ]
+  },
+  {
+   "id": "neo_timber",
+   "name": "Pine Stand",
+   "cityId": "neochori",
+   "legal": true,
+   "mode": "gather",
+   "from": "Lumber Mill",
+   "output": "timber",
+   "yield": 4,
+   "stamina": 4,
+   "skill": "harvesting",
+   "minLevel": 2
+  },
+  {
+   "id": "neo_mill",
+   "name": "Lumber Mill",
+   "cityId": "neochori",
+   "legal": true,
+   "mode": "process",
+   "from": "Lumber Mill",
+   "output": "plank",
+   "input": "timber",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 2
+  },
+  {
+   "id": "neo_hard",
+   "name": "Hardwood Grove",
+   "cityId": "neochori",
+   "legal": true,
+   "mode": "gather",
+   "from": "Lumber Mill",
+   "output": "timberh",
+   "yield": 3,
+   "stamina": 6,
+   "skill": "harvesting",
+   "license": "farming",
+   "minLevel": 5
+  },
+  {
+   "id": "neo_millh",
+   "name": "Hardwood Mill",
+   "cityId": "neochori",
+   "legal": true,
+   "mode": "process",
+   "from": "Lumber Mill",
+   "output": "plankh",
+   "input": "timberh",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 5,
+   "skill": "refining",
+   "minLevel": 5
+  },
+  {
+   "id": "neo_quarry",
+   "name": "High Yield Quarry",
+   "cityId": "neochori",
+   "legal": true,
+   "mode": "gather",
+   "from": "High Yield Quarry",
+   "output": "copperore",
+   "yield": 4,
+   "stamina": 6,
+   "skill": "harvesting",
+   "license": "mining",
+   "minLevel": 3
+  },
+  {
+   "id": "neo_mineral",
+   "name": "Mineral Processing",
+   "cityId": "neochori",
+   "legal": true,
+   "mode": "process",
+   "from": "Mineral Processing",
+   "output": "copper_r",
+   "input": "copperore",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 3
+  },
+  {
+   "id": "neo_tobacco",
+   "name": "Tobacco Field",
+   "cityId": "neochori",
+   "legal": true,
+   "mode": "gather",
+   "from": "Tobacco Field",
+   "output": "tobacco",
+   "yield": 3,
+   "stamina": 5,
+   "skill": "harvesting",
+   "license": "farming",
+   "minLevel": 3
+  },
+  {
+   "id": "neo_dry",
+   "name": "Drying Barn",
+   "cityId": "neochori",
+   "legal": true,
+   "mode": "process",
+   "from": "Organic Processor",
+   "output": "tobaccoD",
+   "input": "tobacco",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 3,
+   "skill": "refining",
+   "minLevel": 3
+  },
+  {
+   "id": "neo_barley",
+   "name": "Barley Plot",
+   "cityId": "neochori",
+   "legal": false,
+   "mode": "gather",
+   "from": "Illegal Area",
+   "output": "barley",
+   "yield": 5,
+   "stamina": 4,
+   "skill": "harvesting",
+   "minLevel": 3
+  },
+  {
+   "id": "neo_still",
+   "name": "Spirit Distillery",
+   "cityId": "neochori",
+   "legal": false,
+   "mode": "process",
+   "from": "Spirit Distillery",
+   "output": "moonshine",
+   "input": "barley",
+   "inputPer": 2,
+   "yield": 2,
+   "stamina": 5,
+   "skill": "refining",
+   "license": "rebel",
+   "minLevel": 4
+  },
+  {
+   "id": "neo_white",
+   "name": "Second Run Still",
+   "cityId": "neochori",
+   "legal": false,
+   "mode": "process",
+   "from": "Spirit Distillery",
+   "output": "moonshinep",
+   "input": "moonshine",
+   "inputPer": 2,
+   "yield": 2,
+   "stamina": 6,
+   "skill": "refining",
+   "license": "rebel",
+   "minLevel": 6
+  },
+  {
+   "id": "neo_black",
+   "name": "Black Market Workshop",
+   "cityId": "neochori",
+   "legal": false,
+   "mode": "process",
+   "from": "Black Market Production",
+   "output": "cigars",
+   "input": "tobaccoD",
+   "inputPer": 2,
+   "yield": 2,
+   "stamina": 5,
+   "skill": "refining",
+   "license": "rebel",
+   "minLevel": 5
+  },
+  {
+   "id": "ath_apple",
+   "name": "Athira Orchard",
+   "cityId": "athira",
+   "legal": true,
+   "mode": "gather",
+   "from": "Apple Field",
+   "output": "apple",
+   "yield": 12,
+   "stamina": 3,
+   "skill": "harvesting"
+  },
+  {
+   "id": "ath_cotton",
+   "name": "Cotton Field",
+   "cityId": "athira",
+   "legal": true,
+   "mode": "gather",
+   "from": "Cotton Field",
+   "output": "cottonR",
+   "yield": 3,
+   "stamina": 5,
+   "skill": "harvesting",
+   "license": "farming",
+   "minLevel": 2
+  },
+  {
+   "id": "ath_gin",
+   "name": "Cotton Gin",
+   "cityId": "athira",
+   "legal": true,
+   "mode": "process",
+   "from": "Cotton Gin",
+   "output": "cotton",
+   "input": "cottonR",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 2
+  },
+  {
+   "id": "ath_phos",
+   "name": "Phosphorus Mine",
+   "cityId": "athira",
+   "legal": true,
+   "mode": "gather",
+   "from": "Phosphorus Mine",
+   "output": "phos",
+   "yield": 4,
+   "stamina": 5,
+   "skill": "harvesting",
+   "license": "mining",
+   "minLevel": 3
+  },
+  {
+   "id": "ath_iron",
+   "name": "Iron Quarry",
+   "cityId": "athira",
+   "legal": true,
+   "mode": "gather",
+   "from": "Quarry",
+   "output": "ironore",
+   "yield": 4,
+   "stamina": 6,
+   "skill": "harvesting",
+   "license": "mining",
+   "minLevel": 5
+  },
+  {
+   "id": "ath_smelt",
+   "name": "Iron Smelter",
+   "cityId": "athira",
+   "legal": true,
+   "mode": "process",
+   "from": "Mineral Processing",
+   "output": "iron_r",
+   "input": "ironore",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 5,
+   "skill": "refining",
+   "minLevel": 5
+  },
+  {
+   "id": "ath_oilp",
+   "name": "Oil Processing",
+   "cityId": "athira",
+   "legal": true,
+   "mode": "process",
+   "from": "Oil Processing",
+   "output": "oilp",
+   "input": "oilu",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 4
+  },
+  {
+   "id": "ath_coca",
+   "name": "Coca Plantation",
+   "cityId": "athira",
+   "legal": false,
+   "mode": "gather",
+   "from": "Cocaine Processing",
+   "output": "cocaine",
+   "yield": 3,
+   "stamina": 6,
+   "skill": "harvesting",
+   "license": "rebel",
+   "minLevel": 4
+  },
+  {
+   "id": "ath_cocap",
+   "name": "Cocaine Processing",
+   "cityId": "athira",
+   "legal": false,
+   "mode": "process",
+   "from": "Cocaine Processing",
+   "output": "cocainep",
+   "input": "cocaine",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 5,
+   "skill": "refining",
+   "license": "rebel",
+   "minLevel": 4
+  },
+  {
+   "id": "ath_pixie",
+   "name": "Pixie Lab",
+   "cityId": "athira",
+   "legal": false,
+   "mode": "process",
+   "from": "Black Market Production",
+   "output": "ppixied",
+   "input": "pixied",
+   "inputPer": 1,
+   "yield": 2,
+   "stamina": 7,
+   "skill": "refining",
+   "license": "chemist",
+   "minLevel": 18
+  },
+  {
+   "id": "pyr_peach",
+   "name": "Peach Grove",
+   "cityId": "pyrgos",
+   "legal": true,
+   "mode": "gather",
+   "from": "Peach Field",
+   "output": "peach",
+   "yield": 12,
+   "stamina": 3,
+   "skill": "harvesting"
+  },
+  {
+   "id": "pyr_fish",
+   "name": "Fishing Boat",
+   "cityId": "pyrgos",
+   "legal": true,
+   "mode": "gather",
+   "from": "Fish Market",
+   "output": "tuna",
+   "yield": 2,
+   "stamina": 5,
+   "skill": "harvesting",
+   "minLevel": 2,
+   "jackpot": [
+    "mullet",
+    0.25,
+    2
+   ]
+  },
+  {
+   "id": "pyr_oyster",
+   "name": "Oyster Field",
+   "cityId": "pyrgos",
+   "legal": true,
+   "mode": "gather",
+   "from": "Oyster Field",
+   "output": "oysteru",
+   "yield": 3,
+   "stamina": 5,
+   "skill": "harvesting",
+   "license": "diving",
+   "minLevel": 4,
+   "jackpot": [
+    "pearl",
+    0.08,
+    1
+   ]
+  },
+  {
+   "id": "pyr_cook",
+   "name": "Wong's Kitchen",
+   "cityId": "pyrgos",
+   "legal": true,
+   "mode": "process",
+   "from": "Wong's Food & Liquor",
+   "output": "oysterp",
+   "input": "oysteru",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 4
+  },
+  {
+   "id": "pyr_phos",
+   "name": "Phosphorus Mine",
+   "cityId": "pyrgos",
+   "legal": true,
+   "mode": "gather",
+   "from": "Phosphorus Mine",
+   "output": "phos",
+   "yield": 4,
+   "stamina": 5,
+   "skill": "harvesting",
+   "license": "mining",
+   "minLevel": 3
+  },
+  {
+   "id": "pyr_diamond",
+   "name": "Diamond Mine",
+   "cityId": "pyrgos",
+   "legal": true,
+   "mode": "gather",
+   "from": "Quarry",
+   "output": "diamond",
+   "yield": 2,
+   "stamina": 7,
+   "skill": "harvesting",
+   "license": "mining",
+   "minLevel": 11,
+   "jackpot": [
+    "ruby",
+    0.06,
+    1
+   ]
+  },
+  {
+   "id": "pyr_cut",
+   "name": "Gem Cutter",
+   "cityId": "pyrgos",
+   "legal": true,
+   "mode": "process",
+   "from": "Commodities Trader",
+   "output": "diamondc",
+   "input": "diamond",
+   "inputPer": 2,
+   "yield": 2,
+   "stamina": 6,
+   "skill": "refining",
+   "license": "gem",
+   "minLevel": 12,
+   "jackpot": [
+    "diamondf",
+    0.05,
+    1
+   ]
+  },
+  {
+   "id": "pyr_tobacco",
+   "name": "Tobacco Field",
+   "cityId": "pyrgos",
+   "legal": true,
+   "mode": "gather",
+   "from": "Tobacco Field",
+   "output": "tobacco",
+   "yield": 3,
+   "stamina": 5,
+   "skill": "harvesting",
+   "license": "farming",
+   "minLevel": 3
+  },
+  {
+   "id": "pyr_ephedra",
+   "name": "Ephedra Fields",
+   "cityId": "pyrgos",
+   "legal": false,
+   "mode": "gather",
+   "from": "Ephedra Fields",
+   "output": "ephedra",
+   "yield": 4,
+   "stamina": 5,
+   "skill": "harvesting",
+   "license": "rebel",
+   "minLevel": 5
+  },
+  {
+   "id": "pyr_turtle",
+   "name": "Turtle Poaching",
+   "cityId": "pyrgos",
+   "legal": false,
+   "mode": "gather",
+   "from": "Sea Turtles",
+   "output": "turtle",
+   "yield": 1,
+   "stamina": 7,
+   "skill": "harvesting",
+   "license": "diving",
+   "minLevel": 13
+  },
+  {
+   "id": "pyr_pixie",
+   "name": "Pixie Extraction",
+   "cityId": "pyrgos",
+   "legal": false,
+   "mode": "gather",
+   "from": "Black Market Production",
+   "output": "pixied",
+   "yield": 2,
+   "stamina": 8,
+   "skill": "harvesting",
+   "license": "chemist",
+   "minLevel": 17
+  },
+  {
+   "id": "sof_salt",
+   "name": "Salt Mine",
+   "cityId": "sofia",
+   "legal": true,
+   "mode": "gather",
+   "from": "Salt Mine",
+   "output": "salt",
+   "yield": 5,
+   "stamina": 4,
+   "skill": "harvesting",
+   "license": "mining",
+   "minLevel": 2
+  },
+  {
+   "id": "sof_saltp",
+   "name": "Salt Processing",
+   "cityId": "sofia",
+   "legal": true,
+   "mode": "process",
+   "from": "Salt Processing",
+   "output": "salt_r",
+   "input": "salt",
+   "inputPer": 2,
+   "yield": 2,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 2
+  },
+  {
+   "id": "sof_apple",
+   "name": "Sofia Orchard",
+   "cityId": "sofia",
+   "legal": true,
+   "mode": "gather",
+   "from": "Apple Field",
+   "output": "apple",
+   "yield": 12,
+   "stamina": 3,
+   "skill": "harvesting"
+  },
+  {
+   "id": "sof_cotton",
+   "name": "Cotton Field",
+   "cityId": "sofia",
+   "legal": true,
+   "mode": "gather",
+   "from": "Cotton Field",
+   "output": "cottonR",
+   "yield": 3,
+   "stamina": 5,
+   "skill": "harvesting",
+   "license": "farming",
+   "minLevel": 2
+  },
+  {
+   "id": "sof_gin",
+   "name": "Cotton Gin",
+   "cityId": "sofia",
+   "legal": true,
+   "mode": "process",
+   "from": "Cotton Gin",
+   "output": "cotton",
+   "input": "cottonR",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 2
+  },
+  {
+   "id": "sof_oilf",
+   "name": "Oil Field",
+   "cityId": "sofia",
+   "legal": true,
+   "mode": "gather",
+   "from": "Oil Field / Hydrogen Sulfate Mine",
+   "output": "oilu",
+   "yield": 3,
+   "stamina": 6,
+   "skill": "harvesting",
+   "license": "oil",
+   "minLevel": 4
+  },
+  {
+   "id": "sof_barrel",
+   "name": "Oil Barrel Plant",
+   "cityId": "sofia",
+   "legal": true,
+   "mode": "process",
+   "from": "Oil Barrel Processing",
+   "output": "oilp",
+   "input": "oilu",
+   "inputPer": 1,
+   "yield": 4,
+   "stamina": 5,
+   "skill": "refining",
+   "minLevel": 4
+  },
+  {
+   "id": "sof_goldpan",
+   "name": "Goldpan Site",
+   "cityId": "sofia",
+   "legal": true,
+   "mode": "gather",
+   "from": "Goldpan Site",
+   "output": "sand",
+   "yield": 2,
+   "stamina": 8,
+   "skill": "harvesting",
+   "license": "mining",
+   "minLevel": 10,
+   "jackpot": [
+    "goldnugget",
+    0.05,
+    1
+   ]
+  },
+  {
+   "id": "sof_glass",
+   "name": "Glass Furnace",
+   "cityId": "sofia",
+   "legal": true,
+   "mode": "process",
+   "from": "Mineral Processing",
+   "output": "glass",
+   "input": "sand",
+   "inputPer": 2,
+   "yield": 2,
+   "stamina": 4,
+   "skill": "refining",
+   "minLevel": 2
+  },
+  {
+   "id": "sof_opium",
+   "name": "Heroin Field",
+   "cityId": "sofia",
+   "legal": false,
+   "mode": "gather",
+   "from": "Heroin Field",
+   "output": "heroinu",
+   "yield": 3,
+   "stamina": 6,
+   "skill": "harvesting",
+   "license": "rebel",
+   "minLevel": 6
+  },
+  {
+   "id": "sof_heroinp",
+   "name": "Heroin Processing",
+   "cityId": "sofia",
+   "legal": false,
+   "mode": "process",
+   "from": "Heroin Processing",
+   "output": "heroinp",
+   "input": "heroinu",
+   "inputPer": 1,
+   "yield": 3,
+   "stamina": 5,
+   "skill": "refining",
+   "license": "rebel",
+   "minLevel": 6
+  },
+  {
+   "id": "sof_meth",
+   "name": "Meth Lab",
+   "cityId": "sofia",
+   "legal": false,
+   "mode": "process",
+   "from": "Meth Lab",
+   "output": "methcocktail",
+   "input": "ephedra",
+   "inputPer": 2,
+   "yield": 2,
+   "stamina": 6,
+   "skill": "refining",
+   "license": "chemist",
+   "minLevel": 14
+  },
+  {
+   "id": "sof_crystal",
+   "name": "Crystallisation",
+   "cityId": "sofia",
+   "legal": false,
+   "mode": "process",
+   "from": "Meth Lab",
+   "output": "meth",
+   "input": "methcocktail",
+   "inputPer": 2,
+   "yield": 2,
+   "stamina": 8,
+   "skill": "refining",
+   "license": "chemist",
+   "minLevel": 16
+  }
+ ],
+ "items": [
+  {
+   "id": "apple",
+   "name": "Apple",
+   "kind": "food",
+   "legal": true,
+   "sell": 7,
+   "weight": 1
+  },
+  {
+   "id": "peach",
+   "name": "Peach",
+   "kind": "food",
+   "legal": true,
+   "sell": 7,
+   "weight": 1
+  },
+  {
+   "id": "cottonR",
+   "name": "Raw Cotton",
+   "kind": "crop",
+   "legal": true,
+   "sell": 95,
+   "weight": 1
+  },
+  {
+   "id": "cotton",
+   "name": "Cotton",
+   "kind": "crop",
+   "legal": true,
+   "sell": 320,
+   "weight": 1
+  },
+  {
+   "id": "tobacco",
+   "name": "Tobacco",
+   "kind": "crop",
+   "legal": true,
+   "sell": 160,
+   "weight": 2
+  },
+  {
+   "id": "tobaccoD",
+   "name": "Dried Tobacco",
+   "kind": "crop",
+   "legal": true,
+   "sell": 235,
+   "weight": 2
+  },
+  {
+   "id": "copperore",
+   "name": "Copper Ore",
+   "kind": "ore",
+   "legal": true,
+   "sell": 0,
+   "weight": 3
+  },
+  {
+   "id": "copper_r",
+   "name": "Copper Ingot",
+   "kind": "refined",
+   "legal": true,
+   "sell": 240,
+   "weight": 3
+  },
+  {
+   "id": "ironore",
+   "name": "Iron Ore",
+   "kind": "ore",
+   "legal": true,
+   "sell": 0,
+   "weight": 3
+  },
+  {
+   "id": "iron_r",
+   "name": "Iron Ingot",
+   "kind": "refined",
+   "legal": true,
+   "sell": 460,
+   "weight": 1
+  },
+  {
+   "id": "salt",
+   "name": "Salt",
+   "kind": "resource",
+   "legal": true,
+   "sell": 0,
+   "weight": 3
+  },
+  {
+   "id": "salt_r",
+   "name": "Refined Salt",
+   "kind": "resource",
+   "legal": true,
+   "sell": 340,
+   "weight": 1
+  },
+  {
+   "id": "sand",
+   "name": "Sand",
+   "kind": "resource",
+   "legal": true,
+   "sell": 0,
+   "weight": 3
+  },
+  {
+   "id": "glass",
+   "name": "Glass",
+   "kind": "material",
+   "legal": true,
+   "sell": 425,
+   "weight": 1
+  },
+  {
+   "id": "rock",
+   "name": "Rock",
+   "kind": "resource",
+   "legal": true,
+   "sell": 0,
+   "weight": 3
+  },
+  {
+   "id": "phos",
+   "name": "Phosphorus",
+   "kind": "chemical",
+   "legal": true,
+   "sell": 115,
+   "weight": 2
+  },
+  {
+   "id": "hydro",
+   "name": "Hydrogen Sulfate",
+   "kind": "chemical",
+   "legal": true,
+   "sell": 115,
+   "weight": 2
+  },
+  {
+   "id": "oilu",
+   "name": "Unprocessed Oil",
+   "kind": "resource",
+   "legal": true,
+   "sell": 0,
+   "weight": 4
+  },
+  {
+   "id": "oilp",
+   "name": "Processed Oil",
+   "kind": "resource",
+   "legal": true,
+   "sell": 375,
+   "weight": 2
+  },
+  {
+   "id": "timber",
+   "name": "Pine Timber",
+   "kind": "material",
+   "legal": true,
+   "sell": 50,
+   "weight": 4
+  },
+  {
+   "id": "plank",
+   "name": "Pine Plank",
+   "kind": "material",
+   "legal": true,
+   "sell": 175,
+   "weight": 3
+  },
+  {
+   "id": "timberh",
+   "name": "Hardwood Timber",
+   "kind": "material",
+   "legal": true,
+   "sell": 120,
+   "weight": 4
+  },
+  {
+   "id": "plankh",
+   "name": "Hardwood Plank",
+   "kind": "material",
+   "legal": true,
+   "sell": 420,
+   "weight": 3
+  },
+  {
+   "id": "oysteru",
+   "name": "Fresh Oysters",
+   "kind": "food",
+   "legal": true,
+   "sell": 225,
+   "weight": 3
+  },
+  {
+   "id": "oysterp",
+   "name": "Cooked Oysters",
+   "kind": "food",
+   "legal": true,
+   "sell": 450,
+   "weight": 3
+  },
+  {
+   "id": "tuna",
+   "name": "Tuna Meat",
+   "kind": "food",
+   "legal": true,
+   "sell": 175,
+   "weight": 8
+  },
+  {
+   "id": "mullet",
+   "name": "Mullet Meat",
+   "kind": "food",
+   "legal": true,
+   "sell": 100,
+   "weight": 4
+  },
+  {
+   "id": "catshark",
+   "name": "Cat Shark Meat",
+   "kind": "food",
+   "legal": true,
+   "sell": 91,
+   "weight": 6
+  },
+  {
+   "id": "salema",
+   "name": "Salema Meat",
+   "kind": "food",
+   "legal": true,
+   "sell": 28,
+   "weight": 1
+  },
+  {
+   "id": "diamond",
+   "name": "Diamond (Uncut)",
+   "kind": "gem",
+   "legal": true,
+   "sell": 165,
+   "weight": 4
+  },
+  {
+   "id": "diamondc",
+   "name": "Diamond (Cut)",
+   "kind": "gem",
+   "legal": true,
+   "sell": 2150,
+   "weight": 2
+  },
+  {
+   "id": "diamondf",
+   "name": "Flawless Diamond",
+   "kind": "gem",
+   "legal": true,
+   "sell": 1750,
+   "weight": 2
+  },
+  {
+   "id": "pearl",
+   "name": "Pearl",
+   "kind": "gem",
+   "legal": true,
+   "sell": 290,
+   "weight": 1
+  },
+  {
+   "id": "ruby",
+   "name": "Ruby",
+   "kind": "gem",
+   "legal": true,
+   "sell": 290,
+   "weight": 2
+  },
+  {
+   "id": "goldnugget",
+   "name": "Gold Nugget",
+   "kind": "treasure",
+   "legal": true,
+   "sell": 30000,
+   "weight": 2
+  },
+  {
+   "id": "goldbar",
+   "name": "Gold Bar",
+   "kind": "treasure",
+   "legal": true,
+   "sell": 45000,
+   "weight": 64
+  },
+  {
+   "id": "cannabis",
+   "name": "Cannabis",
+   "kind": "crop",
+   "legal": false,
+   "sell": 0,
+   "weight": 2,
+   "illegalValue": 80
+  },
+  {
+   "id": "marijuana",
+   "name": "Marijuana",
+   "kind": "drug",
+   "legal": false,
+   "sell": 380,
+   "weight": 2,
+   "illegalValue": 240
+  },
+  {
+   "id": "cocaine",
+   "name": "Unprocessed Cocaine",
+   "kind": "drug",
+   "legal": false,
+   "sell": 120,
+   "weight": 3,
+   "illegalValue": 180
+  },
+  {
+   "id": "cocainep",
+   "name": "Cocaine",
+   "kind": "drug",
+   "legal": false,
+   "sell": 775,
+   "weight": 3,
+   "illegalValue": 300
+  },
+  {
+   "id": "heroinu",
+   "name": "Opium",
+   "kind": "drug",
+   "legal": false,
+   "sell": 200,
+   "weight": 3,
+   "illegalValue": 200
+  },
+  {
+   "id": "heroinp",
+   "name": "Heroin",
+   "kind": "drug",
+   "legal": false,
+   "sell": 800,
+   "weight": 3,
+   "illegalValue": 350
+  },
+  {
+   "id": "ephedra",
+   "name": "Ephedra Plant",
+   "kind": "crop",
+   "legal": false,
+   "sell": 0,
+   "weight": 2,
+   "illegalValue": 90
+  },
+  {
+   "id": "methcocktail",
+   "name": "Meth Cocktail",
+   "kind": "drug",
+   "legal": false,
+   "sell": 450,
+   "weight": 2,
+   "illegalValue": 215
+  },
+  {
+   "id": "meth",
+   "name": "Crystal Meth",
+   "kind": "drug",
+   "legal": false,
+   "sell": 4200,
+   "weight": 2,
+   "illegalValue": 600
+  },
+  {
+   "id": "barley",
+   "name": "Barley",
+   "kind": "crop",
+   "legal": false,
+   "sell": 0,
+   "weight": 1,
+   "illegalValue": 100
+  },
+  {
+   "id": "moonshine",
+   "name": "Homebrew Moonshine",
+   "kind": "drug",
+   "legal": false,
+   "sell": 600,
+   "weight": 3,
+   "illegalValue": 250
+  },
+  {
+   "id": "moonshinep",
+   "name": "White Lightning",
+   "kind": "drug",
+   "legal": false,
+   "sell": 2000,
+   "weight": 3,
+   "illegalValue": 320
+  },
+  {
+   "id": "scotch_1",
+   "name": "Scotch",
+   "kind": "drink",
+   "legal": false,
+   "sell": 375,
+   "weight": 3,
+   "illegalValue": 200
+  },
+  {
+   "id": "scotch_3",
+   "name": "25 Year Scotch",
+   "kind": "drink",
+   "legal": false,
+   "sell": 1350,
+   "weight": 3,
+   "illegalValue": 450
+  },
+  {
+   "id": "pixied",
+   "name": "Impure Pixie Dust",
+   "kind": "drug",
+   "legal": false,
+   "sell": 850,
+   "weight": 2,
+   "illegalValue": 400
+  },
+  {
+   "id": "ppixied",
+   "name": "Pixie Dust",
+   "kind": "drug",
+   "legal": false,
+   "sell": 2900,
+   "weight": 2,
+   "illegalValue": 700
+  },
+  {
+   "id": "uraniumu",
+   "name": "Uranium Ore",
+   "kind": "ore",
+   "legal": false,
+   "sell": 0,
+   "weight": 3,
+   "illegalValue": 500
+  },
+  {
+   "id": "uraniump",
+   "name": "Uranium (Weapon Grade)",
+   "kind": "resource",
+   "legal": false,
+   "sell": 4200,
+   "weight": 2,
+   "illegalValue": 900
+  },
+  {
+   "id": "element115",
+   "name": "Element 115",
+   "kind": "resource",
+   "legal": false,
+   "sell": 36700,
+   "weight": 2,
+   "illegalValue": 2500
+  },
+  {
+   "id": "turtle",
+   "name": "Turtle Meat",
+   "kind": "food",
+   "legal": false,
+   "sell": 2500,
+   "weight": 5,
+   "illegalValue": 550
+  },
+  {
+   "id": "cigs",
+   "name": "Cigarettes",
+   "kind": "product",
+   "legal": false,
+   "sell": 525,
+   "weight": 2,
+   "illegalValue": 180
+  },
+  {
+   "id": "cigars",
+   "name": "Cigars",
+   "kind": "product",
+   "legal": false,
+   "sell": 1200,
+   "weight": 4,
+   "illegalValue": 260
+  }
+ ],
+ "skills": [
+  {
+   "id": "endurance",
+   "name": "Endurance",
+   "blurb": "+15 max stamina and +0.22/s regen per level.",
+   "faction": "both",
+   "max": 12,
+   "costs": [
+    1400,
+    5797,
+    13311,
+    24008,
+    37933,
+    55124,
+    75610,
+    99417,
+    126568,
+    157083,
+    190978,
+    228270
+   ]
+  },
+  {
+   "id": "strength",
+   "name": "Strength",
+   "blurb": "+8% carry capacity per level.",
+   "faction": "civ",
+   "max": 12,
+   "costs": [
+    2200,
+    9110,
+    20918,
+    37726,
+    59609,
+    86623,
+    118816,
+    156227,
+    198893,
+    246844,
+    300108,
+    358711
+   ]
+  },
+  {
+   "id": "harvesting",
+   "name": "Harvesting",
+   "blurb": "+12% yield at every gathering site.",
+   "faction": "civ",
+   "max": 12,
+   "costs": [
+    2600,
+    10767,
+    24721,
+    44586,
+    70447,
+    102373,
+    140419,
+    184632,
+    235056,
+    291725,
+    354673,
+    423931
+   ]
+  },
+  {
+   "id": "refining",
+   "name": "Refining",
+   "blurb": "+12% output at every processor.",
+   "faction": "civ",
+   "max": 12,
+   "costs": [
+    3000,
+    12423,
+    28525,
+    51445,
+    81285,
+    118122,
+    162021,
+    213037,
+    271218,
+    336606,
+    409238,
+    489151
+   ]
+  },
+  {
+   "id": "stealth",
+   "name": "Stealth",
+   "blurb": "-7% heat gained, and harder for APD to bust.",
+   "faction": "civ",
+   "max": 12,
+   "costs": [
+    4200,
+    17392,
+    39934,
+    72023,
+    113799,
+    165371,
+    226830,
+    298252,
+    379705,
+    471248,
+    572934,
+    684811
+   ]
+  },
+  {
+   "id": "haggling",
+   "name": "Haggling",
+   "blurb": "+3% sale price per level.",
+   "faction": "civ",
+   "max": 12,
+   "costs": [
+    5000,
+    20705,
+    47541,
+    85742,
+    135475,
+    196870,
+    270036,
+    355062,
+    452030,
+    561009,
+    682064,
+    815251
+   ]
+  },
+  {
+   "id": "investigation",
+   "name": "Investigation",
+   "blurb": "Better odds of catching NPC street crime on patrol.",
+   "faction": "cop",
+   "max": 12,
+   "costs": [
+    2400,
+    9939,
+    22820,
+    41156,
+    65028,
+    94498,
+    129617,
+    170430,
+    216974,
+    269284,
+    327391,
+    391321
+   ]
+  },
+  {
+   "id": "pursuit",
+   "name": "Pursuit",
+   "blurb": "+6% chance an arrest sticks.",
+   "faction": "cop",
+   "max": 12,
+   "costs": [
+    3200,
+    13251,
+    30426,
+    54875,
+    86704,
+    125997,
+    172823,
+    227240,
+    289299,
+    359046,
+    436521,
+    521761
+   ]
+  },
+  {
+   "id": "authority",
+   "name": "Authority",
+   "blurb": "+10% bounty per level.",
+   "faction": "cop",
+   "max": 12,
+   "costs": [
+    3800,
+    15736,
+    36131,
+    65164,
+    102961,
+    149621,
+    205227,
+    269847,
+    343543,
+    426367,
+    518368,
+    619591
+   ]
+  },
+  {
+   "id": "forensics",
+   "name": "Forensics",
+   "blurb": "+7% of seized contraband value as bounty.",
+   "faction": "cop",
+   "max": 12,
+   "costs": [
+    3400,
+    14080,
+    32328,
+    58304,
+    92123,
+    133872,
+    183624,
+    241442,
+    307380,
+    381486,
+    463803,
+    554371
+   ]
+  },
+  {
+   "id": "interrogation",
+   "name": "Interrogation",
+   "blurb": "+10% of the fine, and longer holding time.",
+   "faction": "cop",
+   "max": 12,
+   "costs": [
+    3600,
+    14908,
+    34230,
+    61734,
+    97542,
+    141747,
+    194426,
+    255645,
+    325462,
+    403927,
+    491086,
+    586981
+   ]
+  },
+  {
+   "id": "dispatch",
+   "name": "Dispatch",
+   "blurb": "Street patrols pay more and land more often.",
+   "faction": "cop",
+   "max": 12,
+   "costs": [
+    2800,
+    11595,
+    26623,
+    48015,
+    75866,
+    110247,
+    151220,
+    198835,
+    253137,
+    314165,
+    381956,
+    456541
+   ]
+  }
+ ],
+ "licenses": [
+  {
+   "id": "driving",
+   "name": "Driver's License",
+   "cost": 1000,
+   "legal": true
+  },
+  {
+   "id": "farming",
+   "name": "Farming License",
+   "cost": 4000,
+   "legal": true
+  },
+  {
+   "id": "mining",
+   "name": "Mining License",
+   "cost": 9000,
+   "legal": true
+  },
+  {
+   "id": "oil",
+   "name": "Oil License",
+   "cost": 16000,
+   "legal": true
+  },
+  {
+   "id": "diving",
+   "name": "Diving License",
+   "cost": 12000,
+   "legal": true
+  },
+  {
+   "id": "gem",
+   "name": "Gem Cutting License",
+   "cost": 45000,
+   "legal": true
+  },
+  {
+   "id": "rebel",
+   "name": "Rebel Training",
+   "cost": 75000,
+   "legal": false
+  },
+  {
+   "id": "chemist",
+   "name": "Chemistry Training",
+   "cost": 160000,
+   "legal": false
+  },
+  {
+   "id": "cartel",
+   "name": "Cartel Contacts",
+   "cost": 400000,
+   "legal": false
+  },
+  {
+   "id": "firearms",
+   "name": "Firearms Certification",
+   "cost": 25000,
+   "legal": true,
+   "faction": "cop",
+   "effect": "Unlocks the Interceptor"
+  },
+  {
+   "id": "k9",
+   "name": "K9 Unit",
+   "cost": 80000,
+   "legal": true,
+   "faction": "cop",
+   "effect": "+8% chance an arrest sticks"
+  },
+  {
+   "id": "airsupport",
+   "name": "Air Support Certification",
+   "cost": 300000,
+   "legal": true,
+   "faction": "cop",
+   "effect": "Unlocks the Police Helicopter"
+  },
+  {
+   "id": "swat",
+   "name": "SWAT Certification",
+   "cost": 750000,
+   "legal": true,
+   "faction": "cop",
+   "effect": "Unlocks the Tactical Response Unit"
+  }
+ ],
+ "gear": [
+  {
+   "tier": 0,
+   "name": "On Foot",
+   "capacity": 0,
+   "cost": 0,
+   "speed": 1
+  },
+  {
+   "tier": 1,
+   "name": "Offroad",
+   "capacity": 100,
+   "cost": 12000,
+   "speed": 0.85
+  },
+  {
+   "tier": 2,
+   "name": "Van (Transport)",
+   "capacity": 300,
+   "cost": 65000,
+   "speed": 0.75
+  },
+  {
+   "tier": 3,
+   "name": "Box Truck",
+   "capacity": 780,
+   "cost": 260000,
+   "speed": 0.65
+  },
+  {
+   "tier": 4,
+   "name": "HEMTT Transport",
+   "capacity": 1950,
+   "cost": 900000,
+   "speed": 0.55
+  },
+  {
+   "tier": 5,
+   "name": "Tempest Device",
+   "capacity": 4950,
+   "cost": 3200000,
+   "speed": 0.45
+  }
+ ],
+ "backpacks": [
+  {
+   "tier": 0,
+   "name": "Courier Bag",
+   "capacity": 45,
+   "cost": 0,
+   "minLevel": 1
+  },
+  {
+   "tier": 1,
+   "name": "Carryall",
+   "capacity": 90,
+   "cost": 15000,
+   "minLevel": 3
+  },
+  {
+   "tier": 2,
+   "name": "Mountain Pack",
+   "capacity": 150,
+   "cost": 60000,
+   "minLevel": 7
+  },
+  {
+   "tier": 3,
+   "name": "Coyote Rig",
+   "capacity": 240,
+   "cost": 200000,
+   "minLevel": 12
+  },
+  {
+   "tier": 4,
+   "name": "Bergen Hauler",
+   "capacity": 380,
+   "cost": 650000,
+   "minLevel": 18
+  }
+ ],
+ "copGear": [
+  {
+   "tier": 0,
+   "name": "Foot Patrol",
+   "cost": 0,
+   "bustBonus": 0,
+   "bountyMult": 1,
+   "staminaDelta": 0,
+   "blurb": "Standard issue. Boots and a radio."
+  },
+  {
+   "tier": 1,
+   "name": "Patrol Car",
+   "cost": 55000,
+   "bustBonus": 0.06,
+   "bountyMult": 1.1,
+   "staminaDelta": -1,
+   "blurb": "Cover more ground for less effort."
+  },
+  {
+   "tier": 2,
+   "name": "Interceptor",
+   "cost": 320000,
+   "bustBonus": 0.12,
+   "bountyMult": 1.25,
+   "staminaDelta": -2,
+   "requires": "firearms",
+   "blurb": "Few runners outpace it."
+  },
+  {
+   "tier": 3,
+   "name": "Police Helicopter",
+   "cost": 1400000,
+   "bustBonus": 0.18,
+   "bountyMult": 1.5,
+   "staminaDelta": -3,
+   "requires": "airsupport",
+   "blurb": "Eyes over the whole town."
+  },
+  {
+   "tier": 4,
+   "name": "Tactical Response Unit",
+   "cost": 5600000,
+   "bustBonus": 0.25,
+   "bountyMult": 2,
+   "staminaDelta": -4,
+   "requires": "swat",
+   "blurb": "Nobody walks away from a TRU callout."
+  }
+ ],
+ "tools": [
+  {
+   "tier": 0,
+   "kind": "gather",
+   "name": "Bare Hands",
+   "mult": 1,
+   "cost": 0,
+   "minLevel": 1,
+   "blurb": "What you landed with."
+  },
+  {
+   "tier": 1,
+   "kind": "gather",
+   "name": "Hand Trowel",
+   "mult": 1.18,
+   "cost": 9000,
+   "minLevel": 2,
+   "blurb": "+18% gathered per click."
+  },
+  {
+   "tier": 2,
+   "kind": "gather",
+   "name": "Steel Pickaxe",
+   "mult": 1.42,
+   "cost": 48000,
+   "minLevel": 5,
+   "blurb": "+42% gathered per click."
+  },
+  {
+   "tier": 3,
+   "kind": "gather",
+   "name": "Pneumatic Drill",
+   "mult": 1.75,
+   "cost": 220000,
+   "minLevel": 9,
+   "blurb": "+75% gathered per click."
+  },
+  {
+   "tier": 4,
+   "kind": "gather",
+   "name": "Hydraulic Rig",
+   "mult": 2.2,
+   "cost": 950000,
+   "minLevel": 14,
+   "blurb": "+120% gathered per click."
+  },
+  {
+   "tier": 5,
+   "kind": "gather",
+   "name": "Excavator Arm",
+   "mult": 2.8,
+   "cost": 3800000,
+   "minLevel": 20,
+   "blurb": "+180% gathered per click."
+  },
+  {
+   "tier": 6,
+   "kind": "gather",
+   "name": "Seismic Bore",
+   "mult": 3.6,
+   "cost": 14000000,
+   "minLevel": 26,
+   "blurb": "+260% gathered per click."
+  },
+  {
+   "tier": 0,
+   "kind": "process",
+   "name": "Improvised Kit",
+   "mult": 1,
+   "cost": 0,
+   "minLevel": 1,
+   "blurb": "A bucket and some patience."
+  },
+  {
+   "tier": 1,
+   "kind": "process",
+   "name": "Workshop Tools",
+   "mult": 1.18,
+   "cost": 11000,
+   "minLevel": 2,
+   "blurb": "+18% output per process."
+  },
+  {
+   "tier": 2,
+   "kind": "process",
+   "name": "Precision Toolkit",
+   "mult": 1.42,
+   "cost": 56000,
+   "minLevel": 5,
+   "blurb": "+42% output per process."
+  },
+  {
+   "tier": 3,
+   "kind": "process",
+   "name": "Bench Refinery",
+   "mult": 1.75,
+   "cost": 260000,
+   "minLevel": 9,
+   "blurb": "+75% output per process."
+  },
+  {
+   "tier": 4,
+   "kind": "process",
+   "name": "Automated Line",
+   "mult": 2.2,
+   "cost": 1100000,
+   "minLevel": 14,
+   "blurb": "+120% output per process."
+  },
+  {
+   "tier": 5,
+   "kind": "process",
+   "name": "Catalytic Plant",
+   "mult": 2.8,
+   "cost": 4400000,
+   "minLevel": 20,
+   "blurb": "+180% output per process."
+  },
+  {
+   "tier": 6,
+   "kind": "process",
+   "name": "Industrial Cracker",
+   "mult": 3.6,
+   "cost": 16000000,
+   "minLevel": 26,
+   "blurb": "+260% output per process."
+  }
+ ],
+ "talents": [
+  {
+   "id": "quickLearner",
+   "name": "Quick Learner",
+   "blurb": "+8% XP from everything you do, per rank.",
+   "faction": "both",
+   "max": 5,
+   "minLevel": 2,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "secondWind",
+   "name": "Second Wind",
+   "blurb": "+12% stamina regeneration per rank.",
+   "faction": "both",
+   "max": 5,
+   "minLevel": 3,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "mule",
+   "name": "Pack Mule",
+   "blurb": "+10% carry capacity per rank.",
+   "faction": "both",
+   "max": 5,
+   "minLevel": 6,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "bumperCrop",
+   "name": "Bumper Crop",
+   "blurb": "8% chance per rank that a gather yields double.",
+   "faction": "civ",
+   "max": 5,
+   "minLevel": 4,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "lowProfile",
+   "name": "Low Profile",
+   "blurb": "+3 heat per rank before the APD can see you.",
+   "faction": "civ",
+   "max": 5,
+   "minLevel": 5,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "efficiency",
+   "name": "Efficiency",
+   "blurb": "7% chance per rank that a process consumes no input.",
+   "faction": "civ",
+   "max": 5,
+   "minLevel": 7,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "prospector",
+   "name": "Prospector",
+   "blurb": "+30% jackpot chance per rank, at sites that have one.",
+   "faction": "civ",
+   "max": 5,
+   "minLevel": 10,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "logistics",
+   "name": "Logistics",
+   "blurb": "+15% output from every work crew, per rank.",
+   "faction": "civ",
+   "max": 5,
+   "minLevel": 12,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "fence",
+   "name": "Fence",
+   "blurb": "+6% sale price on illegal goods per rank.",
+   "faction": "civ",
+   "max": 5,
+   "minLevel": 15,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "ghost",
+   "name": "Ghost",
+   "blurb": "-9% heat gained per rank, and harder to bust.",
+   "faction": "civ",
+   "max": 5,
+   "minLevel": 18,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "rapidResponse",
+   "name": "Rapid Response",
+   "blurb": "+12% patrol payout per rank, and slightly cheaper patrols.",
+   "faction": "cop",
+   "max": 5,
+   "minLevel": 4,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "warrant",
+   "name": "Warrant",
+   "blurb": "+10% bounty from every arrest, per rank.",
+   "faction": "cop",
+   "max": 5,
+   "minLevel": 8,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "forensicKit",
+   "name": "Forensic Kit",
+   "blurb": "+8% of seized contraband value per rank.",
+   "faction": "cop",
+   "max": 5,
+   "minLevel": 12,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "hardliner",
+   "name": "Hardliner",
+   "blurb": "+5 percentage points to arrest chance per rank.",
+   "faction": "cop",
+   "max": 5,
+   "minLevel": 16,
+   "costs": [
+    1,
+    1,
+    2,
+    2,
+    3
+   ]
+  }
+ ],
+ "crews": [
+  {
+   "id": "kav_apple",
+   "name": "Apple Orchard Crew",
+   "siteId": "kav_apple",
+   "cost": 5775,
+   "perMinute": 11
+  },
+  {
+   "id": "kav_peach",
+   "name": "Peach Grove Crew",
+   "siteId": "kav_peach",
+   "cost": 5775,
+   "perMinute": 11
+  },
+  {
+   "id": "kav_cotton",
+   "name": "Cotton Field Crew",
+   "siteId": "kav_cotton",
+   "cost": 21375,
+   "perMinute": 3
+  },
+  {
+   "id": "kav_quarry",
+   "name": "Kavala Quarry Crew",
+   "siteId": "kav_quarry",
+   "cost": 44625,
+   "perMinute": 4
+  },
+  {
+   "id": "kav_oilf",
+   "name": "Oil Field Crew",
+   "siteId": "kav_oilf",
+   "cost": 118125,
+   "perMinute": 3
+  },
+  {
+   "id": "kav_oyster",
+   "name": "Oyster Beds Crew",
+   "siteId": "kav_oyster",
+   "cost": 50625,
+   "perMinute": 3
+  },
+  {
+   "id": "kav_goldpan",
+   "name": "Goldpan Site Crew",
+   "siteId": "kav_goldpan",
+   "cost": 22313,
+   "perMinute": 2
+  },
+  {
+   "id": "kav_weed",
+   "name": "Weed Field Crew",
+   "siteId": "kav_weed",
+   "cost": 161595,
+   "perMinute": 4
+  },
+  {
+   "id": "kav_uranium",
+   "name": "Uranium Mine Crew",
+   "siteId": "kav_uranium",
+   "cost": 446513,
+   "perMinute": 3
+  },
+  {
+   "id": "neo_timber",
+   "name": "Pine Stand Crew",
+   "siteId": "neo_timber",
+   "cost": 15000,
+   "perMinute": 4
+  },
+  {
+   "id": "neo_hard",
+   "name": "Hardwood Grove Crew",
+   "siteId": "neo_hard",
+   "cost": 27000,
+   "perMinute": 3
+  },
+  {
+   "id": "neo_quarry",
+   "name": "High Yield Quarry Crew",
+   "siteId": "neo_quarry",
+   "cost": 75600,
+   "perMinute": 4
+  },
+  {
+   "id": "neo_tobacco",
+   "name": "Tobacco Field Crew",
+   "siteId": "neo_tobacco",
+   "cost": 36000,
+   "perMinute": 3
+  },
+  {
+   "id": "neo_barley",
+   "name": "Barley Plot Crew",
+   "siteId": "neo_barley",
+   "cost": 106313,
+   "perMinute": 5
+  },
+  {
+   "id": "ath_apple",
+   "name": "Athira Orchard Crew",
+   "siteId": "ath_apple",
+   "cost": 5775,
+   "perMinute": 11
+  },
+  {
+   "id": "ath_cotton",
+   "name": "Cotton Field Crew",
+   "siteId": "ath_cotton",
+   "cost": 21375,
+   "perMinute": 3
+  },
+  {
+   "id": "ath_phos",
+   "name": "Phosphorus Mine Crew",
+   "siteId": "ath_phos",
+   "cost": 34500,
+   "perMinute": 4
+  },
+  {
+   "id": "ath_iron",
+   "name": "Iron Quarry Crew",
+   "siteId": "ath_iron",
+   "cost": 144900,
+   "perMinute": 4
+  },
+  {
+   "id": "ath_coca",
+   "name": "Coca Plantation Crew",
+   "siteId": "ath_coca",
+   "cost": 36450,
+   "perMinute": 3
+  },
+  {
+   "id": "pyr_peach",
+   "name": "Peach Grove Crew",
+   "siteId": "pyr_peach",
+   "cost": 5775,
+   "perMinute": 11
+  },
+  {
+   "id": "pyr_fish",
+   "name": "Fishing Boat Crew",
+   "siteId": "pyr_fish",
+   "cost": 26250,
+   "perMinute": 2
+  },
+  {
+   "id": "pyr_oyster",
+   "name": "Oyster Field Crew",
+   "siteId": "pyr_oyster",
+   "cost": 50625,
+   "perMinute": 3
+  },
+  {
+   "id": "pyr_phos",
+   "name": "Phosphorus Mine Crew",
+   "siteId": "pyr_phos",
+   "cost": 34500,
+   "perMinute": 4
+  },
+  {
+   "id": "pyr_diamond",
+   "name": "Diamond Mine Crew",
+   "siteId": "pyr_diamond",
+   "cost": 24750,
+   "perMinute": 2
+  },
+  {
+   "id": "pyr_tobacco",
+   "name": "Tobacco Field Crew",
+   "siteId": "pyr_tobacco",
+   "cost": 36000,
+   "perMinute": 3
+  },
+  {
+   "id": "pyr_ephedra",
+   "name": "Ephedra Fields Crew",
+   "siteId": "pyr_ephedra",
+   "cost": 63788,
+   "perMinute": 4
+  },
+  {
+   "id": "pyr_turtle",
+   "name": "Turtle Poaching Crew",
+   "siteId": "pyr_turtle",
+   "cost": 253125,
+   "perMinute": 1
+  },
+  {
+   "id": "pyr_pixie",
+   "name": "Pixie Extraction Crew",
+   "siteId": "pyr_pixie",
+   "cost": 172125,
+   "perMinute": 2
+  },
+  {
+   "id": "sof_salt",
+   "name": "Salt Mine Crew",
+   "siteId": "sof_salt",
+   "cost": 44625,
+   "perMinute": 5
+  },
+  {
+   "id": "sof_apple",
+   "name": "Sofia Orchard Crew",
+   "siteId": "sof_apple",
+   "cost": 5775,
+   "perMinute": 11
+  },
+  {
+   "id": "sof_cotton",
+   "name": "Cotton Field Crew",
+   "siteId": "sof_cotton",
+   "cost": 21375,
+   "perMinute": 3
+  },
+  {
+   "id": "sof_oilf",
+   "name": "Oil Field Crew",
+   "siteId": "sof_oilf",
+   "cost": 118125,
+   "perMinute": 3
+  },
+  {
+   "id": "sof_goldpan",
+   "name": "Goldpan Site Crew",
+   "siteId": "sof_goldpan",
+   "cost": 22313,
+   "perMinute": 2
+  },
+  {
+   "id": "sof_opium",
+   "name": "Heroin Field Crew",
+   "siteId": "sof_opium",
+   "cost": 60750,
+   "perMinute": 3
+  }
+ ],
+ "processRates": {
+  "kav_gin": 3,
+  "kav_glass": 2,
+  "kav_oilp": 3,
+  "kav_cook": 3,
+  "kav_weedp": 3,
+  "kav_nuclear": 2,
+  "neo_mill": 3,
+  "neo_millh": 3,
+  "neo_mineral": 3,
+  "neo_dry": 3,
+  "neo_still": 2,
+  "neo_white": 2,
+  "neo_black": 2,
+  "ath_gin": 3,
+  "ath_smelt": 3,
+  "ath_oilp": 3,
+  "ath_cocap": 3,
+  "ath_pixie": 2,
+  "pyr_cook": 3,
+  "pyr_cut": 2,
+  "sof_saltp": 2,
+  "sof_gin": 3,
+  "sof_barrel": 4,
+  "sof_glass": 2,
+  "sof_heroinp": 3,
+  "sof_meth": 2,
+  "sof_crystal": 2
+ },
+ "talentPointsPerLevel": 1,
+ "xpCurve": [
+  0,
+  120,
+  404,
+  821,
+  1358,
+  2006,
+  2760,
+  3615,
+  4567,
+  5612,
+  6748,
+  7973,
+  9284,
+  10680,
+  12159,
+  13720,
+  15360,
+  17079,
+  18876,
+  20749,
+  22698,
+  24721,
+  26818,
+  28987,
+  31228,
+  33541,
+  35924,
+  38377,
+  40899,
+  43489,
+  47575,
+  51863,
+  56353,
+  61046,
+  65946,
+  71053,
+  76368,
+  81892,
+  87628,
+  93576,
+  99738,
+  106115,
+  112709,
+  119519,
+  126548,
+  133797,
+  141266,
+  148957,
+  156871,
+  165009,
+  173373,
+  181962,
+  190778,
+  199822,
+  209095,
+  218598,
+  228332,
+  238298,
+  248496,
+  258928,
+  269594,
+  280496,
+  291634,
+  303008,
+  314621,
+  326472,
+  338562,
+  350893,
+  363465,
+  376278,
+  389334,
+  402633,
+  416177,
+  429965,
+  443998,
+  458278,
+  472804,
+  487578,
+  502601,
+  517872,
+  533394,
+  549165,
+  565188,
+  581462,
+  597988,
+  614768,
+  631801,
+  649088,
+  666630,
+  684427,
+  702481,
+  720791,
+  739359,
+  758184,
+  777268,
+  796611,
+  816214,
+  836077,
+  856201,
+  876586
+ ],
+ "maxLevel": 100,
+ "chests": [
+  {
+   "rarity": "common",
+   "name": "Weathered Chest",
+   "weight": 74,
+   "cash": 1500
+  },
+  {
+   "rarity": "rare",
+   "name": "Reinforced Chest",
+   "weight": 19,
+   "cash": 6000
+  },
+  {
+   "rarity": "epic",
+   "name": "Smuggler's Cache",
+   "weight": 5.5,
+   "cash": 25000
+  },
+  {
+   "rarity": "legendary",
+   "name": "Cartel Vault",
+   "weight": 1.5,
+   "cash": 120000
+  }
+ ],
+ "autoSellUnlockLevel": 6,
+ "workerContracts": [
+  {
+   "minutes": 15,
+   "papers": 3
+  },
+  {
+   "minutes": 20,
+   "papers": 5
+  },
+  {
+   "minutes": 30,
+   "papers": 7
+  }
+ ],
+ "processContracts": [
+  {
+   "minutes": 15,
+   "contracts": 1
+  },
+  {
+   "minutes": 20,
+   "contracts": 2
+  },
+  {
+   "minutes": 30,
+   "contracts": 3
+  }
+ ],
+ "processContractPaperCost": 5,
+ "workerRateMult": 2.5,
+ "workerMaxActive": 3,
+ "paperDropChance": 0.015,
+ "prestige": {
+  "max": 25,
+  "cashBase": 1000000,
+  "cashStep": 250000
+ },
+ "gang": {
+  "createCost": 250000,
+  "minLevel": 5,
+  "baseCap": 5,
+  "maxCap": 10,
+  "maxLevel": 10,
+  "yieldPerLevel": 0.01,
+  "xpPerLevel": 0.01,
+  "xpShare": 0.5,
+  "inviteWindowMs": 1800000,
+  "xpCurve": [
+   0,
+   6000,
+   25723,
+   60271,
+   110275,
+   176193,
+   258386,
+   357155,
+   472759,
+   605425
+  ]
+ },
+ "starPerks": [
+  {
+   "id": "starYield",
+   "name": "Master of the Trade",
+   "faction": "both",
+   "max": 5,
+   "value": 0.06,
+   "blurb": "+6% output from every gather and process, per rank."
+  },
+  {
+   "id": "starXp",
+   "name": "Old Soul",
+   "faction": "both",
+   "max": 5,
+   "value": 0.08,
+   "blurb": "+8% XP from everything, per rank."
+  },
+  {
+   "id": "starStamina",
+   "name": "Iron Lungs",
+   "faction": "both",
+   "max": 5,
+   "value": 10,
+   "blurb": "+10 max stamina, per rank."
+  },
+  {
+   "id": "starHaggle",
+   "name": "Silver Tongue",
+   "faction": "both",
+   "max": 5,
+   "value": 0.04,
+   "blurb": "Every sale pays +4% more, per rank."
+  },
+  {
+   "id": "starGhost",
+   "name": "Under the Radar",
+   "faction": "civ",
+   "max": 5,
+   "value": 0.08,
+   "blurb": "Gain 8% less heat, per rank."
+  },
+  {
+   "id": "starBadge",
+   "name": "Decorated Officer",
+   "faction": "cop",
+   "max": 5,
+   "value": 0.1,
+   "blurb": "APD patrol and bust bounties pay +10%, per rank."
+  },
+  {
+   "id": "starBankroll",
+   "name": "Old Money",
+   "faction": "both",
+   "max": 5,
+   "value": 100000,
+   "blurb": "Every run after a prestige starts with +$100,000, per rank."
+  }
+ ],
+ "careerSwitchCooldownMin": 15,
+ "travel": {
+  "kavala": {
+   "kavala": 0,
+   "neochori": 7,
+   "athira": 11,
+   "pyrgos": 12,
+   "sofia": 22
+  },
+  "neochori": {
+   "kavala": 7,
+   "neochori": 0,
+   "athira": 5,
+   "pyrgos": 9,
+   "sofia": 16
+  },
+  "athira": {
+   "kavala": 11,
+   "neochori": 5,
+   "athira": 0,
+   "pyrgos": 6,
+   "sofia": 11
+  },
+  "pyrgos": {
+   "kavala": 12,
+   "neochori": 9,
+   "athira": 6,
+   "pyrgos": 0,
+   "sofia": 11
+  },
+  "sofia": {
+   "kavala": 22,
+   "neochori": 16,
+   "athira": 11,
+   "pyrgos": 11,
+   "sofia": 0
+  }
+ },
+ "wantedAt": 22,
+ "maxArrestBounty": 1000000,
+ "maxCrewsPerSite": 10,
+ "chatMaxLen": 240
+}

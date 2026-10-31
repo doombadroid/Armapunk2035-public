@@ -1,0 +1,14 @@
+params[["_position", [0, 0, 0], [[]]], ["_text", "ping", [""]]];
+private _markerName = format["_USER_DEFINED %1", (serverTime + (floor(random 1000)))];
+createMarkerLocal[_markerName, _position];
+_markerName setMarkerTypeLocal "mil_dot";
+_markerName setMarkerShapeLocal "ICON";
+_markerName setMarkerColorLocal "ColorBlack";
+_markerName setMarkerTextLocal _text;
+private _color = [(profileNamespace getVariable['IGUI_TACTPING_RGB_R', 0.6]), (profileNamespace getVariable['IGUI_TACTPING_RGB_G', 0.6]), (profileNamespace getVariable['IGUI_TACTPING_RGB_B', 0.6]), 1];
+private _handlerID = addMissionEventHandler["Draw3D", format["drawIcon3D ['a3\ui_f\data\IGUI\Cfg\TacticalPing\TacticalPingDefault_ca.paa', %1, %2, 1.5, 1.5, 0, '', 1, 0.05, 'TahomaB', 'center', true];", _color, _position]];
+AP_ping_list pushBack _text;
+uiSleep 60;
+deleteMarkerLocal _markerName;
+AP_ping_list deleteAt(AP_ping_list findIf {_x isEqualTo _text});
+removeMissionEventHandler["Draw3D", _handlerID];

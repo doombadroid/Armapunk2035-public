@@ -1,0 +1,93 @@
+/*
+    intake.hpp -- AP_Intake (idd 515900): THE INTAKE interview card (Act 1 onboarding), Night City
+    chrome (nc_panel graphite, nc_divider, ink question, mono progress, graphite answer rows with cyan
+    hover). Content painted by AP_fnc_intake mode "paint"; buttons dispatch mode "answer". ESC = skip.
+    idcs: 515910 question, 515911 progress, 515912-14 answers.
+*/
+class AP_Intake {idd = 515900;
+    name = "AP_Intake";
+    movingEnable = 0;
+    enableSimulation = 1;
+    onLoad = "uiNamespace setVariable ['AP_Intake', _this select 0];";
+    onUnload = "uiNamespace setVariable ['AP_Intake', displayNull];";
+
+    class controlsBackground {class NCPanel: AP_RscPicture {idc = -1;
+            text = "images\ui\nc_panel.paa";
+            x = 0.355 * safezoneW + safezoneX;
+            y = 0.30 * safezoneH + safezoneY;
+            w = 0.29 * safezoneW;
+            h = 0.40 * safezoneH;};
+        class Header: AP_RscTitle {idc = -1;
+            sizeEx = 0.042;
+            text = "PSYCHIATRIC EVALUATION";
+            x = 0.373 * safezoneW + safezoneX;
+            y = 0.322 * safezoneH + safezoneY;
+            w = 0.20 * safezoneW;
+            h = 0.030 * safezoneH;
+            colorText[] = { 0.922, 0.937, 0.957, 1 };
+            colorBackground[] = { 0, 0, 0, 0 };};
+        class Progress: AP_RscTitle {idc = 515911;
+            style = 1;
+            sizeEx = 0.030;
+            text = "";
+            x = 0.455 * safezoneW + safezoneX;
+            y = 0.325 * safezoneH + safezoneY;
+            w = 0.172 * safezoneW;
+            h = 0.026 * safezoneH;
+            colorText[] = { 0.780, 0.635, 0.306, 1 };
+            colorBackground[] = { 0, 0, 0, 0 };};
+        class NCDivider: AP_RscPicture {idc = -1;
+            text = "images\ui\nc_divider.paa";
+            x = 0.373 * safezoneW + safezoneX;
+            y = 0.356 * safezoneH + safezoneY;
+            w = 0.254 * safezoneW;
+            h = 0.005 * safezoneH;};};
+
+    class Controls {class Question: AP_RscStructuredText {idc = 515910;
+            size = 0.045;
+            sizeEx = 0.045;
+            text = "";
+            x = 0.373 * safezoneW + safezoneX;
+            y = 0.372 * safezoneH + safezoneY;
+            w = 0.254 * safezoneW;
+            h = 0.075 * safezoneH;
+            class Attributes { font = "PuristaSemibold"; color = "#ebeff4"; align = "left"; shadow = 0; };};
+        class Answer0: AP_RscButtonMenu {idc = 515912; text = "";
+            onButtonClick = "['answer', 0] call AP_fnc_intake;";
+            x = 0.373 * safezoneW + safezoneX;
+            y = 0.455 * safezoneH + safezoneY;
+            w = 0.254 * safezoneW;
+            h = 0.045 * safezoneH;
+            colorText[] = { 0.922, 0.937, 0.957, 1 };
+            colorBackground[] = { 0.118, 0.153, 0.208, 1 };
+            colorBackground2[] = { 0.216, 0.910, 0.941, 0.35 };
+            class Attributes { font = "PuristaMedium"; color = "#ebeff4"; align = "left"; shadow = "false"; };};
+        class Answer1: AP_RscButtonMenu {idc = 515913; text = "";
+            onButtonClick = "['answer', 1] call AP_fnc_intake;";
+            x = 0.373 * safezoneW + safezoneX;
+            y = 0.508 * safezoneH + safezoneY;
+            w = 0.254 * safezoneW;
+            h = 0.045 * safezoneH;
+            colorText[] = { 0.922, 0.937, 0.957, 1 };
+            colorBackground[] = { 0.118, 0.153, 0.208, 1 };
+            colorBackground2[] = { 0.216, 0.910, 0.941, 0.35 };
+            class Attributes { font = "PuristaMedium"; color = "#ebeff4"; align = "left"; shadow = "false"; };};
+        class Answer2: AP_RscButtonMenu {idc = 515914; text = "";
+            onButtonClick = "['answer', 2] call AP_fnc_intake;";
+            x = 0.373 * safezoneW + safezoneX;
+            y = 0.561 * safezoneH + safezoneY;
+            w = 0.254 * safezoneW;
+            h = 0.045 * safezoneH;
+            colorText[] = { 0.922, 0.937, 0.957, 1 };
+            colorBackground[] = { 0.118, 0.153, 0.208, 1 };
+            colorBackground2[] = { 0.216, 0.910, 0.941, 0.35 };
+            class Attributes { font = "PuristaMedium"; color = "#ebeff4"; align = "left"; shadow = "false"; };};
+        class Fineprint: AP_RscStructuredText {idc = -1;
+            size = 0.025;
+            sizeEx = 0.025;
+            text = "<t color='#5b636e'>Answers are recorded and legally binding in the state of Altis. (ESC to skip)</t>";
+            x = 0.373 * safezoneW + safezoneX;
+            y = 0.632 * safezoneH + safezoneY;
+            w = 0.254 * safezoneW;
+            h = 0.024 * safezoneH;
+            class Attributes { font = "PuristaLight"; color = "#5b636e"; align = "left"; shadow = 0; };};};};

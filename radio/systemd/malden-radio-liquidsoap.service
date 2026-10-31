@@ -1,0 +1,19 @@
+[Unit]
+Description=Malden Radio - liquidsoap station master
+After=malden-radio-icecast.service
+Requires=malden-radio-icecast.service
+
+[Service]
+User=radio
+Environment=ICECAST_HOST=127.0.0.1
+Environment=RADIO_MUSIC_DIR=/srv/radio
+EnvironmentFile=/etc/malden-radio/liquidsoap.env
+ExecStart=/usr/bin/liquidsoap /etc/malden-radio/radio.liq
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

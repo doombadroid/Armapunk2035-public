@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>F770-class industrial printer — Arma prop</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js",
+    "three/addons/exporters/OBJExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js",
+    "three/addons/exporters/GLTFExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js"
+  },
+  "integrity": {
+    "https://unpkg.com/three@0.184.0/build/three.module.js": "sha384-8FCZ1eVO6it4+pbec2aDtnTrwjWXZLJRC+MAGCIPDgsYnUrl/E0A2YlF8ioMKI/J",
+    "https://unpkg.com/three@0.184.0/build/three.core.js": "sha384-dw2ooPewaEIrAgl6oFDBmmBWCE9oW9LxRGcfwZ0hLvEprzo202wXl7vCYHRlSnOT",
+    "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js": "sha384-4rziNxOBZKQ69i+w+f89KJ55TCYquwchVbByQwmaOeIOXdOU2PLDn3kOfXHwIJC9",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js": "sha384-nbwtoZENJD3Vq+ACK0CuGQdPMuDWHkamC2KJD70EV5nfg6jQjfppKOea07YJN+N3",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js": "sha384-VofkvpG6HERhFCYbsUOHeNXBCqID2nfqkQqnVzE1jc/oPcz+qJ13ADdXH08hE+cQ"
+  }
+}
+</script>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { display: grid; grid-template-rows: 1fr; background: #23252c; }
+  .half { position: relative; border-bottom: 1px solid #3a3e48; }
+  three-d-stage { position: absolute; inset: 0; }
+  three-d-stage:not(:defined) { visibility: hidden; }
+  .cap { position: absolute; left: 16px; bottom: 14px; font: 12px/1.6 ui-monospace, Menlo, monospace;
+         color: #b8bcc4; background: rgba(24,26,32,.88); padding: 8px 12px;
+         border: 1px solid #3a3e48; border-radius: 8px; pointer-events: none; z-index: 5; }
+  .cap a { color: #0db8ff; pointer-events: auto; }
+</style>
+</head>
+<body>
+<div class="half">
+  <three-d-stage id="s1" name="ap_printer_f770" background="#23252c"></three-d-stage>
+  <div class="cap"><b>F770-CLASS PRINTER — EXPORT FROM HERE</b> · 2.24 × 1.80 × 1.09 m (player height), front +Z · open chamber, no door · head rasters 1 cm above the empty bed for 12 s (screen PRINTING), parks 6 s (screen READY)<br>
+  anim selections f770_bridge (X) / f770_head (Y) / f770_platform (Z) + screen hide pair → ARMA3_HANDOFF_F770.md · <a href="printer.html">desktop printers</a></div>
+</div>
+<script src="three-d-stage.js"></script>
+<script type="module">
+  const { buildF770, poseF770 } = await import('./f770.js');
+  const g1 = buildF770(); g1.name = 'ap_printer_f770';
+  poseF770(g1, 0);
+  const s1 = document.getElementById('s1');
+  await s1.ready; s1.setObject(g1);
+  window.__f770 = { printer: g1, poseF770 };
+  const t0 = performance.now();
+  (function anim(now) {
+    const t = (now - t0) / 1000;
+    poseF770(g1, t);
+    requestAnimationFrame(anim);
+  })(t0);
+</script>
+</body>
+</html>

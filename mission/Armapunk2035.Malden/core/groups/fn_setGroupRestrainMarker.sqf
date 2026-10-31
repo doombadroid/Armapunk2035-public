@@ -1,0 +1,18 @@
+params[["_mode", false, [false]], ["_restrained", objNull, [objNull]]];
+if (isNull _restrained) exitWith {};
+if ((_restrained getVariable["AP_restrained", false]) && !(_restrained getVariable["AP_civRestrained", false]) && _mode) exitWith {};
+private _uid = getPlayerUID _restrained;
+private _name = name _restrained;
+private _pos = getPos _restrained;
+deleteMarkerLocal format["restrained_dot_group_%1", _uid];
+private _marker = createMarkerLocal[format["restrained_dot_group_%1", _uid], _pos];
+_marker setMarkerShapeLocal "ICON";
+_marker setMarkerTypeLocal "mil_dot";
+_marker setMarkerColorLocal "ColorOrange";
+_marker setMarkerTextLocal format["Last Known Location of %1", _name];
+private _group = group player;
+private _endTime = time + (5 * 60);
+waitUntil {uiSleep 5;
+    (time > _endTime) || (isNull _restrained) || !(_group isEqualTo group player) || (_mode && !(_restrained getVariable["AP_blinded", false])) || (!_mode && !(_restrained getVariable["AP_restrained", false]));
+};
+deleteMarkerLocal format["restrained_dot_group_%1", _uid];

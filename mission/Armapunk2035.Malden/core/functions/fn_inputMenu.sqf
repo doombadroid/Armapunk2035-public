@@ -1,0 +1,14 @@
+private["_display", "_titleBox", "_submitButton", "_label"];
+disableSerialization;
+params[["_msg", "", [""]], ["_title", "Input", [""]], ["_submit", "OK", [""]]];
+AP_input_response = "";
+createDialog "AP_input_dialog";
+waitUntil {!isNull(findDisplay 3650)};
+_display = findDisplay 3650;
+_titleBox = _display displayCtrl 3651;
+_submitButton = _display displayCtrl 3653;
+_label = _display displayCtrl 3654;
+_label ctrlSetStructuredText(parseText _msg);
+_submitButton ctrlSetText _submit;
+_titleBox ctrlSetText _title;
+waitUntil {isNull(findDisplay 3650)};

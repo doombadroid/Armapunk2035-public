@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8"><title>hatch_ruler</title>
+<!-- CALIBRATION skin for the Hatchback: the stock sheet with numbered horizontal lines every 25 px
+     through both side profiles, so a UV offset between fender / door / quarter can be read off the
+     car at a seam. Static: [cursorObject, "hatch_ruler"] call AP_fnc_htmlSkin; -->
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}canvas{display:block;width:100vw;height:100vh}</style>
+</head><body><canvas id="c" width="2048" height="2048"></canvas><script>
+(function(){
+  var cv=document.getElementById("c"),ctx=cv.getContext("2d"),base=new Image();
+  var BASE="a3\\soft_f_gamma\\Hatchback_01\\data\\Hatchback_01_ext_BASE01_CO.paa";
+  function draw(ok){
+    if(ok)ctx.drawImage(base,0,0,2048,2048);else{ctx.fillStyle="#223";ctx.fillRect(0,0,2048,2048);}
+    var cols=["#ff3b3b","#ffd23b","#3bff6a","#3bc8ff"];
+    [[560,980],[1000,1420]].forEach(function(r){
+      for(var y=r[0],k=0;y<=r[1];y+=25,k++){
+        ctx.fillStyle=cols[k%4];ctx.fillRect(0,y,1450,4);
+        ctx.font="bold 22px monospace";ctx.textBaseline="bottom";ctx.textAlign="left";
+        for(var x=80;x<1450;x+=200){ctx.fillStyle="#000";ctx.fillRect(x-2,y-22,52,22);ctx.fillStyle=cols[k%4];ctx.fillText(String(y),x,y-1);}
+      }
+    });
+    // vertical ticks every 100 px along the belt so x reads too
+    for(var x=0;x<1450;x+=100){ctx.fillStyle="#fff";ctx.fillRect(x,560,3,420);ctx.fillRect(x,1000,3,420);ctx.font="bold 20px monospace";ctx.fillStyle="#fff";ctx.fillText(String(x),x+5,600);ctx.fillText(String(x),x+5,1040);}
+  }
+  var tries=[BASE,"\\"+BASE,BASE.toLowerCase()],i=0;
+  (function next(){ if(i>=tries.length){draw(false);return;} var p=tries[i++];
+    if(typeof A3API==="undefined"){draw(false);return;}
+    A3API.RequestTexture(p,2048).then(function(u){ if(!u||u.length<200)return next(); base.onload=function(){draw(true);}; base.onerror=function(){next();}; base.src=u; }).catch(function(){next();}); })();
+})();
+</script></body></html>

@@ -1,0 +1,32 @@
+#!/sbin/openrc-run
+# OpenRC service for Officer Maggot (LooneyBin MaxSec cop-whitelist application bot).
+# Install:
+#   sudo install -m 0755 officer-maggot-svc.sh  /usr/local/bin/officer-maggot
+#   sudo install -m 0755 officer-maggot.initd   /etc/init.d/officer-maggot
+#   sudo rc-update add officer-maggot default
+#   sudo rc-service officer-maggot start
+# NB: command points at the /usr/local/bin/officer-maggot launcher -- supervise-daemon
+#     chokes on spaces, and the project path has them.
+
+name="Officer Maggot"
+description="LooneyBin MaxSec cop-whitelist application bot"
+
+command="/usr/local/bin/officer-maggot"
+command_user="timb:timb"
+
+supervisor="supervise-daemon"
+pidfile="/run/officer-maggot.pid"
+respawn_delay=5
+respawn_max=0          # 0 = respawn forever
+output_log="/var/log/officer-maggot/officer-maggot.log"
+error_log="/var/log/officer-maggot/officer-maggot.log"
+
+depend() {
+    need net
+    use dns
+    after firewall
+}
+
+start_pre() {
+    checkpath -d -m 0755 -o timb:timb /var/log/officer-maggot
+}

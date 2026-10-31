@@ -1,0 +1,10 @@
+params[["_list", controlNull, [controlNull]], ["_selection", -1, [-1]], ["_shop", "", [""]]];
+if ((lbCurSel 39403) isEqualTo - 1) exitWith {["You need to select an item to buy/sell.", "basic"] spawn AP_fnc_handleMessage;};
+private _lootBoxID = parseNumber(_list lbData _selection);
+private _price = _list lbValue _selection;
+if !([_price] call AP_fnc_debitCard) exitWith {};
+[format["You bought a permanent vehicle skin, You can now apply it at any garage!", [_price] call AP_fnc_numberText], "basic"] spawn AP_fnc_handleMessage;
+[[player, _lootBoxID, getPlayerUID player], "APS_fnc_doBuySkin", 2] spawn AP_fnc_MP;
+AP_lootRewards pushBack _lootBoxID;
+PlaySound "purchase";
+closeDialog 39400;

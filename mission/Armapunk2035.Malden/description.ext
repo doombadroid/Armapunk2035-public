@@ -1,0 +1,127 @@
+#include "version.hpp"
+author="Doomba";briefingName=AP_ONLOAD_NAME;onLoadName=AP_ONLOAD_NAME;onLoadMission=AP_ONLOAD_MISSION;loadScreen="images\splash.jpg";joinUnassigned=1;disabledAI=1;enableDebugConsole[]={"76561190000000001"};scriptedPlayer=1;unsafeCVL=1;respawn=BASE;respawnDelay=0;respawnButton=0;respawnDialog=0;class Header{gameType=RPG;minPlayers=1;maxPlayers=61;};wreckManagerMode=0;wreckLimit=3;wreckRemovalMinTime=60;wreckRemovalMaxTime=320;corpseManagerMode=2;corpseLimit=120;corpseRemovalMinTime=1860;corpseRemovalMaxTime=1920;
+
+disableChannels[]={ // {channelID<number>, disableChat<bool>, disableVoice<bool>}
+	{0,true,true}, //Global
+	{1,true,true}, //Side
+	{2,true,true}, //Command
+	{3,false,false}, //Group
+	{4,false,false}, //Vehicle
+	{5,false,false}, //Direct
+	{6,false,true} //CustomSide
+};
+
+showHUD[] = {true,	// Scripted HUD (same as showHUD command)
+	true,	// Vehicle + soldier info
+	false,	// Vehicle radar [HIDDEN]
+	false,	// Vehicle compass [HIDDEN]
+	false,	// Tank direction indicator
+	false,	// Commanding menu
+	true,	// Group Bar
+	true,	// HUD Weapon Cursors
+	true	// HUD Squad Radar
+};
+#include"dialog\MasterHandler.h"
+#include"outlw_magRepack\MagRepack_Config.hpp"
+#include"Config_physWeights.hpp"
+#include"core\chatcom\cfgresources.hpp"
+#include"core\radio\radioCfg.hpp"
+// Include order is load-bearing and NOT what it looks like: measured directly on
+// this engine, a later same-named "class Foo {...}" redeclaration does NOT win
+// over an earlier one for members both declare -- the engine logs "Member already
+// defined" and keeps the FIRST value, full stop (self-inheritance "class Foo :
+// Foo {}" changes nothing; tested, byte-identical outcome). So OURS goes first:
+// our narrow override (store/sqlExec) claims those members, then the library's
+// defaults fill in everything else it does not collide with, unharmed.
+// AQ_HOST_CONTENT suppresses ArmaQuest's SAMPLE content (its AQ_Settings, AQ_Quests,
+// AQ_Templates, AQ_Pools, AQ_Givers and profile_default's AQ_Profile). Ours are
+// authored in aq_content.hpp, deliberately outside the vendored tree so a re-vendor
+// cannot overwrite them -- and without this define BOTH files declare all six, which
+// the engine reports as "Member already defined" in a MESSAGE BOX the player clicks
+// past at every startup. Not fatal, which is why it survived this long: the classes
+// merge, the mission runs, and it just looks broken.
+//
+// Nothing is lost by suppressing them. The library's AQ_Settings was never actually
+// contributing: ours is parsed first and wins the class outright, which is provable
+// from the boot log -- flushInterval and sweepInterval come out as 60/5, ArmaQuest's
+// own CODE defaults, not the 30/60 its config sets. tools/aq_check.py now fails if
+// upstream adds a setting we do not carry, so that stays true.
+//
+// AQ_TypeProbe is still defined by the library either way; aq_fnc_registerType probes
+// custom objective types against it.
+#define AQ_HOST_CONTENT
+#include "aq_content.hpp"                       // OURS: settings, givers, content
+#include "ArmaQuest\config\CfgArmaQuest.hpp"   // shipped types (AQ_TypeProbe)
+class RscTitles{
+	// CONNECT-TIME CACHE WORKER -- an invisible browser that pulls the map's three
+	// text assets, all 169 sat tiles at two mips and every item icon through A3API
+	// at connect, so the conversion cost lands during the loading screen and not on
+	// the first press of M, the first shop or the first inventory. Never shown.
+	// See ui\html\warm.html and core\web\fn_warmBridge.sqf.
+	//
+	// THE onLoad IS NOT DECORATION. A title layer is not findDisplay-able (see
+	// dialog\hudWeb.hpp's header for the same note against AP_web_hud), so parking
+	// the display in uiNamespace is the ONLY way fn_warmBridge can reach control
+	// 930451 to wire the progress channel onto it. onUnload clears the slot so a
+	// re-cut does not hand out a dead handle.
+	class AP_map_warm {
+		idd = 930450;
+		duration = 1e10;
+		fadeIn = 0; fadeOut = 0;
+		onLoad = "uiNamespace setVariable ['AP_map_warm', _this select 0];";
+		onUnload = "uiNamespace setVariable ['AP_map_warm', displayNull];";
+		class controls {
+			class Warm {
+				idc = 930451;
+				type = 106;
+				style = 0;
+				x = safezoneX; y = safezoneY;
+				w = 0.02; h = 0.02;   // present but a speck; the page draws nothing
+				colorBackground[] = {0,0,0,0};
+				colorText[] = {1,1,1,1};
+				font = "RobotoCondensed";
+				sizeEx = 0.02;
+				url = "ui\html\warm.html";
+			};
+		};
+	};
+#include"dialog\radioHUD.hpp"
+#include"dialog\ui.hpp"
+#include"dialog\gangFortHUD.hpp"
+#include"dialog\progress.hpp"
+#include"dialog\message_hud.hpp"
+#include"dialog\chat_hud.hpp"
+#include"dialog\loadingBackground.hpp"
+#include"dialog\toastHUD.hpp"
+#include"dialog\gpsHUD.hpp"
+#include"dialog\hudWeb.hpp"
+};class CfgFunctions{
+#include"Functions.h"
+};class CfgRemoteExec{
+#include"CfgRE.hpp"
+};class CfgDisabledCommands{
+#include"CfgDisabledCommands.hpp"
+};class CfgSounds{sounds[]={};
+#include"CfgSounds.hpp"
+};class CfgMusic{tracks[]={};
+#include"core\radio\radioMusic.hpp"
+};class CfgDebriefing{class wrongWorld{title="Wrong World Loaded";subtitle="Please restart your game or rejoin the server.";description="Your game has loaded a map that is not Malden. Please restart your game and rejoin the server. Arma is being Arma...";pictureBackground="";picture="";pictureColor[]={0,0.3,0.6,1};};class SpyGlass{title="The SpyGlass sees you";subTitle="You were detected by the SpyGlass";description="You were detected for cheating and have been reported to the server. Enjoy your day.";pictureBackground="";picture="";pictureColor[]={0,0.3,0.6,1};};class MemHackCash{title="Mission Failed";subtitle="Money failed validation";description="You have been detected with hacked money or hacked items. Visit our Discord for support";pictureBackground="";picture="";pictureColor[]={0,0.3,0.6,1};};class AFKdetected{title="AFK DETECTED";subtitle="AFK DETECTED";description="You have been detected and kicked for being afk";pictureBackground="";picture="";pictureColor[]={0,0.3,0.6,1};};class nullUnit{title="Error: No unit";subtitle="Please restart your game or rejoin the server.";description="Your unit was detected as null. Please restart your game and rejoin the server. Arma is being Arma...";pictureBackground="";picture="";pictureColor[]={0,0.3,0.6,1};};};class CfgNotifications{class MedicalRequestEmerg{title="EMS Requested";iconPicture="\A3\ui_f\data\map\mapcontrol\taskIcon_ca.paa";description="%1";duration=5;priority=7;};class Achievement {title="New Achievement";iconPicture="\A3\ui_f\data\map\mapcontrol\taskIcondone_ca.paa";description="%1";duration=6;priority=6;};class BountyUpdate{title="Bounty Update";iconPicture="icons\police.paa";description="%1";duration=5;priority=7;};class BankRobbery{title="Bank Robbery";iconPicture="icons\drill.paa";description="%1";duration=8;priority=7;color[]={1.0,0.35,0.2,1.0};};class DeliveryAssigned{title="Delivery Job Accepted";iconPicture="\A3\ui_f\data\map\mapcontrol\taskIcon_ca.paa";description="%1";duration=10;priority=7;};class DeliveryFailed{title="Delivery Job Failed";iconPicture="\A3\ui_f\data\map\mapcontrol\taskiconfailed_ca.paa";description="%1";duration=7;priority=7;};class DeliverySucceeded{title="Delivery Job Completed";iconPicture="\A3\ui_f\data\map\mapcontrol\taskIcondone_ca.paa";description="%1";duration=6;priority=6;};class StatGain{title="Stat Gain";iconPicture="\A3\ui_f\data\map\mapcontrol\taskIconDone_ca.paa";description="%1";duration=6;priority=6;color[]={0.7,1.0,0.3,1.0};sound="taskSucceeded";};class StatLoss{title="Stat Loss";iconPicture="\A3\ui_f\data\map\mapcontrol\taskIconFailed_ca.paa";description="%1";duration=6;priority=6;color[]={1.0,0.3,0.2,1.0};sound="taskFailed";};class AllPointsBulletin{title="All Points Bulletin";iconPicture="icons\APB.paa";description="%1";duration=10;priority=6;};;class cartelEventAlert{title="Cartel Event Alert";iconPicture="a3\Ui_f\data\GUI\Cfg\CommunicationMenu\attack_ca.paa";description="%1";duration=5;priority=6;};class warKill{title="WAR KILL CONFIRMED";iconPicture="a3\Ui_f\data\GUI\Cfg\CommunicationMenu\attack_ca.paa";description="%1";color[]={0.7,1.0,0.3,1.0};duration=6;priority=6;};class warDeath{title="KILLED BY WARRING GANG";iconPicture="a3\Ui_f\data\GUI\Cfg\CommunicationMenu\attack_ca.paa";description="%1";color[]={1.0,0.3,0.2,1.0};duration=6;priority=6;};class GovMessage{title="Governor Message";iconPicture="icons\govern.paa";description="%1";duration=10;priority=5;};class timeTrial{title="Time Trial";iconPicture="\A3\ui_f\data\map\mapcontrol\taskIcon_ca.paa";description="%1";duration=2;priority=7;};class timeTrialFast{title="Time Trial";iconPicture="\A3\ui_f\data\map\mapcontrol\taskIcon_ca.paa";description="%1";duration=1;priority=7;};};
+class CfgVehicles{
+#include"cfgVehicles.hpp"
+};
+
+// Web UI bridge: local pages loaded by a CT_WEBBROWSER url= are subject to this
+// whitelist. "+=" EXTENDS the engine defaults rather than replacing them, so no
+// existing htmlLoad / ctrlSetURL / menuSetURL usage elsewhere is restricted.
+class CfgCommands
+{
+	// Without this a page renders perfectly and can never call back — there is
+	// no error. Covers the mission's own pages and anything shipped under the
+	// arma-webui library directory.
+	allowedHTMLLoadURIs[] += {
+		"ui\\html\\*",
+		"ui\\html\\casino\\*",
+		"webui\\ui\\*",
+		"ArmaQuest\\ui\\*"
+	};
+};

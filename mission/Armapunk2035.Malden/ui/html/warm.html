@@ -1,0 +1,281 @@
+<!doctype html>
+<!-- CONNECT-TIME CACHE WORKER (was: TILE WARMER). Loaded once, invisibly, at
+     connect (RscTitles layer AP_map_warm, description.ext): pulls everything the
+     session is about to want through A3API so the engine's conversion work lands
+     during the loading screen instead of on the first press of M, the first shop,
+     the first inventory. Also the first webview of the session pays the CEF spawn
+     cost -- better here than on a keypress. Draws nothing, runs no rAF, removes
+     nothing: it is a cache heater, then it idles forever.
+
+     IT LIVES HERE AND NOT ON THE LANDING PAGE FOR ONE REASON: the landing dialog
+     CLOSES on DEPLOY, and a closing display takes its in-flight fetches with it.
+     A title layer is never closed, so a player who deploys at 3% keeps filling
+     the cache while he walks around. That is also why PLAY is not gated on any
+     of this -- see ui\html\landing.html and core\web\fn_landingData.sqf.
+
+     IT REPORTS. WEBUI.call("warmProgress", [pct, done, total]) -> AP_fnc_warmProgress,
+     which stores AP_warmPct and re-pushes the landing payload, which is what makes
+     the landing screen's loading bar a real bar. The bridge is OPTIONAL in both
+     directions: a warmer that cannot reach SQF still warms, and SQF that never
+     hears from the warmer falls back to 100 rather than showing an empty bar
+     forever (AP_fnc_warmBridge's watchdog).
+
+     IT ALSO ASKS. The weapon shop's thumbnails are GAME CONTENT pictures resolved
+     out of CfgWeapons when the shop opens, so no list written into this file could
+     stay right. Once the bridge is up the page calls warmReady, SQF answers with
+     AP_fnc_warmCatalogue's paths on the "warmGuns" channel, and they are appended to
+     the END of the queue. Nothing is reported until that answer lands (or times out),
+     because a denominator that grows after the first message makes the bar lie.
+
+     ONLY ON CHANGE, AND ONLY WHEN IT LANDS. report() sends at most one message per
+     whole percentage point -- about a hundred over the run -- and does NOT advance
+     its "already sent" mark unless the message actually went out, so a bridge that
+     arrives late is caught by the 500 ms backstop ticker rather than losing every
+     value it missed. Each message is ~50 bytes; webui.js caps page -> SQF at 10240,
+     so nothing here is ever near it.
+
+     A MISS MUST NOT STALL THE PUMP. RequestTexture RESOLVES with a ~23 char stub
+     for a path the game filesystem does not have, and RequestFile REJECTS -- both
+     are counted as done, because the alternative is a queue that parks on the first
+     missing icon and a bar that stops at 12% forever.
+
+     NOTHING IN THIS COMMENT MAY CONTAIN A CLOSING SCRIPT TAG. An HTML script
+     element ends at the first one anywhere in its content, including inside a
+     comment. -->
+<html><head><meta charset="utf-8"><title>warm</title></head>
+<body style="margin:0;background:transparent">
+<script>
+/* GENERATED. Every basename in mission\Armapunk2035.Malden\icons\*.paa. Regenerate
+   with:
+
+     python3 - <<EOF
+     import pathlib, textwrap
+     d = pathlib.Path("mission/Armapunk2035.Malden/icons")
+     n = sorted(p.stem for p in d.glob("*.paa"))
+     print(", ".join('"%s"' % x for x in n))
+     EOF
+
+   A stale list warms fewer icons and breaks nothing -- the count is read back out
+   of the queue's own total, never assumed, so the bar cannot lie about it. */
+var ICONS = [
+  "APB", "Casino", "adrenalineShot", "agingbarrel", "airalarm", "airdrop", "apple", "arrows",
+  "arsonistkit", "badgeico", "bagwalllong", "bagwallround", "bagwallshort", "ballistic_plate",
+  "bank", "bank_money", "barGate", "barley", "beer", "berry", "blacklace", "blacklaceprime",
+  "blindfold", "bloodbag", "bluegift", "boltCutter", "boombox", "boost", "campfire", "canna_bong",
+  "canna_joint", "canna_preroll", "canna_rawpapers", "canna_rig", "canna_vape", "cannabisdab",
+  "cannabisindica", "cannabismedical", "cannabisplant", "cannabisseed", "cannabissprout",
+  "caralarm", "carbon_weave", "catshark", "checkmark", "chicken", "chickenp", "circuit_lamina",
+  "cncBarrier", "cncBarrierL", "coffee", "copper_r", "copperore", "corn", "cryptoCPU",
+  "cryptoCase", "cryptoConsole", "cryptoCooler", "cryptoGPU", "cryptoMotherboard", "cryptoPSU",
+  "cryptoRam", "cryptoStorage", "cyberdeck", "debitcard", "deck_cyberdeck", "defib", "demoCharge",
+  "diamond", "diamondc", "diamondf", "dog", "dogp", "dollarsign", "donerkebab", "donuts",
+  "doubloon", "ducttape", "element115", "excavator", "filament", "firstaid", "fuelE", "fuelF",
+  "gangwar", "glass", "glitter", "glitterbase", "goat", "goatp", "goldbar", "goldnugget",
+  "govern", "grapes", "gunsmith_bench", "halloweengift", "hud_delivery", "hud_food", "hud_health",
+  "hud_norevive", "hud_passivemode", "hud_police", "hud_target", "hud_water", "ignitionbomb",
+  "iron_r", "ironore", "jewelCrowbar", "jewelLaser", "jewelap", "jewelbag", "jewelcuban",
+  "jeweldiamonds", "jewelexobag", "jewelgoldbag", "jewelhope", "jewelring", "jewelrolex", "kebab",
+  "lacebase", "ladder", "loonybinpartystreamer", "lower_heavy", "lower_pistol", "lower_rifle",
+  "lower_smg", "mackerel", "manflesh", "manfleshp", "marijuana", "med_advemt", "med_asstchief",
+  "med_chief", "med_emr", "med_emt", "med_hex", "med_paramedic", "metaldetector", "money",
+  "moonshine", "mullet", "nanofoam", "newdrachma", "nitro", "oilp", "oilu", "optic_blank",
+  "ornate", "painkillers", "peach", "pfc_gs", "phone_phone", "phonebomb", "pickaxe", "plank",
+  "plankh", "plankl", "police", "polymer_pellet", "printer_corexy", "printer_i3", "protest",
+  "qhchip", "rabbit", "rabbitp", "razorwire", "redburger", "redgull", "redshift", "roadBarrier",
+  "roadCone", "rock", "rook", "rubber", "ruby", "rum_0", "rum_1", "rum_2", "rum_3", "rye",
+  "salema", "salt", "salt_r", "saltwater", "sand", "scotch_0", "scotch_1", "scotch_2", "scotch_3",
+  "shank", "shard", "shard_epic", "shard_rare", "sheep", "sheepp", "sickle", "silverpiece",
+  "skinningknife", "skull", "smash", "smashbrick", "smashpowder", "snake", "snakep", "soda",
+  "sparkdust", "speedbomb", "spikeStrip", "spraycan", "storage1", "storage2", "tbacon", "tent1",
+  "tent2", "thermite", "timber", "timberh", "timberl", "tobaccou", "toxicslurry", "tracker",
+  "treasure", "treasuremap", "tt_commander", "tt_corporal", "tt_lieutenant", "tt_marshal",
+  "tt_private", "tt_sergeant", "tt_wo", "tuna", "turtle", "turtlesoup", "tutorial", "uraniump",
+  "uraniumu", "vammo", "warningico", "water", "whiskeyc_0", "whiskeyc_1", "whiskeyc_2",
+  "whiskeyc_3", "whiskeyr_0", "whiskeyr_1", "whiskeyr_2", "whiskeyr_3", "woodaxe", "xmasgift",
+  "yeast", "ziptie"
+];</script>
+<script>
+/* The bridge. A script element with a src cannot work here -- the page has no
+   resolvable base URL -- so webui.js is fetched through A3API and eval'd, exactly
+   as ui\html\hud.html's shim does it. SQF injects the same file on PageLoaded and
+   webui.js is idempotent, so whichever lands first wins. The warming below does
+   NOT wait for this: reporting is a nicety, warming is the job. */
+if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  A3API.RequestFile("webui\\ui\\webui.js")
+    .then(function (s) { try { (0, eval)(s); } catch (e) { window.__warmBootErr = "eval: " + e; } })
+    ["catch"](function (e) { window.__warmBootErr = "RequestFile: " + e; });
+} else {
+  window.__warmBootErr = "no A3API.RequestFile on this page";
+}
+</script>
+<script>
+(function () {
+  if (typeof A3API === "undefined" || !A3API.RequestTexture) return;
+
+  var GRID = 13, LANES = 3;
+  var inflight = 0, q = [], done = 0, total = 0, sent = -1, ticks = 0, tick = null;
+  /* The weapon thumbnails arrive from SQF, so the denominator is not knowable at boot.
+     Nothing is REPORTED until it is final -- see report() and finalize(). */
+  var finalized = false, guns = 0, subTries = 0, sub = null;
+  function pad3(n) { return ("00" + n).slice(-3); }
+
+  /* 1. THE MAP'S OWN ASSETS, FIRST. Three files, small, and both map surfaces
+        block on them at boot -- MALDEN GRID (ui\html\map.html) and, since the 3D
+        minimap landed, the status HUD as well. Everything below is pop-in; these
+        three are a screen that sits on "LOADING" until they arrive. */
+  if (A3API.RequestFile) {
+    ["ui\\html\\malden_hf.txt", "ui\\html\\malden_bld.txt", "ui\\html\\malden_msh.txt"]
+      .forEach(function (p) { q.push(["file", p, 0]); });
+  }
+
+  /* 2. THE SATELLITE LAYER, at the two mips both screens sample. */
+  for (var r = 0; r < GRID; r++) for (var c = 0; c < GRID; c++) {
+    q.push(["tex", "a3\\map_malden\\data\\layers\\s_" + pad3(c) + "_" + pad3(r) + "_lco.paa", 128]);
+    q.push(["tex", "a3\\map_malden\\data\\layers\\s_" + pad3(c) + "_" + pad3(r) + "_lco.paa", 256]);
+  }
+
+  /* 3. THE ITEM ICONS. Every shop, inventory, loot, storage and fitting grid draws
+        from this one directory, so one pass here removes the pop-in from five
+        screens. Mission-relative: WEBUI.texture's root ladder is not available at
+        the moment the queue is built, so the path is asked for as-is and a miss
+        simply resolves with a stub -- which is why a miss must not stall the pump. */
+  for (var i = 0; i < ICONS.length; i++) { q.push(["tex", "icons\\" + ICONS[i] + ".paa", 128]); }
+
+  /* 4. THE WEAPON SHOP THUMBS ARE NOT QUEUED HERE. They are GAME CONTENT pictures --
+        A3\Weapons_F\...\gear_*_CA.paa, resolved per row out of CfgWeapons when the
+        ARMORY opens (core\web\fn_armoryOpen.sqf) -- so no list written into this file
+        could stay right. AP_fnc_warmCatalogue enumerates them from the same catalogue the
+        shops read and pushes them on "warmGuns", and they go on the END of the queue: they
+        matter on the first shop visit, not at spawn. See subscribe() below. */
+
+  total = q.length;
+
+  /* Read by scratchpad\grid3d_harness\render_warm.mjs and by nothing in the game.
+     The harness measures concurrency off its own A3API stub, not off this. */
+  window.__warm = { total: total, done: 0, pct: 0, sent: [], drained: false, err: null,
+                    guns: 0, finalized: false };
+
+  function post(pct) {
+    if (!(window.WEBUI && WEBUI.call)) { return false; }
+    try {
+      WEBUI.call("warmProgress", [pct, done, total])["catch"](function () {});
+      window.__warm.sent.push(pct);
+      return true;
+    } catch (e) { window.__warm.err = String(e); return false; }
+  }
+
+  /* sent is only advanced when the message actually went out. A bridge that is
+     not up yet therefore loses nothing: the next call -- or the ticker -- retries
+     the CURRENT figure, which is the only one anybody wants. */
+  function report() {
+    var pct = total ? Math.round(done * 100 / total) : 100;
+    window.__warm.done = done; window.__warm.pct = pct;
+    /* NOT ONE MESSAGE GOES OUT BEFORE THE DENOMINATOR IS FINAL. The weapon pictures are
+       appended once SQF answers, so a figure sent before that is measured against a total
+       that is about to grow -- the bar would have to either go backwards or hold a number
+       it knows is wrong. Both are the lie this feature exists to stop, and the wait costs
+       nothing: post() cannot reach SQF before the bridge is up either way, and the bridge
+       is what triggers the answer. finalize() has its own deadline for the case where the
+       answer never comes. */
+    if (!finalized) { return; }
+    if (pct === sent) { return; }
+    if (post(pct)) { sent = pct; }
+  }
+
+  /* The denominator is now what the queue holds, and reporting starts. Idempotent: the
+     "warmGuns" last chunk, the WEBUI.call rejection and the 25 s backstop all land here. */
+  function finalize() {
+    if (finalized) { return; }
+    finalized = true;
+    total = done + inflight + q.length;
+    window.__warm.total = total; window.__warm.guns = guns; window.__warm.finalized = true;
+    if (done >= total) { window.__warm.drained = true; }
+    report();
+  }
+
+  /* Appended, never spliced in: everything already queued was queued because it is needed
+     sooner. A leading backslash is stripped AGAIN here even though AP_fnc_warmCatalogue
+     already did it -- RequestTexture answers a leading-backslash path with a silent stub,
+     so the cost of the second check is one character test and the cost of missing it is a
+     whole shop of broken thumbs that looks exactly like a slow client. */
+  function addGuns(list) {
+    if (!list || !list.length) { return; }
+    for (var i = 0; i < list.length; i++) {
+      var p = String(list[i]);
+      if (p.charAt(0) === "\\") { p = p.slice(1); }
+      if (!p) { continue; }
+      q.push(["tex", p, 128]);
+      guns += 1;
+    }
+    window.__warm.drained = false;
+    pump();
+  }
+
+  /* THE PAGE ASKS; IT IS NOT TOLD. webui.js replays only the LAST value pushed on a
+     channel to a late subscriber, so a chunked push that beat this subscription would
+     lose every chunk but one with no error anywhere. Calling warmReady only once the
+     handler is installed makes that race impossible. An SQF side with no warmReady
+     handler answers "unknown method", which rejects -- and finalizes on the old total. */
+  function subscribe() {
+    if (!(window.WEBUI && WEBUI.on && WEBUI.call)) { return false; }
+    WEBUI.on("warmGuns", function (v) {
+      if (!v || !v.length) { finalize(); return; }
+      addGuns(v[0]);
+      if (v[1]) { finalize(); }
+    });
+    WEBUI.call("warmReady", [])["catch"](function () { finalize(); });
+    return true;
+  }
+
+  function fin() {
+    done++; inflight--;
+    if (finalized && done >= total) { window.__warm.drained = true; }
+    report(); pump();
+  }
+
+  function pump() {
+    while (inflight < LANES && q.length) {
+      var j = q.shift(), pr = null;
+      inflight++;
+      try {
+        pr = (j[0] === "file") ? A3API.RequestFile(j[1]) : A3API.RequestTexture(j[1], j[2]);
+      } catch (e) { pr = null; }
+      /* .then(fin, fin): a rejection is a completion. A synchronous throw, or an
+         A3API that answered with something that is not a promise, would otherwise
+         leak a lane -- so it is finished on a timer instead, which also keeps the
+         whole queue from unwinding as one recursive call stack. */
+      if (pr && typeof pr.then === "function") { pr.then(fin, fin); }
+      else { setTimeout(fin, 0); }
+    }
+  }
+
+  /* THE BACKSTOP. webui.js arrives asynchronously and may lose the race to the
+     first few dozen completions; the last value also has to land even if it was
+     the only one the bridge was ever up for. 500 ms, stops itself the moment 100
+     has gone out, and gives up after ten minutes so a page with no bridge at all
+     does not tick for the rest of the session. */
+  tick = setInterval(function () {
+    ticks += 1;
+    report();
+    if (sent === 100 || ticks > 1200) { clearInterval(tick); tick = null; }
+  }, 500);
+
+  /* 50 ms, not the 500 ms ticker: the queue can drain in well under a second on a warm
+     client, and every percentage point spent waiting to subscribe is one the bar never
+     shows. Bounded at 20 s; the backstop below is what guarantees a finish. */
+  sub = setInterval(function () {
+    subTries += 1;
+    if (subscribe() || subTries > 400) { clearInterval(sub); sub = null; }
+  }, 50);
+  if (subscribe()) { clearInterval(sub); sub = null; }
+
+  /* THE BACKSTOP FOR THE DENOMINATOR, under AP_fnc_warmBridge's own 30 s watchdog so the
+     page has had its say before SQF gives up on it. Covers every way the answer can fail
+     to arrive that the page cannot see: no bridge at all, a handler that never replies,
+     an SQF error mid-catalogue. Reporting then simply resumes on the total it already had. */
+  setTimeout(finalize, 25000);
+
+  report();
+  pump();
+})();
+</script></body></html>

@@ -1,0 +1,61 @@
+{
+  "_README": [
+    "LooneyBin car-radio schedule. Host this file at a STABLE public URL (e.g. https://projectloonybin.com/radio.json).",
+    "The GAME SERVER polls it (~every 60s) and broadcasts the current track per station to players -- NO restart needed to change it.",
+    "",
+    "HARD RULE: 'id' must be a PACKED song (a CfgSounds class already in the mission). Arma cannot stream audio from the web --",
+    "the .ogg files themselves must be packed into the mission. Workflow: you give the .ogg files -> I pack them + hand you back",
+    "the 'id' for each -> you drop those ids into this JSON. Adding a NEW song = one deploy to pack it; after that, reorder / move",
+    "between stations / rename stations / change genres FREELY from this file, live.",
+    "",
+    "'len' = song length in WHOLE seconds (used to auto-advance + keep every listener on the same track). Get it right or tracks drift.",
+    "The station loops its playlist forever; 'what's playing now' is computed from wall-clock so everyone tuned to a station hears the",
+    "same song at the same time (a real broadcast). The driver picks the STATION; the station's content comes from here."
+  ],
+  "version": 1,
+  "poll_seconds": 60,
+  "stations": {
+    "origin": {
+      "name": "Origin",
+      "genre": "Top 40",
+      "playlist": [
+        { "id": "AutoRadioSongHotGirl",     "title": "Hot Girl Summer - Megan Thee Stallion", "len": 199 },
+        { "id": "AutoRadioSongRoyalty",     "title": "Royalty - XXXTENTACION",                 "len": 203 },
+        { "id": "AutoRadioSongSaintTropez", "title": "Saint-Tropez - Post Malone",              "len": 151 },
+        { "id": "AutoRadioSongSun",         "title": "Sun In Your Eyes - MO",                   "len": 212 }
+      ]
+    },
+    "khr": {
+      "name": "KHR",
+      "genre": "Hip-Hop / Rap",
+      "playlist": [
+        { "id": "AutoRadioSongHotGirl", "title": "Hot Girl Summer - Megan Thee Stallion", "len": 199 },
+        { "id": "AutoRadioSongRoyalty", "title": "Royalty - XXXTENTACION",                 "len": 203 }
+      ]
+    },
+    "pulse": {
+      "name": "Pulse",
+      "genre": "EDM / Dance",
+      "playlist": [
+        { "id": "AutoRadioSongSun",       "title": "Sun In Your Eyes - MO", "len": 212 },
+        { "id": "AutoRadioSongKnowYou",   "title": "I Wanna Know You - PBH & Jack", "len": 165 }
+      ]
+    },
+    "classico": {
+      "name": "Classico",
+      "genre": "Classic Rock",
+      "playlist": [
+        { "id": "AutoRadioSongBeforeYouGo", "title": "Before You Go - Aweeden", "len": 208 },
+        { "id": "AutoRadioSongKnowYou",     "title": "I Wanna Know You - PBH & Jack", "len": 165 }
+      ]
+    },
+    "anarchy": {
+      "name": "Anarchy",
+      "genre": "Metal / Punk",
+      "playlist": [
+        { "id": "AutoRadioSongRoyalty",     "title": "Royalty - XXXTENTACION", "len": 203 },
+        { "id": "AutoRadioSongBeforeYouGo", "title": "Before You Go - Aweeden", "len": 208 }
+      ]
+    }
+  }
+}

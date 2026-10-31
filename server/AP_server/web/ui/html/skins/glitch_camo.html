@@ -1,0 +1,57 @@
+<!doctype html><html><head><meta charset="utf-8"><title>glitch_camo</title>
+<!-- procedural HTML skin "glitch_camo" -- base sheet a3\\soft_f_gamma\\Hatchback_01\\data\\Hatchback_01_ext_BASE01_CO.paa via A3API.RequestTexture, effect composited over it.
+     Self-contained: no fetch, no fonts, no external files (browser sandbox). -->
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}canvas{display:block;width:100vw;height:100vh}</style>
+</head><body><canvas id="c" width="2048" height="2048"></canvas><script>
+(function(){
+  var cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height,t0=performance.now(),frame=0;
+  var base=new Image(),ready=false;
+  var off=document.createElement("canvas");off.width=W;off.height=H;var octx=off.getContext("2d");
+  // BASE SHEET. RequestTexture searches the game filesystem and a MISS RESOLVES with a ~23-char stub
+  // (arma-webui FINDINGS 6), so success is decided by LENGTH, and three spellings are tried. The
+  // verdict goes to the RPT through the bridge's "log" verb when the bridge is up ([WEBUI-PAGE]).
+  var BASE="a3\\soft_f_gamma\\Hatchback_01\\data\\Hatchback_01_ext_BASE01_CO.paa";
+  var status="loading base sheet...";
+  // Two channels for the verdict: the bridge's "log" verb (RPT, [WEBUI-PAGE]) AND the texture itself --
+  // the corner text below is drawn every frame, so the car says what happened even with no bridge.
+  function say(m){status=m;try{if(window.WEBUI)WEBUI.call("log",["skin "+document.title+": "+m]).catch(function(){});}catch(e){}}
+  function loadBase(){
+    if(typeof A3API==="undefined"||!A3API.RequestTexture){say("no A3API");return;}
+    var tries=[BASE,"\\"+BASE,BASE.toLowerCase()],i=0;
+    (function next(){
+      if(i>=tries.length){say("base sheet NOT FOUND after "+tries.length+" tries");return;}
+      var p=tries[i++];
+      A3API.RequestTexture(p,2048).then(function(u){
+        if(!u||u.length<200){say("try "+i+" '"+p+"' -> stub "+(u?u.length:0)+" chars");return next();}
+        base.onload=function(){ready=true;prep();say("base sheet OK "+u.length+" chars, "+base.width+"x"+base.height);};
+        base.onerror=function(){say("data URL would not decode");next();};
+        base.src=u;
+      }).catch(function(e){say("try "+i+" rejected: "+e);next();});
+    })();
+  }
+  var mask=null; // per-pixel "is this a painted island" from the base sheet (dark/black = seam gap)
+  function prep(){
+    octx.drawImage(base,0,0,W,H);
+    var d=octx.getImageData(0,0,W,H).data,m=new Uint8Array(W*H);
+    for(var i=0;i<W*H;i++){var r=d[i*4],g=d[i*4+1],b=d[i*4+2];m[i]=(r+g+b)>60?1:0;}
+    mask=m;
+  }
+  function drawBase(alpha,desat){
+    if(!ready){ctx.fillStyle="#06080c";ctx.fillRect(0,0,W,H);return;}
+    ctx.globalAlpha=alpha;ctx.drawImage(base,0,0,W,H);ctx.globalAlpha=1;
+    if(desat){ctx.globalCompositeOperation="saturation";ctx.fillStyle="#808080";ctx.fillRect(0,0,W,H);ctx.globalCompositeOperation="source-over";}
+  }
+  loadBase();
+
+  // GLITCH CAMO: the paint under a hex grid, with rolling bars and occasional horizontal tears.
+  function render(t){
+    drawBase(1,false);
+    ctx.strokeStyle="rgba(0,255,220,.35)";ctx.lineWidth=2;var s=48;
+    for(var y=0;y<H+s;y+=s*.87){for(var x=(Math.round(y/(s*.87))%2)*s/2;x<W+s;x+=s){ctx.beginPath();for(var k=0;k<6;k++){var a=Math.PI/3*k+Math.PI/6;ctx.lineTo(x+s/2*Math.cos(a),y+s/2*Math.sin(a));}ctx.closePath();ctx.stroke();}}
+    var by=((t*.35)%1)*H;ctx.fillStyle="rgba(0,255,220,.18)";ctx.fillRect(0,by,W,40);
+    if(Math.random()<.08){for(var j=0;j<4;j++){var ty=Math.random()*H,th=6+Math.random()*30;var im=ctx.getImageData(0,ty,W,th);ctx.putImageData(im,Math.random()*60-30,ty);}}
+  }
+  function tick(){var t=(performance.now()-t0)/1000;frame++;render(t);ctx.textAlign="left";ctx.font="18px monospace";ctx.fillStyle="rgba(255,255,255,.85)";ctx.fillText("f "+frame+(ready?"":" (no base)"),6,H-6);ctx.font="bold 30px monospace";ctx.fillStyle="#ffdd00";ctx.fillText(document.title+": "+status,6,H-40);requestAnimationFrame(tick);}
+  requestAnimationFrame(tick);
+})();
+</script></body></html>

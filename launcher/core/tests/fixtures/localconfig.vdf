@@ -1,0 +1,24 @@
+"UserLocalConfigStore"
+{
+	"Software"
+	{
+		"Valve"
+		{
+			"Steam"
+			{
+				"apps"
+				{
+					"107410"
+					{
+						"LastPlayed"		"1790000000"
+						"LaunchOptions"		" DXVK_HUD=fps,frametimes DXVK_FRAME_RATE=90 PROTON_ENABLE_WAYLAND=1 gamemoderun %command% -malloc=system -debug"
+					}
+					"440"
+					{
+						"LaunchOptions"		"-novid"
+					}
+				}
+			}
+		}
+	}
+}

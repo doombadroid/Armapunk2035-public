@@ -1,0 +1,24 @@
+disableserialization;
+params["_header", "_message", "_sponsor"];
+waitUntil {(isNull(findDisplay 10400)) && (isNull(uiNamespace getVariable["BIS_AAN", displayNull]))};
+70 cutrsc["rscAAN", "plain", 0.001];
+private _display = uinamespace getVariable["BIS_AAN", displayNull];
+if (isNull _display) exitWith {};
+private _textHeader = _display displayCtrl 3001;
+private _textMessage = _display displayCtrl 3002;
+private _textClock = _display displayCtrl 3003;
+private _text = "";
+for "_i"
+from 1 to 25 do {_text = _text + format["%2 %1", _message, "      --      "]};
+_textMessage ctrlSetStructuredText parseText _text;
+_textHeader ctrlSetStructuredText parseText format["<t size='2'>%1</t><br />A paid message from %2", _header, _sponsor];
+_textClock ctrlSetText([daytime, "HH:MM"] call BIS_fnc_timeToString);
+private _textLinePos = ctrlPosition _textMessage;
+_textLinePos set[2, 100];
+_textMessage ctrlSetPosition _textLinePos;
+_textMessage ctrlCommit 0;
+_textLinePos set[0, -100];
+_textMessage ctrlSetPosition _textLinePos;
+_textMessage ctrlCommit 1500;
+uiSleep 30;
+70 cutFadeOut 1000;

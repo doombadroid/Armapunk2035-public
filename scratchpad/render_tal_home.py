@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""
+render_tal_home.py -- TAL OS app grid (MaxSec phone terminal), the police counterpart to the ICEBREAKER
+OS home screen. Mirrors that layout: full-screen baked backdrop + invisible hit-tiles + per-tile dim
+overlays + one live status strip.
+
+Emits BOTH halves from the same numbers so art and dialog can never drift:
+  mission/images/cyberdeck/backdrop_tal.paa   the baked screen
+  mission/dialog/tal_home.hpp                 idd 941300, tiles wired to AP_fnc_talHomeLaunch
+
+Base plate is the Milspec deck frame PNG; the civilian NEON AEGEAN wordmark baked into it is painted
+out and replaced with MaxSec branding, so a police terminal never wears outlaw livery.
+"""
+import os, sys
+from PIL import Image, ImageDraw, ImageFont
+SC = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, SC)
+sys.path.insert(0, os.path.join(SC, '..', 'tools'))
+from render_ring_pd import ICONS, draw_icon, AMBER, ICE, RED, DIM, STROKE, FILL
+from make_paa import build_paa_dxt5, verify_paa
+
+MIS  = os.path.join(SC, '..', 'mission', 'Armapunk2035.Malden')
+BASE = "/home/timb/Sort/milspec_blank.png"
+W, H = 2048, 1024
+GW = W / 40.0          # 51.2 px per UI grid unit (span -20..20 / -10..10)
+GH = H / 20.0
+SCR = (46, 46, 1848, 932)
+FONT = "/home/timb/.local/share/fonts/cyber/Orbitron.ttf"
+MONO = "/usr/share/fonts/dejavu/DejaVuSansMono.ttf"
+
+# tile order MUST match AP_fnc_talAction ids
+TOOLS = [
+    (0, "RECORDS",    "Priors + time served",     "PATROL"),
+    (1, "PLATE",      "Owner / keyholder check",  "PATROL"),
+    (2, "FIELD TEST", "Breathalyser + drugs",     "PATROL"),
+    (3, "FIRMWARE",   "Detect illegal deck OS",   "SGT+"),
+    (4, "RESET",      "Wipe illegal firmware",    "SGT+"),
+    (5, "SWEEP",      "Rigs + ATM skimmers",      "SGT+"),
+    (6, "DISPATCH",   "Mark position for units",  "PATROL"),
+    (7, "BACKUP",     "Officer needs assistance", "PATROL"),
+]
+
+def font(path, size):
+    try: return ImageFont.truetype(path, size)
+    except Exception: return ImageFont.load_default()
+
+def grid_rects():
+    """4 cols x 2 rows inside the screen, below the header band. Returns px rects."""
+    x0, y0 = SCR[0] + 54, 232
+    x1, y1 = SCR[0] + SCR[2] - 54, SCR[1] + SCR[3] - 46
+    gap = 26
+    tw = (x1 - x0 - 3 * gap) / 4.0
+    th = (y1 - y0 - gap) / 2.0
+    out = []
+    for i in range(8):
+        c, r = i % 4, i // 4
+        out.append((x0 + c * (tw + gap), y0 + r * (th + gap), tw, th))
+    return out
+
+def build():
+    img = Image.open(BASE).convert("RGBA")
+    d = ImageDraw.Draw(img, "RGBA")
+
+    # --- paint out the civilian wordmark baked into the frame, then brand it MaxSec ---
+    bg = Image.open(BASE).convert("RGB").getpixel((1400, 100))          # sample the real screen tone
+    d.rectangle([SCR[0] + 2, 58, SCR[0] + 1000, 152], fill=bg + (255,))
+    tf = font(FONT, 46)
+    d.text((88, 74), "TAL OS", font=tf, fill=AMBER + (255,))
+    d.text((88 + d.textlength("TAL OS", font=tf) + 34, 88), "MAXSEC FIELD TERMINAL",
+           font=font(FONT, 22), fill=ICE + (235,))
+    d.line([(86, 152), (SCR[0] + SCR[2] - 34, 152)], fill=(42, 60, 82, 255), width=2)
+    d.text((SCR[0] + SCR[2] - 300, 92), "AUTHORISED USE ONLY", font=font(MONO, 17), fill=(90, 104, 122, 255))
+
+    # --- status strip backing (the dialog's live Strip control sits on top of this) ---
+    d.rectangle([104, 166, 104 + 1732, 198], fill=(10, 16, 26, 255), outline=(42, 60, 82, 255))
+
+    # --- tiles ---
+    for (idx, label, sub, rank), (x, y, tw, th) in zip(TOOLS, grid_rects()):
+        d.rounded_rectangle([x, y, x + tw, y + th], radius=10,
+                            fill=FILL + (232,), outline=STROKE + (255,), width=3)
+        # rank pill, top-right of the tile
+        pf = font(MONO, 15)
+        pw = d.textlength(rank, font=pf)
+        col = AMBER if rank == "SGT+" else (90, 104, 122)
+        d.rounded_rectangle([x + tw - pw - 26, y + 14, x + tw - 12, y + 38], radius=4,
+                            outline=col + (200,), width=2)
+        d.text((x + tw - pw - 19, y + 18), rank, font=pf, fill=col + (230,))
+        # icon, centred upper area
+        s = 3.05
+        draw_icon(d, idx, x + tw / 2 - 12 * s, y + th * 0.30 - 12 * s, s, DIM + (240,), 5)
+        # label + sub
+        lf, sf = font(FONT, 25), font(MONO, 17)
+        lw = d.textlength(label, font=lf)
+        d.text((x + tw / 2 - lw / 2, y + th * 0.62), label, font=lf, fill=(219, 228, 238, 255))
+        sw = d.textlength(sub, font=sf)
+        d.text((x + tw / 2 - sw / 2, y + th * 0.62 + 36), sub, font=sf, fill=(125, 139, 158, 235))
+
+    # --- footer hint ---
+    d.text((104, SCR[1] + SCR[3] - 34), "SELECT A TOOL", font=font(FONT, 18), fill=AMBER + (220,))
+    d.text((SCR[0] + SCR[2] - 250, SCR[1] + SCR[3] - 32), "ESC  CLOSE", font=font(MONO, 17), fill=(90, 104, 122, 255))
+    return img
+
+def emit_hpp():
+    px2gx = lambda p: round(p / GW - 20.0, 4)
+    px2gy = lambda p: round(p / GH - 10.0, 4)
+    L = []
+    A = L.append
+    A('// GENERATED by scratchpad/render_tal_home.py -- do not hand-edit; regenerate.')
+    A('// TAL OS app grid (MaxSec phone terminal). idd 941300. Police counterpart to cyberdeck_home:')
+    A('// baked backdrop + invisible hit-tiles + per-tile dim overlays + one live status strip.')
+    A('class tal_home {')
+    A('    idd = 941300; name = "tal_home"; movingEnable = 0; enableSimulation = 1;')
+    A('    onLoad = "uiNamespace setVariable [\'tal_home\', _this select 0];";')
+    A('    class controlsBackground {')
+    A('        class Backdrop : CBPicBase { idc=941301; text="images\\cyberdeck\\backdrop_tal.paa"; '
+      'x=-20.0*UI_GRID_W + UI_GRID_X; y=-10.0*UI_GRID_H + UI_GRID_Y; w=40.0*UI_GRID_W; h=20.0*UI_GRID_H; };')
+    A('    };')
+    A('    class controls {')
+    A(f'        class Strip : AP_RscStructuredText {{ idc=941303; x={px2gx(104)}*UI_GRID_W + UI_GRID_X; '
+      f'y={px2gy(166)}*UI_GRID_H + UI_GRID_Y; w={round(1732/GW,4)}*UI_GRID_W; h={round(32/GH,4)}*UI_GRID_H; '
+      f'size={round(22/GH,4)}*UI_GRID_H; }};')
+    for i, (x, y, tw, th) in enumerate(grid_rects()):
+        gx, gy, gw, gh = px2gx(x), px2gy(y), round(tw / GW, 4), round(th / GH, 4)
+        A(f'        class Dim{i} : AP_RscText {{ idc={941320+i}; x={gx}*UI_GRID_W + UI_GRID_X; y={gy}*UI_GRID_H + UI_GRID_Y; '
+          f'w={gw}*UI_GRID_W; h={gh}*UI_GRID_H; colorText[]={{0,0,0,0}}; colorBackground[]={{0,0,0,0}}; }};')
+        A(f'        class Tile{i} : AP_RscButtonMenu {{ idc={941310+i}; text=""; period=0; periodFocus=0; periodOver=0; '
+          f'onButtonClick="[{i}] call AP_fnc_talHomeLaunch;"; x={gx}*UI_GRID_W + UI_GRID_X; y={gy}*UI_GRID_H + UI_GRID_Y; '
+          f'w={gw}*UI_GRID_W; h={gh}*UI_GRID_H; colorText[]={{0,0,0,0}}; colorBackground[]={{0,0,0,0}}; '
+          f'colorBackgroundFocused[]={{0.94,0.63,0.12,0.16}}; colorFocused[]={{0,0,0,0}}; '
+          f'colorBackgroundActive[]={{0.94,0.63,0.12,0.24}}; colorBackground2[]={{0.94,0.63,0.12,0.16}}; }};')
+    A('    };')
+    A('};')
+    open(os.path.join(MIS, 'dialog', 'tal_home.hpp'), 'w').write("\n".join(L) + "\n")
+    print("tal_home.hpp written (8 tiles)")
+
+if __name__ == "__main__":
+    p = "/tmp/backdrop_tal.png"
+    build().save(p)
+    out = os.path.join(MIS, 'images', 'cyberdeck', 'backdrop_tal.paa')
+    build_paa_dxt5(p, out)
+    print("backdrop_tal ->", verify_paa(out)[1])
+    emit_hpp()

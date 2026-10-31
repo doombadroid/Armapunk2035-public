@@ -1,0 +1,107 @@
+# Server -> client remoteExec receivers that ONLY the server may invoke remotely.
+# tools/cfgre_origin_check.py (run by tools/run_checks.sh) fails unless each one is still an
+# allowedTargets = 1 entry in CfgRE.hpp AND its fn file opens with a flat server-origin guard:
+#     if (isRemoteExecuted && {remoteExecutedOwner != 2}) exitWith {};
+# allowedTargets = 1 limits the TARGET, never the sender, so without that guard any client can
+# run these on any other client. Add every new server -> client receiver here.
+# Deliberately NOT listed: receivers with a legitimate client -> client caller (giveItem,
+# robPerson, copSiren, ...), whose own checks are the victim-side validation, and mixed files
+# guarded per case (fn_medicFireClient: clientFireEffects / fireFighterPayment).
+
+# money / economy
+AP_fnc_uC
+AP_fnc_cartelGrant
+AP_fnc_ticketPaid
+AP_fnc_ndSync
+AP_fnc_ndResult
+AP_fnc_talentPointsRecv
+AP_fnc_aqAwardXpClient
+AP_fnc_bountyReceive
+AP_fnc_copSplitReceive
+AP_fnc_handleLicense
+AP_fnc_handleInv
+
+# session / login
+AP_fnc_requestReceived
+AP_fnc_removeLicenses
+AP_fnc_dutyClient
+
+# casino
+AP_fnc_blackJack
+AP_fnc_blackJackReceive
+AP_fnc_casino
+AP_fnc_casinoReceive
+AP_fnc_holdemReceive
+AP_fnc_holdemCash
+AP_fnc_bjTable
+
+# Luxe Suites
+AP_fnc_suiteReceive
+AP_fnc_suiteDoorSync
+AP_fnc_suiteEvicted
+AP_fnc_suiteRentNotice
+AP_fnc_suiteStorageRecv
+
+# quickhacks / TAL
+AP_fnc_qhEffect
+AP_fnc_qhTraceResult
+AP_fnc_qhPing
+AP_fnc_qhEyeSpy
+AP_fnc_qhEngineKill
+AP_fnc_qhChauffeur
+AP_fnc_qhPuppet
+AP_fnc_talTrace
+AP_fnc_deckQhResult
+
+# fabricator / rig
+AP_fnc_fabModel
+AP_fnc_fabModelClear
+AP_fnc_fabReceive
+AP_fnc_fabGiveGear
+AP_fnc_fabQuestEvent
+AP_fnc_rigClient
+
+# gangs
+AP_fnc_gangRanks
+AP_fnc_gangDisbanded
+AP_fnc_gangMembersReceive
+AP_fnc_gangCreated
+AP_fnc_gangRenamed
+AP_fnc_warStatus
+AP_fnc_gangGarageMenu
+
+# housing / garage / storage
+AP_fnc_handleHouse
+AP_fnc_renameHouseDone
+AP_fnc_initKeyHouseMarkers
+AP_fnc_maldenSync
+AP_fnc_storageVaultRecv
+AP_fnc_vehicleGarageMenu
+AP_fnc_invCargoRecv
+
+# medical / trial / events / world
+AP_fnc_loveBombHeal
+AP_fnc_trialSystem
+AP_fnc_funGunClient
+AP_fnc_eventGunGameClient
+AP_fnc_eventGridrunnerClient
+AP_fnc_fedAirLock
+AP_fnc_lbScene
+AP_fnc_spikeStripEffect
+AP_fnc_bodybagMarker
+AP_fnc_summonSpawn
+AP_fnc_summonState
+
+# UI / messages
+AP_fnc_hudLayoutRecv
+AP_fnc_webServeRecv
+AP_fnc_loonerReceive
+AP_fnc_bonesText
+AP_fnc_offlineMsgRecv
+AP_fnc_dispatchClientMessage
+AP_fnc_tazeSound
+AP_fnc_sprayPaint
+AP_fnc_mapEditApply
+AP_fnc_mapSelfTest
+AP_fnc_mapCellRecv
+AP_fnc_mapIndexRecv

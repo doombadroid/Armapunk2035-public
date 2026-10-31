@@ -1,0 +1,28 @@
+#!/sbin/openrc-run
+# OpenRC service for the Arma 3 PBO Inspector (Next.js production server).
+# Points at a no-args wrapper at a space-free path. Mirrors looneybin-stats.
+# Install: copy to /etc/init.d/loonybin-pbo, chmod +x, then
+#   rc-update add loonybin-pbo default && rc-service loonybin-pbo start
+
+name="loonybin-pbo"
+description="Arma 3 PBO Inspector (Next.js) — projectloonybin.com/pbo"
+supervisor="supervise-daemon"
+
+command="/usr/local/bin/loonybin-pbo-run"
+command_user="timb:timb"
+pidfile="/run/loonybin-pbo.pid"
+respawn_delay=5
+respawn_max=0          # 0 = respawn forever
+output_log="/var/log/looneybin/pbo.log"
+error_log="/var/log/looneybin/pbo.log"
+
+depend() {
+    need net
+}
+
+# /var/log is root-owned, but supervise-daemon opens the log AS command_user
+# (timb) -> it can't create a file there and dies before exec. Give it a
+# timb-owned dir, same as the loonybin-stats service.
+start_pre() {
+    checkpath -d -m 0755 -o timb:timb /var/log/looneybin
+}

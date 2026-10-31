@@ -1,0 +1,728 @@
+{
+ "now": 1789064395578,
+ "me": {
+  "steamId": "76561190000000001",
+  "name": "Doomba",
+  "avatarUrl": "https://avatars.fastly.steamstatic.com/3379eb47210e0e30f9a1b0c536aae74d6ed346a1_full.jpg",
+  "faction": "civ",
+  "cityId": "kavala",
+  "cash": 5495846,
+  "xp": 2144716,
+  "level": 100,
+  "xpInto": 1268130,
+  "xpNeeded": 1,
+  "stamina": 300,
+  "staminaMax": 300,
+  "staminaRegen": 6.78,
+  "capacity": 10447,
+  "carried": 3921,
+  "netWorth": 5823446,
+  "heat": 0,
+  "wanted": false,
+  "jailedUntil": 0,
+  "travelUntil": 0,
+  "travelTo": null,
+  "skills": {
+   "endurance": 12,
+   "stealth": 12,
+   "harvesting": 12,
+   "refining": 12,
+   "haggling": 12,
+   "strength": 12
+  },
+  "licenses": [
+   "driving",
+   "farming",
+   "mining",
+   "diving",
+   "cartel"
+  ],
+  "gearTier": 5,
+  "copGearTier": 1,
+  "talents": {
+   "secondWind": 5,
+   "bumperCrop": 5,
+   "efficiency": 5,
+   "prospector": 5,
+   "fence": 5,
+   "logistics": 4,
+   "ghost": 1
+  },
+  "tools": {
+   "gather": 6,
+   "process": 6
+  },
+  "packTier": 4,
+  "autoSell": false,
+  "workerAutoSell": false,
+  "prestige": 2,
+  "prestigeReady": true,
+  "prestigeBlockers": [],
+  "perks": {
+   "starStamina": 2
+  },
+  "starPicks": 0,
+  "duel": {
+   "id": "43fdd153-f334-4ebd-9165-9badec2def5a",
+   "role": "civ",
+   "opponentName": "Player1",
+   "status": "resolved",
+   "readyUntil": 1789062446306,
+   "startsAt": 0,
+   "until": 1789062446306,
+   "rounds": [
+    {
+     "id": "a75a98f0-107b-4583-8f96-2ca27fa80bcf",
+     "prompt": "Checkpoint 1: choose the lowest total route cost.",
+     "obstacleCost": 5,
+     "options": [
+      {
+       "label": "Left street",
+       "distance": 6,
+       "obstacles": 4
+      },
+      {
+       "label": "Center street",
+       "distance": 16,
+       "obstacles": 2
+      },
+      {
+       "label": "Right street",
+       "distance": 10,
+       "obstacles": 3
+      }
+     ]
+    },
+    {
+     "id": "d220fdfb-4441-494a-8acb-fb96265dc0f4",
+     "prompt": "Checkpoint 2: choose the lowest total route cost.",
+     "obstacleCost": 5,
+     "options": [
+      {
+       "label": "Left street",
+       "distance": 12,
+       "obstacles": 1
+      },
+      {
+       "label": "Center street",
+       "distance": 18,
+       "obstacles": 3
+      },
+      {
+       "label": "Right street",
+       "distance": 5,
+       "obstacles": 1
+      }
+     ]
+    },
+    {
+     "id": "36d2fc81-3f44-484f-8fb9-e0bd131f9190",
+     "prompt": "Checkpoint 3: choose the lowest total route cost.",
+     "obstacleCost": 5,
+     "options": [
+      {
+       "label": "Left street",
+       "distance": 9,
+       "obstacles": 0
+      },
+      {
+       "label": "Center street",
+       "distance": 9,
+       "obstacles": 4
+      },
+      {
+       "label": "Right street",
+       "distance": 6,
+       "obstacles": 4
+      }
+     ]
+    }
+   ],
+   "myAnswers": [],
+   "opponentAnswers": [],
+   "myReady": false,
+   "opponentReady": true,
+   "outcome": "capture",
+   "reason": "Civilian did not ready up in time and was taken into custody."
+  },
+  "custody": null,
+  "apdCase": null,
+  "apdCaseReadyAt": 0,
+  "freePursuitRespec": true,
+  "activityLockUntil": 0,
+  "checkpoint": null,
+  "pursuit": null,
+  "pursuitStyle": "qte",
+  "gang": {
+   "id": "cmtn68eldr16y",
+   "name": "Gang 0",
+   "tag": "G0",
+   "level": 10,
+   "xp": 37595820,
+   "xpInto": 0,
+   "xpNeeded": 0,
+   "cap": 10,
+   "yieldBonus": 0.1,
+   "xpBonus": 0.1,
+   "isLeader": false,
+   "isPrivate": false,
+   "inviteCode": null,
+   "inviteExpiresAt": 1789065000000,
+   "members": [
+    {
+     "steamId": "76561198000000000",
+     "name": "Player0",
+     "level": 1,
+     "prestige": 1,
+     "leader": true,
+     "online": false
+    },
+    {
+     "steamId": "76561190000000002",
+     "name": "Player1",
+     "level": 100,
+     "prestige": 0,
+     "leader": false,
+     "online": false
+    },
+    {
+     "steamId": "76561190000000001",
+     "name": "Player2",
+     "level": 100,
+     "prestige": 2,
+     "leader": false,
+     "online": true
+    },
+    {
+     "steamId": "76561190000000044",
+     "name": "Player3",
+     "level": 100,
+     "prestige": 3,
+     "leader": false,
+     "online": false
+    },
+    {
+     "steamId": "76561190000000045",
+     "name": "Player4",
+     "level": 100,
+     "prestige": 0,
+     "leader": false,
+     "online": false
+    },
+    {
+     "steamId": "76561190000000046",
+     "name": "Player5",
+     "level": 100,
+     "prestige": 0,
+     "leader": false,
+     "online": false
+    },
+    {
+     "steamId": "76561190000000047",
+     "name": "Player6",
+     "level": 60,
+     "prestige": 0,
+     "leader": false,
+     "online": false
+    },
+    {
+     "steamId": "76561190000000048",
+     "name": "Player7",
+     "level": 52,
+     "prestige": 11,
+     "leader": false,
+     "online": false
+    },
+    {
+     "steamId": "76561190000000049",
+     "name": "Player8",
+     "level": 28,
+     "prestige": 3,
+     "leader": false,
+     "online": false
+    },
+    {
+     "steamId": "76561190000000043",
+     "name": "Player9",
+     "level": 12,
+     "prestige": 0,
+     "leader": false,
+     "online": false
+    }
+   ]
+  },
+  "visibleAt": 22,
+  "bribeCost": 115328,
+  "manpowerMult": 1,
+  "bustEstimate": {
+   "fine": 17385,
+   "fineCeiling": 17385,
+   "seized": 327600,
+   "bounty": 4,
+   "bountyCeiling": 217
+  },
+  "arrestFine": 0,
+  "bailCost": 0,
+  "papers": 2,
+  "processPapers": 0,
+  "chests": {
+   "common": 0,
+   "rare": 0,
+   "epic": 0,
+   "legendary": 0
+  },
+  "workers": [
+   {
+    "siteId": "kav_nuclear",
+    "perMinute": 5,
+    "until": 1789071544661,
+    "earned": 0,
+    "kind": "process"
+   }
+  ],
+  "talentPoints": 0,
+  "talentSpent": 52,
+  "respecCost": 121000,
+  "careerSwitchReadyAt": 1788539158917,
+  "inventory": {
+   "uraniumu": 1255,
+   "uraniump": 78
+  },
+  "crews": {
+   "kav_uranium": 8
+  },
+  "pausedCrews": [],
+  "stats": {
+   "clicks": 14264,
+   "gathered": 119619,
+   "processed": 41342,
+   "sold": 90354,
+   "earned": 296162823,
+   "busts": 16,
+   "timesBusted": 27,
+   "timesFled": 4,
+   "timesResisted": 11,
+   "jackpots": 182,
+   "chestsFound": 406
+  }
+ },
+ "prices": {
+  "apple": 11,
+  "peach": 11,
+  "cottonR": 152,
+  "cotton": 514,
+  "tobacco": 257,
+  "tobaccoD": 377,
+  "copperore": 0,
+  "copper_r": 385,
+  "ironore": 0,
+  "iron_r": 738,
+  "salt": 0,
+  "salt_r": 546,
+  "sand": 0,
+  "glass": 682,
+  "rock": 0,
+  "phos": 185,
+  "hydro": 185,
+  "oilu": 0,
+  "oilp": 602,
+  "timber": 80,
+  "plank": 281,
+  "timberh": 193,
+  "plankh": 674,
+  "oysteru": 361,
+  "oysterp": 722,
+  "tuna": 281,
+  "mullet": 160,
+  "catshark": 146,
+  "salema": 45,
+  "diamond": 265,
+  "diamondc": 3450,
+  "diamondf": 2808,
+  "pearl": 465,
+  "ruby": 465,
+  "goldnugget": 48144,
+  "goldbar": 72216,
+  "cannabis": 0,
+  "marijuana": 793,
+  "cocaine": 250,
+  "cocainep": 1617,
+  "heroinu": 417,
+  "heroinp": 1669,
+  "ephedra": 0,
+  "methcocktail": 939,
+  "meth": 8762,
+  "barley": 0,
+  "moonshine": 1252,
+  "moonshinep": 4170,
+  "scotch_1": 782,
+  "scotch_3": 2816,
+  "pixied": 1684,
+  "ppixied": 6049,
+  "uraniumu": 0,
+  "uraniump": 7472,
+  "element115": 76538,
+  "turtle": 4336,
+  "cigs": 1095,
+  "cigars": 2503
+ },
+ "mults": {
+  "apple": 1.18,
+  "peach": 1.18,
+  "cottonR": 1.18,
+  "cotton": 1.18,
+  "tobacco": 1.18,
+  "tobaccoD": 1.18,
+  "copperore": 1.18,
+  "copper_r": 1.18,
+  "ironore": 1.18,
+  "iron_r": 1.18,
+  "salt": 1.18,
+  "salt_r": 1.18,
+  "sand": 1.18,
+  "glass": 1.18,
+  "rock": 1.18,
+  "phos": 1.18,
+  "hydro": 1.18,
+  "oilu": 1.18,
+  "oilp": 1.18,
+  "timber": 1.18,
+  "plank": 1.18,
+  "timberh": 1.18,
+  "plankh": 1.18,
+  "oysteru": 1.18,
+  "oysterp": 1.18,
+  "tuna": 1.18,
+  "mullet": 1.18,
+  "catshark": 1.18,
+  "salema": 1.18,
+  "diamond": 1.18,
+  "diamondc": 1.18,
+  "diamondf": 1.18,
+  "pearl": 1.18,
+  "ruby": 1.18,
+  "goldnugget": 1.18,
+  "goldbar": 1.18,
+  "cannabis": 1.18,
+  "marijuana": 1.18,
+  "cocaine": 1.18,
+  "cocainep": 1.18,
+  "heroinu": 1.18,
+  "heroinp": 1.18,
+  "ephedra": 1.18,
+  "methcocktail": 1.18,
+  "meth": 1.18,
+  "barley": 1.18,
+  "moonshine": 1.18,
+  "moonshinep": 1.179,
+  "scotch_1": 1.18,
+  "scotch_3": 1.18,
+  "pixied": 1.12,
+  "ppixied": 1.18,
+  "uraniumu": 1.18,
+  "uraniump": 1.006,
+  "element115": 1.18,
+  "turtle": 0.981,
+  "cigs": 1.18,
+  "cigars": 1.18
+ },
+ "roster": [
+  {
+   "steamId": "76561190000000001",
+   "name": "Doomba",
+   "avatarUrl": "https://avatars.fastly.steamstatic.com/3379eb47210e0e30f9a1b0c536aae74d6ed346a1_full.jpg",
+   "faction": "civ",
+   "cityId": "kavala",
+   "level": 100,
+   "prestige": 2,
+   "gangTag": "1488",
+   "netWorth": 5823446,
+   "jailed": false,
+   "travelling": false
+  },
+  {
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "avatarUrl": "",
+   "faction": "civ",
+   "cityId": "neochori",
+   "level": 47,
+   "prestige": 14,
+   "netWorth": 2687873,
+   "jailed": false,
+   "travelling": true
+  }
+ ],
+ "gangs": [
+  {
+   "id": "cmtn68eldr16y",
+   "name": "Gang 0",
+   "tag": "G0",
+   "level": 10,
+   "members": 10,
+   "cap": 10,
+   "leaderName": "Player0",
+   "private": false
+  },
+  {
+   "id": "cmtn69jijfl3b",
+   "name": "Gang 1",
+   "tag": "G1",
+   "level": 10,
+   "members": 2,
+   "cap": 10,
+   "leaderName": "Player1",
+   "private": false
+  },
+  {
+   "id": "cmts2pi9dwass",
+   "name": "Gang 2",
+   "tag": "G2",
+   "level": 10,
+   "members": 2,
+   "cap": 10,
+   "leaderName": "Player2",
+   "private": false
+  }
+ ],
+ "online": 2,
+ "headsByCity": {
+  "neochori": 1,
+  "kavala": 1
+ },
+ "feed": [
+  {
+   "id": 35739,
+   "at": 1789064370249,
+   "kind": "level",
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "text": "trained Pack Mule 4"
+  },
+  {
+   "id": 35738,
+   "at": 1789064360079,
+   "kind": "level",
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "text": "reached level 47"
+  },
+  {
+   "id": 35737,
+   "at": 1789064086756,
+   "kind": "level",
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "text": "reached level 46"
+  },
+  {
+   "id": 35736,
+   "at": 1789063984408,
+   "kind": "level",
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "text": "reached level 45"
+  },
+  {
+   "id": 35735,
+   "at": 1789063884224,
+   "kind": "level",
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "text": "reached level 44"
+  },
+  {
+   "id": 35734,
+   "at": 1789063788274,
+   "kind": "level",
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "text": "reached level 43"
+  },
+  {
+   "id": 35733,
+   "at": 1789063694739,
+   "kind": "level",
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "text": "reached level 42"
+  },
+  {
+   "id": 35732,
+   "at": 1789063648951,
+   "kind": "jackpot",
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "text": "unearthed a Smuggler's Cache at Pixie Extraction"
+  },
+  {
+   "id": 35731,
+   "at": 1789063598860,
+   "kind": "level",
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "text": "reached level 41"
+  },
+  {
+   "id": 35730,
+   "at": 1789063566395,
+   "kind": "level",
+   "steamId": "76561190000000001",
+   "name": "Doomba",
+   "text": "trained Ghost 1"
+  },
+  {
+   "id": 35729,
+   "at": 1789063509443,
+   "kind": "level",
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "text": "reached level 40"
+  },
+  {
+   "id": 35728,
+   "at": 1789063456908,
+   "kind": "sale",
+   "steamId": "76561190000000001",
+   "name": "Doomba",
+   "text": "moved 2180x Uranium (Weapon Grade) for $18,939,840"
+  }
+ ],
+ "chat": [
+  {
+   "id": 973,
+   "at": 1789063278620,
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "faction": "civ",
+   "text": "gg"
+  },
+  {
+   "id": 972,
+   "at": 1789063238161,
+   "steamId": "76561190000000001",
+   "name": "Doomba",
+   "faction": "civ",
+   "text": "hello"
+  },
+  {
+   "id": 971,
+   "at": 1789063202830,
+   "steamId": "76561190000000001",
+   "name": "Doomba",
+   "faction": "civ",
+   "text": "hello"
+  },
+  {
+   "id": 970,
+   "at": 1789062741467,
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "faction": "civ",
+   "text": "gg"
+  },
+  {
+   "id": 969,
+   "at": 1789062715951,
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "faction": "civ",
+   "text": "gg"
+  },
+  {
+   "id": 968,
+   "at": 1789059843127,
+   "steamId": "76561190000000002",
+   "name": "Player1",
+   "faction": "civ",
+   "text": "gg"
+  }
+ ],
+ "chatOldestId": 965,
+ "chatRevision": 4,
+ "chatGeneration": "f6cbae88-8940-4aee-bb4f-06abc889fc21",
+ "dispatch": [],
+ "suspects": [],
+ "leaderboard": [
+  {
+   "name": "Player0",
+   "avatarUrl": "",
+   "netWorth": 1037243841,
+   "level": 100,
+   "faction": "civ"
+  },
+  {
+   "name": "Player1",
+   "avatarUrl": "",
+   "netWorth": 625408681,
+   "level": 100,
+   "faction": "civ"
+  },
+  {
+   "name": "Player2",
+   "avatarUrl": "",
+   "netWorth": 146346152,
+   "level": 100,
+   "faction": "civ"
+  },
+  {
+   "name": "Player3",
+   "avatarUrl": "",
+   "netWorth": 135719453,
+   "level": 100,
+   "faction": "civ"
+  },
+  {
+   "name": "Player4",
+   "avatarUrl": "",
+   "netWorth": 82547070,
+   "level": 100,
+   "faction": "civ"
+  },
+  {
+   "name": "Player5",
+   "avatarUrl": "",
+   "netWorth": 60530797,
+   "level": 100,
+   "faction": "civ"
+  },
+  {
+   "name": "Player6",
+   "avatarUrl": "",
+   "netWorth": 39773461,
+   "level": 93,
+   "faction": "civ"
+  },
+  {
+   "name": "Player7",
+   "avatarUrl": "",
+   "netWorth": 37277705,
+   "level": 100,
+   "faction": "civ"
+  },
+  {
+   "name": "Player8",
+   "avatarUrl": "",
+   "netWorth": 35259556,
+   "level": 100,
+   "faction": "civ"
+  },
+  {
+   "name": "Player9",
+   "avatarUrl": "",
+   "netWorth": 29156354,
+   "level": 100,
+   "faction": "civ"
+  }
+ ],
+ "npcCrime": {
+  "kavala": 100,
+  "neochori": 100,
+  "athira": 100,
+  "pyrgos": 100,
+  "sofia": 100
+ },
+ "wantedAt": 22,
+ "pursuitFleeCost": 9,
+ "casino": null
+}

@@ -1,0 +1,18 @@
+// Footstep surface for the custom buildings' Roadway LODs.
+//
+// Copied verbatim from BI's a3\data_f\penetration\concrete.bisurf, with ONE change: soundEnviron.
+// Every one of the 81 .bisurf files A3 ships sets soundEnviron=Empty -- they are PENETRATION
+// definitions, so they carry soundHit (bullet impact) but no footstep character. Pointing the
+// roadway at concrete.rvmat therefore produced correct impact sound and a default footstep, which
+// is why the palace sounded like soft sand rather than concrete.
+Density=2400;
+rough=0.1;
+dust=0;
+bulletPenetrability=80;
+soundEnviron=metal;
+isWater=false;
+friction=0.9;
+restitution=0;
+impact = hitConcrete;
+soundHit = Concrete;
+deflection = 0.8;

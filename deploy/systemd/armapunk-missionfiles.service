@@ -1,0 +1,12 @@
+[Unit]
+Description=Armapunk 2035 mission PBO HTTP origin (missionHTTPDownloadBaseURL, behind cloudflared)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/timb/arma3server_live/tools/pbo_http.py 8092 --dir /home/timb/arma3server_live/mpmissions
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

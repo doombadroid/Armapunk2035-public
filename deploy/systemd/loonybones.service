@@ -1,0 +1,12 @@
+[Unit]
+Description=LooneyBin Ben Bones daemon (Grok conspiracy AI, wiki-grounded DMs)
+
+[Service]
+Type=simple
+WorkingDirectory=/home/timb/Documents/LooneyBin Altis Life/loonybot
+ExecStart="/home/timb/Documents/LooneyBin Altis Life/loonybot/venv/bin/python" -u bones.py
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

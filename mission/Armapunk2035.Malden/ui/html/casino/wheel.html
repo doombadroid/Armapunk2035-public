@@ -1,0 +1,542 @@
+<!doctype html>
+<!-- CASINO — THE WHEEL. Self-contained, game-ready: inline CSS/JS, no libs,
+     no network, no storage. AP stub behind a guard.
+
+     CONTRACT
+       AP.on("casino", { balance, gate, wheel:{ cost, freeAvailable } })
+       AP.on("casResult", { game:"wheel", payload })
+         payload = ["spin", segment, prizeType, cashWon, xpWon, label, wasFree]
+           prizeType is the SERVER's prize kind ("cash" | "bust" | "ifrit" | "qilin" |
+           "blackfish"), a string -- the dollar figure for a cash hit is cashWon.
+                 | ["status", freeAvailable, cost]
+       AP.call("casPlay", ["wheel","spin",[useFree]])   // reply = SENT, not settled
+       AP.call("casPlay", ["wheel","checkfree",[]])
+     The page NEVER decides the outcome: the wheel accelerates and cruises until
+     casResult arrives, then plans a deceleration that lands on the server's
+     segment. Cost comes from the payload only — never a client literal.
+
+     RING (server order, index 0 at the pointer):
+       cash · bust · cash · ifrit · cash · bust · cash · qilin · cash · bust · cash · blackfish
+
+     WHAT ANIMATES: WebGL felt + wheel canvas run only while hot (spin + ~4s of
+     result FX), ~55% of surface during a spin, then BOTH settle to still frames.
+     Idle cost is zero. Audio: segment ticks + a win/bust sting via AudioContext,
+     SND toggle in the header. -->
+<html><head><meta charset="utf-8"><title>CASINO — the wheel</title>
+<script>
+/* ---- BRIDGE SHIM (installed by tools/install_casino_pages.py) --------------
+   window.WEBUI does not exist while this page's own script runs; the bridge is
+   INJECTED afterwards. Anything that touches it at load is silently deaf, which
+   is how the first web shop shipped.
+
+   AP is defined here, synchronously, before the page's script -- so its
+   `if (typeof AP === "undefined")` dev stub never installs, and every on()/call()
+   made before the bridge lands is queued and flushed when it does. -------- */
+(function () {
+  var subs = {}, queued = [], W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  /* Instrumentation for AP_fnc_casinoDiag. The browser console is unreachable
+     in game -- Esc opens it and closes the dialog -- so a deaf page has to be
+     able to say why on its own surface. */
+  window.__apSubs = subs;
+  /* A throw inside a channel handler is CAUGHT by webui.js and console.error'd,
+     and the console is unreachable in game -- so a payload the page cannot read
+     looks exactly like a payload that never arrived. Wrapping every handler
+     records the first failure where the diagnostic can print it. */
+  function guard(n, f) {
+    return function (v) {
+      try { return f(v); }
+      catch (e) { if (!window.__apHandlerErr) window.__apHandlerErr = n + ": " + e; throw e; }
+    };
+  }
+  window.AP = {
+    __shim: true,
+    on: function (n, f) {
+      (subs[n] = subs[n] || []).push(guard(n, f));
+      if (W) W.on(n, subs[n][subs[n].length - 1]);
+    },
+    call: function (n, a) {
+      if (W) return W.call(n, a || [], 20000);
+      return new Promise(function (res, rej) { queued.push([n, a || [], res, rej]); });
+    },
+    handle: function (n, f) { if (W) W.handle(n, f); }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    W.on("casino", function () { window.__apGotCasino = true; });
+    queued.forEach(function (q) { W.call(q[0], q[1], 20000).then(q[2], q[3]); });
+    queued = [];
+  });
+  /* A <script src> cannot work here -- the page has no resolvable base URL and
+     the src quietly resolves to nothing. SQF injects the same file too and
+     webui.js is idempotent, so whichever lands first wins. */
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else {
+    window.__apBootErr = "no A3API on this page";
+  }
+})();
+</script>
+<style>
+:root{
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --scr:#050b09; --scr2:#0a1310; --panel:#0c1712; --panel2:#0e1a15;
+  --acc:#c9e21a; --acc2:#33ffbb; --danger:#ff5a3c; --amber:#ffb020; --magenta:#ff3d81;
+  --ink:#dcefe0; --dim:#7f938a; --faint:#465a51; --line:rgba(201,226,26,.15);
+  --felt:#0d2a1e;
+}
+html,body{margin:0;height:100%;background:#07090a;font-family:var(--mono)}
+#stage{position:fixed;inset:0;display:grid;place-items:center}
+#frame{width:min(96vw,192vh);aspect-ratio:2/1;position:relative}
+#screen{position:absolute;inset:0;border-radius:.6rem;overflow:hidden;display:flex;flex-direction:column;
+  background:var(--scr);box-shadow:inset 0 0 0 1px #000,0 30px 80px rgba(0,0,0,.7)}
+#gl{position:absolute;inset:0;width:100%;height:100%}
+#screen::after{content:"";position:absolute;inset:0;z-index:40;pointer-events:none;opacity:.26;
+  background:repeating-linear-gradient(180deg,transparent 0 2px,rgba(0,0,0,.2) 2px 3px)}
+.hdr{position:relative;z-index:2;flex:none;display:flex;align-items:center;gap:.8rem;padding:.55rem 1.1rem;
+  background:rgba(10,19,16,.78);border-bottom:1px solid var(--line)}
+.led{width:.5rem;height:.5rem;border-radius:50%;background:var(--amber);box-shadow:0 0 .55rem rgba(255,176,32,.55);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+a.back{color:var(--dim);text-decoration:none;font-size:.6rem;letter-spacing:.14em}
+a.back:hover{color:var(--acc)}
+.bal{margin-left:auto;display:flex;align-items:baseline;gap:.45rem;font-size:.7rem;color:var(--dim)}
+.bal b{color:#eef4ee;font-size:.85rem;font-variant-numeric:tabular-nums}
+.snd{border:1px solid var(--line);background:transparent;color:var(--dim);border-radius:.35rem;
+  font-family:var(--mono);font-size:.54rem;letter-spacing:.12em;padding:.24rem .5rem;cursor:pointer}
+.snd:hover{color:var(--acc)}
+.body{position:relative;z-index:2;flex:1;min-height:0;display:flex}
+.pit{flex:1;min-width:0;display:grid;place-items:center;position:relative}
+.pit.shake{animation:shake .3s linear}
+@keyframes shake{0%,100%{transform:translate(0,0)}25%{transform:translate(3px,-2px)}50%{transform:translate(-3px,2px)}75%{transform:translate(2px,1px)}}
+#wheel{width:min(88%,30rem);aspect-ratio:1;filter:drop-shadow(0 14px 34px rgba(0,0,0,.65))}
+.panel{flex:none;width:20.5rem;border-left:1px solid var(--line);background:rgba(10,19,16,.8);
+  display:flex;flex-direction:column;min-height:0;padding:.7rem .75rem;gap:.5rem}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:.55rem;padding:.55rem .65rem;display:flex;flex-direction:column;gap:.35rem}
+.kv{display:flex;justify-content:space-between;align-items:baseline;font-size:.6rem;color:var(--dim)}
+.kv b{color:var(--ink);font-variant-numeric:tabular-nums}
+.big{font-size:1.9rem;font-weight:800;letter-spacing:.02em;color:var(--acc);font-variant-numeric:tabular-nums;text-shadow:0 0 1.4rem rgba(201,226,26,.25);min-height:2.4rem}
+.lbl{font-size:.54rem;letter-spacing:.18em;color:var(--faint)}
+.spin{height:3rem;border-radius:.55rem;border:1px solid rgba(201,226,26,.55);background:rgba(201,226,26,.16);
+  color:var(--acc);font-family:var(--mono);font-size:.8rem;font-weight:800;letter-spacing:.16em;cursor:pointer}
+.spin:hover{background:rgba(201,226,26,.24)}
+.spin.free{border-color:rgba(255,176,32,.6);background:rgba(255,176,32,.16);color:var(--amber)}
+.spin:disabled{border-color:rgba(70,90,81,.35);background:transparent;color:#33453c;cursor:not-allowed}
+.pot{display:flex;flex-direction:column;gap:.28rem}
+.pot .row{display:flex;align-items:center;gap:.45rem;font-size:.58rem}
+.pot .d{width:.42rem;height:.42rem;border-radius:50%;flex:none}
+.pot .nm{color:var(--ink);letter-spacing:.06em}
+.pot .amt{margin-left:auto;color:var(--dim);font-variant-numeric:tabular-nums}
+.sess{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:.25rem}
+.sess .row{display:flex;gap:.45rem;font-size:.56rem;align-items:baseline}
+.sess .t{color:var(--faint)}
+.sess .l{flex:1;color:var(--ink);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess .n{font-variant-numeric:tabular-nums}
+.status{position:relative;z-index:2;flex:none;display:flex;align-items:center;height:1.8rem;padding:0 1.1rem;
+  border-top:1px solid var(--line);background:rgba(10,19,16,.78);font-size:.56rem;letter-spacing:.08em;color:var(--faint)}
+*::-webkit-scrollbar{width:5px}*::-webkit-scrollbar-thumb{background:#22332a;border-radius:3px}
+</style></head><body>
+<div id="stage"><div id="frame"><div id="screen" data-screen-label="The Wheel">
+  <canvas id="gl"></canvas>
+  <div class="hdr">
+    <span class="led"></span>
+    <span style="color:var(--amber);font-weight:800;font-size:.95rem;letter-spacing:.3em">THE WHEEL</span>
+    <span style="color:var(--faint);font-size:.62rem;letter-spacing:.24em">// ONE SPIN · TWELVE FATES</span>
+    <a class="back" href="#" onclick="AP.call('casTable',['landing']);return false;">⟵ FLOOR</a>
+    <span class="bal">BANK <b id="bal">—</b></span>
+    <button class="snd" id="snd">SND ON</button>
+  </div>
+  <div class="body">
+    <div class="pit" id="pit"><canvas id="wheel"></canvas></div>
+    <div class="panel">
+      <div class="card">
+        <span class="lbl" id="resLbl">READY</span>
+        <span class="big" id="resBig">—</span>
+        <div class="kv"><span id="costLine">SPIN COST</span><b id="cost">—</b></div>
+      </div>
+      <button class="spin" id="spinBtn">SPIN</button>
+      <div class="card pot">
+        <span class="lbl">THE RING</span>
+        <div class="row"><span class="d" style="background:var(--acc)"></span><span class="nm">CASH ×6</span><span class="amt">$1,000 – $200,000 · CURVED — SMALL IS THE NORM</span></div>
+        <div class="row"><span class="d" style="background:var(--danger)"></span><span class="nm">BUST ×3</span><span class="amt">HOUSE TAKES THE SPIN</span></div>
+        <div class="row"><span class="d" style="background:var(--amber)"></span><span class="nm">IFRIT</span><span class="amt">$1,250,000 — THE CAR</span></div>
+        <div class="row"><span class="d" style="background:var(--magenta)"></span><span class="nm">QILIN</span><span class="amt">$2,000,000 — THE CAR</span></div>
+        <div class="row"><span class="d" style="background:var(--acc2)"></span><span class="nm">BLACKFISH</span><span class="amt">$5,000,000 — THE AIRCRAFT</span></div>
+      </div>
+      <div class="card" style="flex:1;min-height:0">
+        <span class="lbl">THIS SESSION</span>
+        <div class="sess" id="sess"><span style="font-size:.56rem;color:var(--faint)">NO SPINS YET</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="status" id="status"></div>
+</div></div></div>
+
+<script>
+/* ---- AP stub (dev only — the real bridge replaces it). Mock outcome weights
+   are for demo only; the SERVER picks the segment in game. ---- */
+if (typeof AP === "undefined") window.AP = (function () {
+  const subs = {}, last = {};
+  const push = (n, v) => { last[n] = v; (subs[n] || []).forEach(f => f(v)); };
+  const st = { balance:1240000, gate:"", wheel:{ cost:50000, freeAvailable:true } };
+  push("casino", JSON.parse(JSON.stringify(st)));
+  const RING = ["cash","bust","cash","ifrit","cash","bust","cash","qilin","cash","bust","cash","blackfish"];
+  const CARS = { ifrit:1250000, qilin:2000000, blackfish:5000000 };
+  return {
+    on(n, f) { (subs[n] = subs[n] || []).push(f); if (n in last) f(last[n]); },
+    call(name, a) {
+      if (name === "casPlay" && a[0] === "wheel" && a[1] === "spin") {
+        const useFree = !!(a[2] && a[2][0]);
+        setTimeout(() => {
+          const r = Math.random();
+          let seg;
+          if (r < .68) { const c = [0,2,4,6,8,10]; seg = c[Math.floor(Math.random() * 6)]; }
+          else if (r < .92) { const b = [1,5,9]; seg = b[Math.floor(Math.random() * 3)]; }
+          else { const v = [3,7,11]; seg = v[Math.floor(Math.random() * 3)]; }
+          const kind = RING[seg];
+          let prize = 0, label = "BUST — HOUSE TAKES IT";
+          if (kind === "cash") { const u = Math.random(); prize = Math.round((1000 + 199000 * u * u * u) / 100) * 100; label = "CASH"; }
+          else if (kind !== "bust") { prize = CARS[kind]; label = kind.toUpperCase() + " — KEYS ARE YOURS"; }
+          if (!useFree) st.balance -= st.wheel.cost;
+          if (kind === "cash") st.balance += prize;
+          if (useFree) st.wheel.freeAvailable = false;
+          push("casino", JSON.parse(JSON.stringify(st)));
+          push("casResult", { game:"wheel", payload:["spin", seg, kind, kind === "cash" ? prize : 0, 25, label, useFree] });   // index 2 = the TYPE, as the server sends it
+        }, 900 + Math.random() * 900);
+        return Promise.resolve({ ok:true, msg:"sent" });
+      }
+      if (name === "casPlay" && a[1] === "checkfree")
+        return Promise.resolve(push("casResult", { game:"wheel", payload:["status", st.wheel.freeAvailable, st.wheel.cost] }));
+      return Promise.resolve({ ok:true });
+    },
+    _push:push
+  };
+})();
+
+const $ = s => document.querySelector(s);
+function fit() { document.documentElement.style.fontSize = Math.max(9, $("#frame").getBoundingClientRect().width / 75) + "px"; sizeWheel(); }
+window.addEventListener("resize", fit);
+const F = n => "$" + Math.round(n).toLocaleString();
+
+/* ---- WebGL felt (same shader as the landing) ---- */
+function feltGL(canvas) {
+  const gl = canvas.getContext("webgl", { antialias:false, alpha:false, powerPreference:"low-power" });
+  if (!gl) { canvas.style.background = "radial-gradient(ellipse at 50% 30%,#0d2a1e,#050b09 75%)"; return { kick(){} }; }
+  const V = "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
+  const Fs = "precision mediump float;uniform vec2 R;uniform float T;" +
+    "float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}" +
+    "float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);" +
+    "return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}" +
+    "void main(){vec2 uv=gl_FragCoord.xy/R;vec2 q=uv*vec2(R.x/R.y,1.);" +
+    "float weave=n(q*150.)*.6+n(q*300.+7.)*.4;" +
+    "float fb=n(q*3.2+T*.008);" +
+    "vec3 c=vec3(.045,.155,.11)*(.8+.3*fb)+(weave-.5)*.045;" +
+    "vec2 lp=vec2(.42+.2*sin(T*.045),.30+.12*cos(T*.033));" +
+    "float d=distance(q,lp*vec2(R.x/R.y,1.));" +
+    "c+=vec3(1.,.66,.16)*.085*exp(-d*d*5.5);" +
+    "float e=max(abs(uv.x-.5),abs(uv.y-.5))*2.;" +
+    "c+=vec3(.75,.85,.12)*.035*pow(e,3.);" +
+    "float m=smoothstep(.992,1.,n(q*20.+vec2(T*.018,-T*.011)));" +
+    "c+=vec3(.75,.85,.45)*m*.28;" +
+    "c*=1.-.5*pow(e,3.5);" +
+    "gl_FragColor=vec4(c,1.);}";
+  function sh(t, s) { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; }
+  const pr = gl.createProgram();
+  gl.attachShader(pr, sh(gl.VERTEX_SHADER, V)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, Fs));
+  gl.linkProgram(pr); gl.useProgram(pr);
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(pr, "p");
+  gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const uR = gl.getUniformLocation(pr, "R"), uT = gl.getUniformLocation(pr, "T");
+  let until = 0, raf = 0, lastF = 0;
+  function size() {
+    const r = canvas.getBoundingClientRect();
+    canvas.width = Math.round(r.width); canvas.height = Math.round(r.height);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+  window.addEventListener("resize", () => { size(); draw(performance.now()); });
+  function draw(t) { gl.uniform2f(uR, canvas.width, canvas.height); gl.uniform1f(uT, t / 1000); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+  function frame(t) {
+    raf = 0;
+    if (t > until) { draw(t); return; }
+    if (t - lastF >= 33) { lastF = t; draw(t); }
+    raf = requestAnimationFrame(frame);
+  }
+  size();
+  return { kick(ms) { until = performance.now() + (ms || 9000); if (!raf) raf = requestAnimationFrame(frame); } };
+}
+const felt = feltGL($("#gl"));
+
+/* ---- audio ---- */
+let sndOn = true, ac = null;
+function beep(f, dur, gain, type) {
+  if (!sndOn) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || "square"; o.frequency.value = f;
+    g.gain.setValueAtTime(gain || .03, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + dur);
+    o.connect(g); g.connect(ac.destination);
+    o.start(); o.stop(ac.currentTime + dur);
+  } catch (e) {}
+}
+const tick = () => beep(1500, .025, .022);
+const winSting = () => { beep(660, .12, .05, "triangle"); setTimeout(() => beep(990, .18, .05, "triangle"), 110); setTimeout(() => beep(1320, .3, .05, "triangle"), 240); };
+const carSting = () => { [523,659,784,1047,1319].forEach((f, i) => setTimeout(() => beep(f, .22, .055, "triangle"), i * 95)); };
+const bustThud = () => { beep(130, .3, .07, "sawtooth"); setTimeout(() => beep(90, .4, .06, "sawtooth"), 120); };
+$("#snd").onclick = () => { sndOn = !sndOn; $("#snd").textContent = "SND " + (sndOn ? "ON" : "OFF"); };
+
+/* ---- the wheel ---- */
+const RING = [
+  { k:"cash",      lbl:"CASH",      wedge:"#0e2c1c", wedge2:"#123722", txt:"#c9e21a" },
+  { k:"bust",      lbl:"BUST",      wedge:"#2a0e0b", wedge2:"#2a0e0b", txt:"#ff5a3c" },
+  { k:"cash",      lbl:"CASH",      wedge:"#0e2c1c", wedge2:"#123722", txt:"#c9e21a" },
+  { k:"ifrit",     lbl:"IFRIT",     wedge:"#33220a", wedge2:"#33220a", txt:"#ffb020" },
+  { k:"cash",      lbl:"CASH",      wedge:"#0e2c1c", wedge2:"#123722", txt:"#c9e21a" },
+  { k:"bust",      lbl:"BUST",      wedge:"#2a0e0b", wedge2:"#2a0e0b", txt:"#ff5a3c" },
+  { k:"cash",      lbl:"CASH",      wedge:"#0e2c1c", wedge2:"#123722", txt:"#c9e21a" },
+  { k:"qilin",     lbl:"QILIN",     wedge:"#330f1e", wedge2:"#330f1e", txt:"#ff3d81" },
+  { k:"cash",      lbl:"CASH",      wedge:"#0e2c1c", wedge2:"#123722", txt:"#c9e21a" },
+  { k:"bust",      lbl:"BUST",      wedge:"#2a0e0b", wedge2:"#2a0e0b", txt:"#ff5a3c" },
+  { k:"cash",      lbl:"CASH",      wedge:"#0e2c1c", wedge2:"#123722", txt:"#c9e21a" },
+  { k:"blackfish", lbl:"BLACKFISH", wedge:"#0a2733", wedge2:"#0a2733", txt:"#33ffbb" }
+];
+const cv = $("#wheel"), cx = cv.getContext("2d");
+let W = 0;
+function sizeWheel() {
+  const r = cv.getBoundingClientRect();
+  if (!r.width) return;
+  W = Math.round(r.width);
+  cv.width = W; cv.height = W;
+  drawWheel(theta);
+}
+let theta = 0;               // wheel rotation, radians
+let litSeg = -1;             // landed segment highlight
+let particles = [];
+const SEG = Math.PI / 6;     // 30°
+
+function drawWheel(th) {
+  if (!W) return;
+  const c = W / 2, R = W * .46;
+  cx.clearRect(0, 0, W, W);
+  cx.save(); cx.translate(c, c);
+  // outer metallic rim
+  const rim = cx.createLinearGradient(-R, -R, R, R);
+  rim.addColorStop(0, "#3a463f"); rim.addColorStop(.5, "#141a17"); rim.addColorStop(1, "#2c3833");
+  cx.beginPath(); cx.arc(0, 0, R + W * .028, 0, 7); cx.fillStyle = rim; cx.fill();
+  cx.beginPath(); cx.arc(0, 0, R + W * .028, 0, 7); cx.strokeStyle = "#000"; cx.lineWidth = 2; cx.stroke();
+  cx.save(); cx.rotate(th);
+  // wedges
+  for (let i = 0; i < 12; i++) {
+    const a0 = -Math.PI / 2 + i * SEG - SEG / 2, a1 = a0 + SEG;
+    cx.beginPath(); cx.moveTo(0, 0); cx.arc(0, 0, R, a0, a1); cx.closePath();
+    const s = RING[i];
+    cx.fillStyle = (i === litSeg) ? s.txt : (s.k === "cash" && (i / 2) % 2 ? s.wedge2 : s.wedge);
+    cx.globalAlpha = i === litSeg ? .28 : 1;
+    if (i === litSeg) { cx.save(); cx.fillStyle = s.wedge; cx.fill(); cx.restore(); }
+    cx.fill(); cx.globalAlpha = 1;
+    cx.strokeStyle = "rgba(0,0,0,.6)"; cx.lineWidth = 1.5; cx.stroke();
+    if (i === litSeg) { cx.save(); cx.shadowColor = s.txt; cx.shadowBlur = W * .04; cx.strokeStyle = s.txt; cx.lineWidth = 2.5; cx.stroke(); cx.restore(); }
+  }
+  // labels
+  for (let i = 0; i < 12; i++) {
+    const mid = -Math.PI / 2 + i * SEG;
+    cx.save(); cx.rotate(mid + Math.PI / 2); // local -y now points at wedge i's centre
+    cx.fillStyle = RING[i].txt;
+    cx.font = "700 " + Math.round(W * (RING[i].lbl.length > 5 ? .026 : .032)) + "px ui-monospace,Menlo,monospace";
+    cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.translate(0, -R * .72);
+    cx.fillText(RING[i].lbl, 0, 0);
+    cx.restore();
+  }
+  // boundary pins
+  for (let i = 0; i < 12; i++) {
+    const a = -Math.PI / 2 + i * SEG - SEG / 2;
+    cx.save(); cx.rotate(a); cx.translate(0, -R * .985);
+    cx.beginPath(); cx.arc(0, 0, W * .008, 0, 7);
+    cx.fillStyle = "#d8e6c0"; cx.shadowColor = "rgba(201,226,26,.8)"; cx.shadowBlur = W * .012; cx.fill();
+    cx.restore();
+  }
+  cx.restore();
+  // hub
+  const hub = cx.createRadialGradient(0, -W * .02, W * .01, 0, 0, W * .13);
+  hub.addColorStop(0, "#1c2621"); hub.addColorStop(1, "#0a100d");
+  cx.beginPath(); cx.arc(0, 0, W * .13, 0, 7); cx.fillStyle = hub; cx.fill();
+  cx.strokeStyle = "rgba(201,226,26,.35)"; cx.lineWidth = 1.5; cx.stroke();
+  cx.fillStyle = litSeg >= 0 ? RING[litSeg].txt : "#7f938a";
+  cx.font = "700 " + Math.round(W * .028) + "px ui-monospace,Menlo,monospace";
+  cx.textAlign = "center"; cx.textBaseline = "middle";
+  cx.fillText(litSeg >= 0 ? RING[litSeg].lbl : "12 FATES", 0, 0);
+  // pointer (fixed, top)
+  cx.beginPath();
+  cx.moveTo(-W * .026, -R - W * .036); cx.lineTo(W * .026, -R - W * .036); cx.lineTo(0, -R + W * .022);
+  cx.closePath();
+  cx.fillStyle = "#c9e21a"; cx.shadowColor = "rgba(201,226,26,.7)"; cx.shadowBlur = W * .02; cx.fill();
+  cx.shadowBlur = 0; cx.strokeStyle = "#000"; cx.lineWidth = 1.5; cx.stroke();
+  // particles
+  particles.forEach(p => {
+    cx.globalAlpha = Math.max(0, p.life / p.max);
+    cx.fillStyle = p.col;
+    cx.fillRect(p.x - c, p.y - c, p.s, p.s);
+  });
+  cx.globalAlpha = 1;
+  cx.restore();
+}
+
+/* ---- spin state machine: accelerate → cruise until casResult → planned landing ---- */
+let spin = null;   // {phase, w, result, plan}
+let lastTickSeg = -1;
+function segAtPointer() { return ((Math.round(-theta / SEG) % 12) + 12) % 12; }
+function loop(t) {
+  if (!spin) return;
+  const dt = Math.min(50, t - (spin.t || t)) / 1000; spin.t = t;
+  if (spin.phase === "accel") {
+    spin.w = Math.min(spin.w + dt * 14, 9);
+    theta += spin.w * dt;
+    if (spin.result != null && spin.w >= 9) plan(t);
+  } else if (spin.phase === "cruise") {
+    theta += spin.w * dt;
+    if (spin.result != null) plan(t);
+  } else if (spin.phase === "land") {
+    const p = Math.min(1, (t - spin.pt0) / spin.dur);
+    const e = 1 - Math.pow(1 - p, 3);
+    theta = spin.th0 + (spin.th1 - spin.th0) * e;
+    if (p >= 1) { landed(); return; }
+  }
+  const s = Math.floor(theta / SEG);
+  if (s !== lastTickSeg) { lastTickSeg = s; tick(); }
+  drawWheel(theta);
+  requestAnimationFrame(loop);
+}
+function plan(t) {
+  const seg = spin.result.seg;
+  const jitter = (Math.random() * .5 - .25) * SEG;
+  const target = -(seg * SEG) + jitter;
+  const base = theta;
+  const twoPI = Math.PI * 2;
+  let delta = ((target - base) % twoPI + twoPI) % twoPI;
+  spin.phase = "land"; spin.pt0 = t; spin.dur = 3300;
+  spin.th0 = base; spin.th1 = base + delta + twoPI * 4;
+}
+function landed() {
+  const r = spin.result;
+  spin = null;
+  litSeg = r.seg;
+  drawWheel(theta);
+  const kind = RING[r.seg].k;
+  if (kind === "bust") {
+    bustThud();
+    $("#pit").classList.remove("shake"); void $("#pit").offsetWidth; $("#pit").classList.add("shake");
+    setRes("BUST", "HOUSE TAKES THE SPIN", "var(--danger)");
+    say("// BUST — SERVER-WIDE EVENT · THE FLOOR HEARD IT", "bad");
+  } else if (kind === "cash") {
+    winSting();
+    countUp(r.prize, "var(--acc)");
+    $("#resLbl").textContent = "CASH — " + (r.wasFree ? "FREE SPIN" : "PAID SPIN");
+    say("// CREDITED " + F(r.prize) + " — SERVER SETTLED", "good");
+  } else {
+    carSting();
+    confetti(RING[r.seg].txt);
+    setRes(RING[r.seg].lbl, "KEYS ARE YOURS — CHECK YOUR GARAGE", RING[r.seg].txt);
+    say("// " + RING[r.seg].lbl + " WON — GARAGE UPDATED SERVER-SIDE", "good");
+  }
+  logSpin(r);
+  $("#spinBtn").disabled = false;
+  syncBtn();
+  felt.kick(4500);
+  fxUntil = performance.now() + 2200;
+  requestAnimationFrame(fxLoop);
+}
+let fxUntil = 0;
+function fxLoop(t) {
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += .18; p.life -= 16; });
+  particles = particles.filter(p => p.life > 0);
+  drawWheel(theta);
+  if (t < fxUntil || particles.length) requestAnimationFrame(fxLoop);
+}
+function confetti(col) {
+  const c = W / 2;
+  for (let i = 0; i < 90; i++) {
+    const a = Math.random() * 7, v = 2 + Math.random() * 5;
+    particles.push({ x:c, y:c, vx:Math.cos(a) * v, vy:Math.sin(a) * v - 3, s:2 + Math.random() * 3,
+      col:[col, "#c9e21a", "#eef4ee"][i % 3], life:900 + Math.random() * 800, max:1700 });
+  }
+}
+function countUp(n, col) {
+  const el = $("#resBig"); el.style.color = col;
+  $("#resLbl").textContent = "YOU WIN";
+  const t0 = performance.now();
+  (function step(t) {
+    const p = Math.min(1, (t - t0) / 900), e = 1 - Math.pow(1 - p, 2);
+    el.textContent = F(n * e);
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+}
+function setRes(big, lbl, col) { $("#resBig").textContent = big; $("#resBig").style.color = col; $("#resLbl").textContent = lbl; }
+
+/* ---- wiring ---- */
+let cas = null, statusT = null;
+function say(m, tone) {
+  const el = $("#status");
+  el.textContent = m;
+  el.style.color = tone === "bad" ? "var(--danger)" : tone === "good" ? "var(--acc)" : tone === "warn" ? "var(--amber)" : "var(--faint)";
+  clearTimeout(statusT);
+  statusT = setTimeout(() => { el.textContent = defaultStatus(); el.style.color = "var(--faint)"; }, 3600);
+}
+function defaultStatus() {
+  return cas && cas.gate ? "// TABLE CLOSED TO YOU — " + cas.gate.toUpperCase()
+    : "// THE BUST POINT IS DECIDED WHEN YOU SPIN — THE WHEEL JUST TELLS YOU · ESC LEAVES";
+}
+function syncBtn() {
+  const b = $("#spinBtn");
+  if (!cas) return;
+  const free = cas.wheel.freeAvailable;
+  b.classList.toggle("free", !!free);
+  b.textContent = free ? "FREE SPIN — DAILY" : "SPIN — " + F(cas.wheel.cost);
+  $("#cost").textContent = F(cas.wheel.cost);
+  $("#costLine").textContent = free ? "SPIN COST — FIRST ONE'S FREE TODAY" : "SPIN COST";
+  b.disabled = !!cas.gate || !!spin || (!free && cas.balance < cas.wheel.cost);
+  if (cas.gate) say("// " + cas.gate.toUpperCase(), "bad");
+}
+function logSpin(r) {
+  const box = $("#sess");
+  if (box.firstChild && box.firstChild.tagName === "SPAN") box.innerHTML = "";
+  const d = new Date(), tm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  const kind = RING[r.seg].k;
+  const net = kind === "cash" ? r.prize - (r.wasFree ? 0 : cas.wheel.cost) : kind === "bust" ? -(r.wasFree ? 0 : cas.wheel.cost) : r.prize;
+  const col = kind === "bust" ? "var(--danger)" : net >= 0 ? "var(--acc)" : "var(--amber)";
+  const row = document.createElement("div");
+  row.className = "row";
+  row.innerHTML = '<span class="t">' + tm + '</span><span class="l">' + RING[r.seg].lbl + (r.wasFree ? " · FREE" : "") +
+    '</span><span class="n" style="color:' + col + '">' + (kind === "bust" ? "−" + F(r.wasFree ? 0 : cas.wheel.cost).slice(1) : "+" + F(kind === "cash" ? r.prize : r.prize).slice(1)) + "</span>";
+  box.prepend(row);
+  while (box.children.length > 14) box.removeChild(box.lastChild);
+}
+$("#spinBtn").onclick = () => {
+  if (!cas || spin) return;
+  const useFree = cas.wheel.freeAvailable;
+  litSeg = -1; setRes("—", "SPINNING", "var(--dim)");
+  $("#spinBtn").disabled = true;
+  spin = { phase:"accel", w:0, result:null };
+  felt.kick(7000);
+  requestAnimationFrame(loop);
+  AP.call("casPlay", ["wheel", "spin", [useFree]]).then(r => { if (r && r.ok === false) { spin = null; say("// REFUSED — " + (r.msg || "").toUpperCase(), "bad"); syncBtn(); } });
+};
+AP.on("casino", v => { cas = v; $("#bal").textContent = F(v.balance); syncBtn(); });
+AP.on("casResult", r => {
+  if (r.game !== "wheel") return;
+  const p = r.payload;
+  // p[2] is the prize TYPE, a string; the money is p[3]. Rendering p[2] as the amount put "$NaN" on a
+  // cash hit (owner 2026-09-03). A car's figure is the legend's asset value -- the server logs it but
+  // does not send it -- so the session log can show what the keys were worth.
+  if (p[0] === "spin") { if (spin) { const kind = String(p[2]); spin.result = { seg:p[1], kind, prize: kind === "cash" ? Number(p[3]) || 0 : (CARS[kind] || 0), cashWon:p[3], label:p[5], wasFree:p[6] }; } }
+  else if (p[0] === "status") { if (cas) { cas.wheel.freeAvailable = p[1]; cas.wheel.cost = p[2]; syncBtn(); } }
+});
+fit(); sizeWheel(); drawWheel(0); felt.kick(6000);
+</script>
+</body></html>

@@ -1,0 +1,120 @@
+// ap_vendsign.rvmat -- the lit front panel of a vending machine. _co in Face Properties.
+//
+// The handoff asks for exactly one thing here: "give LOGO_front_ca a self-illuminated rvmat so it
+// glows at night (the machine's only light apart from the label strip)."
+//
+// EMISSIVE SITS BETWEEN THIS MISSION'S TWO EXISTING SELF-LIT MATERIALS, and the number is chosen
+// from the size of the thing it lights, not by taste. neon_cyan/magenta/violet/core run emmisive[]
+// in the 1e5 range because they are building-scale signage meant to read across a district;
+// ap_printer_screen.rvmat runs 9 because it is a 10 cm desktop LCD that must not light the room.
+// A vending sign is 0.55 x 1.62 m: a shopfront you read from across a plaza, not from orbit and
+// not from arm's length. 45 puts it clearly self-lit after dark at plaza distance while leaving
+// the cabinet around it dark, which is the whole look -- one glowing panel on a black machine.
+//
+// SUPER, NOT NORMAL. ap_printer_screen gets away with PixelShaderID="Normal" because a 10 cm
+// screen has no surface detail worth shading. This panel is a metre and a half of curved plastic
+// catching plaza light, so it takes the same Super stage ladder ap_callplate.rvmat uses -- flat
+// NOHQ, neutral DT/MC/AS, a mild SMDI so the curve reads, fresnel and the env map. Without those
+// stages Super would sample garbage; with Normal the panel goes flat and plastic.
+//
+// THE WHOLE PANEL CARRIES THE GLOW, not just the bright pixels: A3's Super shader has no per-pixel
+// emissive stage. That is fine here for the same reason it is fine on the call plate -- the sign
+// art is bright type on a dark ground, so the dark ground stays dark and only the type reads as
+// lit. A sign authored as light-on-white would glow as a slab; none of the twelve are.
+//
+// The three LOGO_* faces share this one file. The sides are unlit in the design (emissiveIntensity
+// .25 vs .5 on the front) but they carry the same art at the same scale, and a second rvmat
+// differing only in one number is a second file to keep in sync -- the visible difference at 45 is
+// smaller than the difference between the two sign arts themselves.
+ambient[]={1,1,1,1};
+diffuse[]={1,1,1,1};
+forcedDiffuse[]={0,0,0,0};
+emmisive[]={45,45,45,1};
+specular[]={0.35,0.35,0.35,1};
+specularPower=60;
+PixelShaderID="Super";
+VertexShaderID="Super";
+class Stage1
+{
+	texture="#(argb,8,8,3)color(0.5,0.5,1,1,NOHQ)";
+	uvSource="tex";
+	class uvTransform
+	{
+		aside[]={1,0,0};
+		up[]={0,1,0};
+		dir[]={0,0,1};
+		pos[]={0,0,0};
+	};
+};
+class Stage2
+{
+	texture="#(argb,8,8,3)color(0.5,0.5,0.5,1,DT)";
+	uvSource="tex";
+	class uvTransform
+	{
+		aside[]={1,0,0};
+		up[]={0,1,0};
+		dir[]={0,0,1};
+		pos[]={0,0,0};
+	};
+};
+class Stage3
+{
+	texture="#(argb,8,8,3)color(0,0,0,0,MC)";
+	uvSource="tex";
+	class uvTransform
+	{
+		aside[]={1,0,0};
+		up[]={0,1,0};
+		dir[]={0,0,1};
+		pos[]={0,0,0};
+	};
+};
+class Stage4
+{
+	texture="#(argb,8,8,3)color(1,1,1,1,AS)";
+	uvSource="tex";
+	class uvTransform
+	{
+		aside[]={1,0,0};
+		up[]={0,1,0};
+		dir[]={0,0,1};
+		pos[]={0,0,0};
+	};
+};
+class Stage5
+{
+	texture="#(argb,8,8,3)color(0,0.30,0.55,1,SMDI)";
+	uvSource="tex";
+	class uvTransform
+	{
+		aside[]={1,0,0};
+		up[]={0,1,0};
+		dir[]={0,0,1};
+		pos[]={0,0,0};
+	};
+};
+class Stage6
+{
+	texture="#(ai,64,64,1)fresnel(1.5,1.22)";
+	uvSource="none";
+	class uvTransform
+	{
+		aside[]={1,0,0};
+		up[]={0,1,0};
+		dir[]={0,0,1};
+		pos[]={0,0,0};
+	};
+};
+class Stage7
+{
+	texture="a3\data_f\env_land_co.paa";
+	uvSource="none";
+	class uvTransform
+	{
+		aside[]={1,0,0};
+		up[]={0,1,0};
+		dir[]={0,0,1};
+		pos[]={0,0,0};
+	};
+};

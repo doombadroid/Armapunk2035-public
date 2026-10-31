@@ -1,0 +1,4 @@
+node_modules/
+out/
+.ffmpeg-static/
+package-lock.json

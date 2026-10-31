@@ -1,0 +1,344 @@
+<!doctype html>
+<!-- RADIAL — CAR RADIO + AUTOPILOT (design 1b "PHOSPHOR RING"). Self-contained,
+     game-ready: inline CSS/JS, no libs, no network, no storage. AP stub behind
+     a guard. Replaces AP_RadialRadio (idd 515500) / fn_radioRadial.sqf v3 and
+     its wedge .paa stack — the page draws every wedge itself, so station count,
+     colors and logos still come from cfg at runtime via the push.
+
+     THE DESIGN: stations fan the TOP half in 180°/n annular segments left→right,
+     OFF continues past 3 o'clock, MAD MAX / NORMAL / SLOTH close the loop on an
+     INNER ring when the garage autopilot module is fitted (driver only). Whole
+     sector = hit zone (mouse angle, like the sqf), hover previews in the CRT hub,
+     LMB commits, TAB/ESC closes. Anchored bottom-left above chat. In game the
+     backdrop is the world; this file ships a dim placeholder.
+
+     CONTRACT (page defines it; SQF matches; primitives identical to fn_autoRadio)
+       AP.on("radial", { stations:[{ id, label, color }],   // color "#RRGGBB" — SQF converts the cfg float triplet
+                         isDriver, apInstalled,             // garage module + seat, evaluated at open
+                         on, st, apMode })                  // AP_radioOn / AP_radioStation / AP_gpsAPMode|null
+         — pushed on open + on ANY radio/autopilot state change; page renders
+           pushes verbatim (it never assumes its click landed)
+       AP.call("radialSet", ["station", i])   // -> { ok }
+       AP.call("radialSet", ["off"])          // -> { ok }
+       AP.call("radialSet", ["ap", "madmax"|"normal"|"sloth"])  // -> { ok } — SQF starts gpsAutopilot + closes
+       AP.call("radialClose", [])             // page asks; the display owns TAB/ESC in game
+     Non-driver clicks never leave the page: it shows the sqf's own line
+     "Only the driver controls the radio." and calls nothing.
+
+     WHAT ANIMATES: hub scanline flicker + ON AIR led (CSS keyframes). Hover and
+     pushes repaint the SVG outright — no rAF, no timers except the 1.8 s toast. -->
+<html><head><meta charset="utf-8"><title>RADIAL — car radio + autopilot</title>
+<script>
+/* ---- BRIDGE SHIM (ported from tools/install_shop_pages.py's SHIM; not run through the
+   installer -- radial.html isn't in its PAGES list, and this page's own DOM/chassis is not the
+   #frame/#stage/#card letterbox that installer's WINFIT half assumes, so only this half applies)
+   AP defined synchronously so the page's own dev stub (below, in the main <script>) never
+   installs; on()/call() queue until webui.js lands. AP.texture goes straight to A3API -- no
+   bridge round-trip, cached by the page. Identical to ui/html/loot.html's installed copy except
+   the readiness log label; the FLAIR listener is inert here (this page pushes no "wshop"/"cshop"
+   channel and has no flair CSS) but is left in verbatim rather than hand-trimmed proven code. */
+(function () {
+  var subs = {}, queued = [], W = null;
+  window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+  window.__apSubs = subs;
+  window.AP = {
+    __shim: true,
+    on: function (n, f) { (subs[n] = subs[n] || []).push(f); if (W) W.on(n, f); },
+    call: function (n, a) {
+      if (W) return W.call(n, a || [], 20000);
+      return new Promise(function (res, rej) { queued.push([n, a || [], res, rej]); });
+    },
+    texture: function (p, s) {
+      if (typeof A3API === "undefined" || !A3API.RequestTexture) return Promise.reject(new Error("no A3API"));
+      /* ALPHA TRIM. BI gear icons draw the art left-aligned inside a large
+         transparent canvas, so object-fit:contain centres the CANVAS, not the
+         weapon. Crop to the alpha bounding box before handing it to the page. */
+      return A3API.RequestTexture(p, s).then(function (durl) {
+        return new Promise(function (res) {
+          var im = new Image();
+          im.onload = function () {
+            try {
+              var cv = document.createElement("canvas");
+              cv.width = im.width; cv.height = im.height;
+              var g = cv.getContext("2d");
+              g.drawImage(im, 0, 0);
+              var d = g.getImageData(0, 0, cv.width, cv.height).data;
+              var x0 = cv.width, y0 = cv.height, x1 = 0, y1 = 0;
+              for (var y = 0; y < cv.height; y++) for (var x = 0; x < cv.width; x++) {
+                if (d[(y * cv.width + x) * 4 + 3] > 10) {
+                  if (x < x0) x0 = x; if (x > x1) x1 = x;
+                  if (y < y0) y0 = y; if (y > y1) y1 = y;
+                }
+              }
+              if (x1 <= x0 || y1 <= y0) return res(durl);
+              var pad = 2, w = x1 - x0 + 1 + pad * 2, h = y1 - y0 + 1 + pad * 2;
+              var out = document.createElement("canvas"); out.width = w; out.height = h;
+              out.getContext("2d").drawImage(cv, x0 - pad, y0 - pad, w, h, 0, 0, w, h);
+              res(out.toDataURL("image/png"));
+            } catch (e) { res(durl); }
+          };
+          im.onerror = function () { res(durl); };
+          im.src = durl;
+        });
+      });
+    },
+    handle: function (n, f) { if (W) W.handle(n, f); }
+  };
+  window.WEBUIReady.then(function (w) {
+    W = w;
+    Object.keys(subs).forEach(function (n) { subs[n].forEach(function (f) { W.on(n, f); }); });
+    queued.forEach(function (q) { W.call(q[0], q[1], 20000).then(q[2], q[3]); });
+    queued = [];
+    W.call("log", ["carradio page up"]);   // instant readiness drain
+    /* FLAIR: same shim as the shop pages carry. Inert here on purpose -- see header. */
+    ["wshop", "cshop"].forEach(function (ch) {
+      W.on(ch, function (v) {
+        if (v && v.flair !== undefined) document.body.setAttribute("data-flair", v.flair || "");
+      });
+    });
+  });
+  if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+    A3API.RequestFile("webui\\ui\\webui.js")
+      .then(function (s) { try { (0, eval)(s); } catch (e) { window.__apBootErr = "eval: " + e; } })
+      .catch(function (e) { window.__apBootErr = "RequestFile: " + e; });
+  } else { window.__apBootErr = "no A3API on this page"; }
+})();
+</script>
+<style>
+:root{
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --scr:#050a10; --scr2:#0a121c; --panel:#0c1622;
+  --acc:#f5a623; --ink:#dbe6f2; --dim:#7d8b9e; --faint:#3c4a5c;
+  --line:rgba(245,166,35,.15); --steel:#8CA0B4;
+}
+html{font-size:clamp(11px,1.5vh,20px)}
+html,body{margin:0;height:100%;font-family:var(--sans)}
+body{background:#07090a;overflow:hidden}
+/* demo backdrop — in game the page is transparent over the world */
+#stage{position:fixed;inset:0;background:radial-gradient(ellipse at 40% 60%,#10141a,#07090a 78%)}
+#stage .note{position:absolute;right:1rem;top:.9rem;font-family:var(--mono);font-size:.6rem;
+  letter-spacing:.14em;color:#2e3a44;text-align:right;line-height:1.7}
+/* the radial — anchored bottom-left, above chat (sqf: cy = .72 safezoneH) */
+#wrap{position:fixed;left:1.2rem;bottom:6.5rem;width:40rem;height:31rem;transition:opacity .12s ease}
+#wrap.closed{opacity:0;pointer-events:none}
+#pie{position:absolute;inset:0;width:100%;height:100%}
+#hub{position:absolute;left:50%;top:50%;width:7rem;height:7rem;margin:-3.5rem 0 0 -3.5rem;border-radius:50%;
+  background:radial-gradient(circle at 50% 38%,#0a1826,#050a10 74%);
+  border:1px solid rgba(245,166,35,.25);
+  box-shadow:inset 0 0 1.4rem rgba(0,0,0,.7),0 0 1.2rem rgba(245,166,35,.06);
+  pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25rem;overflow:hidden}
+#hub::before{content:"";position:absolute;inset:0;border-radius:50%;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.32) 0 1px,transparent 1px 3px);animation:hubF 4.5s infinite}
+#hub .k{font-family:var(--mono);font-size:.46rem;letter-spacing:.2em;color:var(--faint)}
+#hub .lab{font-family:var(--mono);font-size:.78rem;font-weight:700;letter-spacing:.05em}
+#hub .st{font-family:var(--mono);font-size:.56rem;letter-spacing:.1em;display:flex;align-items:center;gap:.3rem}
+#hub .st i{width:.4rem;height:.4rem;border-radius:50%;background:currentColor;box-shadow:0 0 .4rem currentColor;
+  animation:pulse 2.4s ease-in-out infinite}
+#hub .ap{font-family:var(--mono);font-size:.5rem;letter-spacing:.14em;margin-top:.1rem}
+#hub .ap b{font-weight:700}
+#hint{position:absolute;left:0;right:0;bottom:0;text-align:center;font-family:var(--mono);
+  font-size:.56rem;letter-spacing:.16em;color:#3c4a41}
+#toast{position:absolute;left:50%;bottom:2.2rem;transform:translateX(-50%);white-space:nowrap;
+  font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;color:#54b0ff;
+  background:rgba(10,19,16,.9);border:1px solid rgba(255,176,32,.35);border-radius:.4rem;
+  padding:.4rem .7rem;opacity:0;transition:opacity .15s ease;pointer-events:none}
+#toast.show{opacity:1}
+#chip{position:fixed;left:1.2rem;bottom:2.4rem;font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;
+  color:var(--faint);border:1px solid var(--line);border-radius:.4rem;padding:.4rem .7rem;
+  background:rgba(10,19,16,.8);display:none}
+#wrap.closed ~ #chip{display:block}
+@keyframes hubF{0%,100%{opacity:.5}47%{opacity:.56}52%{opacity:.42}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+</style></head><body>
+<div id="stage"><div class="note">RADIAL — 1b PHOSPHOR RING<br>IN GAME: TRANSPARENT OVER WORLD · TAB TOGGLES</div></div>
+<div id="wrap">
+  <svg id="pie" viewBox="0 0 640 496"></svg>
+  <div id="hub">
+    <span class="k" id="hKick">CAR RADIO</span>
+    <span class="lab" id="hLab"></span>
+    <span class="st" id="hSt"></span>
+    <span class="ap" id="hAp"></span>
+  </div>
+  <div id="hint">LMB SELECT · TAB / ESC CLOSE · INNER RING = AUTOPILOT</div>
+  <div id="toast">Only the driver controls the radio.</div>
+</div>
+<div id="chip">RADIAL CLOSED — TAB REOPENS</div>
+<svg aria-hidden="true" style="position:absolute;width:0;height:0">
+  <symbol id="g-origin" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M3 17 H21"/><path d="M7.6 17 A4.4 4.4 0 0 1 16.4 17"/><path d="M12 7.2 V4.6"/><path d="M5.9 10.9 L4.2 9.2"/><path d="M18.1 10.9 L19.8 9.2"/></g></symbol>
+  <symbol id="g-khr" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><rect x="9.8" y="3.6" width="4.4" height="9" rx="2.2"/><path d="M6.6 11.6 A5.4 5.4 0 0 0 17.4 11.6"/><path d="M12 17 V19.8"/><path d="M9.2 19.8 H14.8"/></g></symbol>
+  <symbol id="g-pulse" viewBox="0 0 24 24"><path d="M3 12.6 H7.4 L9.7 6.6 L13 17.8 L15.2 10.6 L16.6 12.6 H21" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"/></symbol>
+  <symbol id="g-classico" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M14.6 16.6 V5.4 C16.8 6.2 18.2 7.6 17.8 10.2"/><ellipse cx="12.1" cy="16.8" rx="2.6" ry="2" style="fill:currentColor;stroke:none"/></g></symbol>
+  <symbol id="g-anarchy" viewBox="0 0 24 24"><path d="M13.2 2.6 L6.2 13.6 H11 L10 21.4 L17.8 9.8 H12.6 Z" style="fill:currentColor;stroke:currentColor;stroke-width:1;stroke-linejoin:round"/></symbol>
+  <symbol id="g-power" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><path d="M12 3.8 V11.4"/><path d="M7.4 6.6 A6.9 6.9 0 1 0 16.6 6.6"/></g></symbol>
+  <symbol id="g-madmax" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M4.9 15.8 A7.4 7.4 0 1 1 19.1 15.8"/><path d="M12 15.4 L17.6 10.2"/></g><circle cx="12" cy="15.4" r="1.6" style="fill:currentColor"/></symbol>
+  <symbol id="g-normal" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M4.9 15.8 A7.4 7.4 0 1 1 19.1 15.8"/><path d="M12 15.4 L12 8.2"/></g><circle cx="12" cy="15.4" r="1.6" style="fill:currentColor"/></symbol>
+  <symbol id="g-sloth" viewBox="0 0 24 24"><g style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M4.9 15.8 A7.4 7.4 0 1 1 19.1 15.8"/><path d="M12 15.4 L6.4 10.2"/></g><circle cx="12" cy="15.4" r="1.6" style="fill:currentColor"/></symbol>
+</svg>
+<script>
+/* ---- AP stub (real bridge from fn_webBridgeInit.sqf wins) --------------- */
+if (typeof AP === "undefined") {
+  window.AP = (function () {
+    const subs = {}, last = {};
+    const push = (c, v) => { last[c] = v; (subs[c] || []).forEach(f => f(v)); };
+    const M = {
+      stations: [
+        { id: "origin",   label: "ORIGIN",   color: "#FCD010" },
+        { id: "khr",      label: "KHR",      color: "#347B34" },
+        { id: "pulse",    label: "PULSE",    color: "#AE3282" },
+        { id: "classico", label: "CLASSICO", color: "#1F65A8" },
+        { id: "anarchy",  label: "ANARCHY",  color: "#CB0000" }
+      ],
+      isDriver: true, apInstalled: true, on: true, st: 2, apMode: null,
+      chameleon: true, skinBusy: false
+    };
+    const CALLS = {
+      radialSet: (kind, val) => {
+        if (kind === "station") { M.on = true; M.st = val; }
+        else if (kind === "off") M.on = false;
+        else M.apMode = M.apMode === val ? null : val;
+        push("radial", M); return { ok: true };
+      },
+      radialClose: () => true
+    };
+    setTimeout(() => push("radial", M), 40);
+    return {
+      on(c, f) { (subs[c] = subs[c] || []).push(f); if (c in last) f(last[c]); },
+      get: c => last[c],
+      call: (k, a) => { console.log("AP.call", k, a || []); return Promise.resolve(CALLS[k] ? CALLS[k].apply(null, a || []) : null); },
+      _push: push
+    };
+  })();
+}
+
+/* ---- geometry (mirrors fn_radioRadial: 0 = up, clockwise, 180°/n) ------- */
+const CX = 320, CY = 252, R1 = 150, R0 = 94, AR1 = 88, AR0 = 64;
+/* RESKIN (2026-09-06): ONE wedge on the OUTER ring, straight down (c = 180), directly outside the autopilot
+   inner ring -- the bottom half's outer sectors are otherwise empty (RADIO OFF sits at 108, the AP modes are
+   inner-ring only). Shown only when the car has Chameleon Paint fitted (D.chameleon). Click -> two seconds of
+   static, then a random stock livery. skinBusy greys it. Hit-testing is by angle AND radius (see pickAt), so
+   the wedge and the AP mode beneath it at the same angle never claim each other's clicks. */
+const SKINCOL = "#F5A623", SKIN_C = 180, SKIN_HW = 27;
+const APMODES = ["madmax", "normal", "sloth"];
+const APL = { madmax: "MAD MAX", normal: "NORMAL", sloth: "SLOTH" };
+const APCOL = { madmax: "#FF4729", normal: "#00D4FF", sloth: "#59D973" };
+const STEEL = "#8CA0B4";
+const pol = (r, a) => { const q = a * Math.PI / 180; return [CX + r * Math.sin(q), CY - r * Math.cos(q)]; };
+function sec(r0, r1, a0, a1) {
+  const L = (a1 - a0) > 180 ? 1 : 0, f = v => v.toFixed(1);
+  const [x0, y0] = pol(r1, a0), [x1, y1] = pol(r1, a1);
+  if (r0 <= 0) return `M${CX} ${CY} L${f(x0)} ${f(y0)} A${r1} ${r1} 0 ${L} 1 ${f(x1)} ${f(y1)} Z`;
+  const [x2, y2] = pol(r0, a1), [x3, y3] = pol(r0, a0);
+  return `M${f(x0)} ${f(y0)} A${r1} ${r1} 0 ${L} 1 ${f(x1)} ${f(y1)} L${f(x2)} ${f(y2)} A${r0} ${r0} 0 ${L} 0 ${f(x3)} ${f(y3)} Z`;
+}
+function mix(h1, h2, t) {
+  const a = h1.match(/\w\w/g).map(x => parseInt(x, 16)), b = h2.match(/\w\w/g).map(x => parseInt(x, 16));
+  return "#" + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, "0")).join("");
+}
+const KNOWN = { origin: 1, khr: 1, pulse: 1, classico: 1, anarchy: 1 };
+
+let D = null, hov = -1, isOpen = true;
+const $ = id => document.getElementById(id);
+const pie = $("pie"), wrap = $("wrap");
+
+function slots() {
+  const n = D.stations.length, step = 180 / n, hw = step / 2, out = [];
+  D.stations.forEach((s, i) => out.push({ k: "st", i, c: -90 + hw + i * step, hw, col: s.color, lab: s.label, g: KNOWN[s.id] ? "g-" + s.id : null, ini: s.label[0] }));
+  out.push({ k: "off", c: 90 + hw, hw, col: STEEL, lab: "RADIO OFF", g: "g-power" });
+  if (D.apInstalled) APMODES.forEach((m, j) => out.push({ k: "ap", m, c: 90 + hw + step * (j + 1), hw, col: APCOL[m], lab: APL[m], g: "g-" + m }));
+  if (D.chameleon) out.push({ k: "skin", i: 0, c: SKIN_C, hw: SKIN_HW, col: SKINCOL, lab: "RESKIN · RANDOM", ini: "R" });
+  return out;
+}
+
+function render() {
+  if (!D) return;
+  const sl = slots(), n = D.stations.length, stEff = Math.min(D.st, n - 1);
+  let h = `<circle cx="${CX}" cy="${CY}" r="158" fill="none" stroke="rgba(245,166,35,.16)" stroke-dasharray="2 5"/>
+           <circle cx="${CX}" cy="${CY}" r="91" fill="none" stroke="rgba(245,166,35,.08)"/>`;
+  sl.forEach((o, i) => {
+    const act = o.k === "st" ? (D.on && stEff === o.i) : o.k === "off" ? !D.on : o.k === "skin" ? false : D.apMode === o.m;
+    const hv = hov === i, ap = o.k === "ap", sk = o.k === "skin";
+    const r0 = ap ? AR0 : R0, r1 = ap ? AR1 : R1, gr = ap ? 76 : 122, gz = ap ? 13 : 20, pad = ap ? 2.2 : 1.4;
+    if (sk && D.skinBusy) { h += `<path d="${sec(r0, r1, o.c - o.hw + pad, o.c + o.hw - pad)}" fill="#0b1420" stroke="#3c4a5c" stroke-width="1"/>`; return; }
+    const fill = act ? o.col : mix("#0b1420", o.col, hv ? .34 : .15);
+    const sw = act ? o.col : o.col + (hv ? "99" : "44");
+    const glow = act ? ` filter="drop-shadow(0 0 8px ${o.col})"` : "";
+    h += `<path d="${sec(r0, r1, o.c - o.hw + pad, o.c + o.hw - pad)}" fill="${fill}" stroke="${sw}" stroke-width="1.2"${glow}/>`;
+    const [gx, gy] = pol(gr, o.c), ic = act ? "#06110b" : o.col;
+    h += o.g
+      ? `<use href="#${o.g}" x="${(gx - gz / 2).toFixed(1)}" y="${(gy - gz / 2).toFixed(1)}" width="${gz}" height="${gz}" color="${ic}"/>`
+      : `<text x="${gx.toFixed(1)}" y="${(gy + 4).toFixed(1)}" fill="${ic}" text-anchor="middle" style="font:700 13px ui-monospace,Menlo,monospace">${o.ini}</text>`;
+  });
+  pie.innerHTML = h;
+  // hub readout — sqf readout logic verbatim
+  const hs = hov >= 0 ? sl[hov] : null;
+  $("hKick").textContent = D.skinBusy ? "RESKIN — NO SIGNAL" : hs && hs.k === "ap" ? "AUTOPILOT MODE" : hs && hs.k === "skin" ? "CHAMELEON PAINT" : "CAR RADIO";
+  let lab, col;
+  if (hs) { lab = hs.lab; col = hs.k === "off" ? STEEL : hs.col; }
+  else if (D.on) { lab = D.stations[stEff].label; col = D.stations[stEff].color; }
+  else { lab = "RADIO"; col = STEEL; }
+  $("hLab").textContent = lab; $("hLab").style.color = col;
+  const st = $("hSt");
+  if (D.on) { st.innerHTML = "<i></i>ON AIR"; st.style.color = D.stations[stEff].color; }
+  else { st.textContent = "OFF"; st.style.color = "#53616F"; }
+  const apEl = $("hAp");
+  if (D.apMode) { apEl.innerHTML = `<span style="color:#3c4a5c">AP · </span><b style="color:${APCOL[D.apMode]}">${APL[D.apMode]}</b>`; }
+  else apEl.textContent = "";
+}
+AP.on("radial", d => { D = d; if (hov >= 0) { const max = d.stations.length + 1 + (d.apInstalled ? 3 : 0) + (d.chameleon ? 1 : 0); if (hov >= max) hov = -1; } render(); });
+
+/* ---- mouse-angle hit testing, whole sector = hit zone (as in sqf) ------- */
+function pickAt(ev) {
+  if (!D) return -1;
+  const r = pie.getBoundingClientRect(), sx = 640 / r.width, sy = 496 / r.height;
+  const dx = (ev.clientX - r.left) * sx - CX, dy = (ev.clientY - r.top) * sy - CY;
+  const rad = Math.sqrt(dx * dx + dy * dy);
+  if (rad > 1.06 * R1) return -1;
+  const ang = Math.atan2(dx, -dy) * 180 / Math.PI;   // 0 = up, clockwise
+  const sl = slots();
+  for (let i = 0; i < sl.length; i++) {
+    /* radius decides the ring first: an AP wedge owns only the inner ring, the RESKIN wedge only the
+       outer -- they share the 180 deg angle and must not claim each other's clicks. Stations / OFF
+       keep the whole-sector hit zone the native radial had (no AP or RESKIN sits under them). */
+    if (sl[i].k === "ap" && rad > AR1 + 3) continue;
+    if (sl[i].k === "skin" && rad < R0 - 3) continue;
+    const diff = Math.abs((((ang - sl[i].c) % 360) + 540) % 360 - 180);
+    if (diff <= sl[i].hw) return i;
+  }
+  return -1;
+}
+wrap.addEventListener("pointermove", ev => { const h = pickAt(ev); if (h !== hov) { hov = h; render(); wrap.style.cursor = h >= 0 ? "pointer" : ""; } });
+wrap.addEventListener("pointerleave", () => { if (hov !== -1) { hov = -1; render(); } });
+let toastT = 0;
+wrap.addEventListener("click", ev => {
+  const i = pickAt(ev); if (i < 0 || !D) return;
+  if (!D.isDriver) {
+    $("toast").classList.add("show"); clearTimeout(toastT);
+    toastT = setTimeout(() => $("toast").classList.remove("show"), 1800); return;
+  }
+  const o = slots()[i];
+  if (o.k === "st") AP.call("radialSet", ["station", o.i]);
+  else if (o.k === "off") AP.call("radialSet", ["off"]);
+  else if (o.k === "skin") { if (!D.skinBusy) AP.call("radialSet", ["skin", o.i]); }
+  else AP.call("radialSet", ["ap", o.m]).then(() => { AP.call("radialClose", []); setOpen(false); });
+});
+
+/* ---- TAB / ESC — the display owns these in game; demo mirrors it -------- */
+function setOpen(v) { isOpen = v; wrap.classList.toggle("closed", !v); if (v) render(); }
+document.addEventListener("keydown", ev => {
+  if (ev.key === "Tab") { ev.preventDefault(); setOpen(!isOpen); if (!isOpen) AP.call("radialClose", []); }
+  else if (ev.key === "Escape" && isOpen) { setOpen(false); AP.call("radialClose", []); }
+});
+</script>
+<style>
+/* __INGAME__ (port): the page's own header already calls this out --
+   "In game the backdrop is the world; this file ships a dim placeholder."
+   Neutralise that placeholder here rather than editing the authored #stage rule above, so the
+   original design's CSS block stays byte-comparable to the handoff source. Nothing else changes:
+   #wrap/#pie/#hub keep the exact bottom-left placement and sizing the design specifies. */
+html,body{background:transparent!important}   /* the body was still #07090a -- transparency needs BOTH sides */
+#stage{background:transparent!important}
+#stage .note{display:none!important}
+</style>
+</body></html>

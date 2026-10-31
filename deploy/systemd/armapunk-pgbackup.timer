@@ -1,0 +1,9 @@
+[Unit]
+Description=Armapunk 2035 nightly PostgreSQL dump at 04:30 local
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

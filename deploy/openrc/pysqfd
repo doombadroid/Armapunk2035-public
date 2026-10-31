@@ -1,0 +1,72 @@
+#!/sbin/openrc-run
+# OpenRC service for the PySQF daemon.
+#
+# INSTALL (needs root):
+#     sudo cp deploy/openrc/pysqfd /etc/init.d/pysqfd
+#     sudo chmod +x /etc/init.d/pysqfd
+#     sudo cp deploy/openrc/pysqfd.conf /etc/conf.d/pysqfd     # then edit the DSN
+#     sudo rc-update add pysqfd default
+#     sudo rc-service pysqfd start
+#
+# WHY THIS EXISTS. The daemon has been running unsupervised with ppid 1 -- started
+# by hand, detached, with no service behind it. That was survivable while nothing
+# depended on it. It no longer is: the game's entire database path goes through it
+# when AP_DB_POSTGRES=1, and since 2026-08-18 so does UI page serving. A reboot, an
+# OOM kill, or an unhandled crash currently takes both out with nothing to restart
+# them, and the first symptom is a server that boots onto the wrong database.
+#
+# supervise-daemon, NOT start-stop-daemon with a background fork: this box is
+# OpenRC and the project's standing rule is that supervised daemons are supervised
+# properly. supervise-daemon restarts the process if it dies; a setsid'd orphan
+# does not, which is exactly the state this replaces.
+#
+# It is deliberately NOT started by the Arma deploy script. The daemon outlives
+# mission restarts -- the game reconnects to it on its own (verified 2026-08-18:
+# a daemon restart under a live server dropped no queries) -- and coupling the two
+# would mean every mission reload cycled the database transport for no reason.
+
+supervisor=supervise-daemon
+name="pysqfd"
+description="PySQF daemon - Python transport for Arma SQF (database + UI page serving)"
+
+: ${PYSQFD_USER:=timb}
+: ${PYSQFD_HOME:=/home/timb}
+: ${PYSQFD_DIR:=${PYSQFD_HOME}/PySQF/python}
+: ${PYSQFD_PYTHON:=${PYSQFD_HOME}/pysqf-venv/bin/python}
+: ${PYSQFD_MODULES:=pysqf.db,apdb,webpages}
+
+command="${PYSQFD_PYTHON}"
+command_args="pysqfd.py --modules ${PYSQFD_MODULES}"
+command_user="${PYSQFD_USER}"
+directory="${PYSQFD_DIR}"
+
+output_log="${PYSQFD_HOME}/pysqfd.out"
+error_log="${PYSQFD_HOME}/pysqfd.out"
+
+# The socket lives under /run/user/<uid>, which only exists once that user has a
+# session. Without this the service starts at boot, finds no runtime dir, and
+# fails in a way that reads like a Python problem.
+rc_need="local"
+
+depend() {
+    need localmount
+    after postgresql
+}
+
+start_pre() {
+    if [ ! -x "${command}" ]; then
+        eerror "python not found at ${command}"
+        return 1
+    fi
+    if [ ! -f "${PYSQFD_DIR}/pysqfd.py" ]; then
+        eerror "pysqfd.py not found in ${PYSQFD_DIR}"
+        return 1
+    fi
+    # A missing DSN is not a startup failure -- the daemon runs fine without the
+    # database module -- but it IS the single most likely misconfiguration, and
+    # the game silently defaults to extDB3/MariaDB when apdb cannot connect. Say so.
+    if [ -z "${PYSQF_DB_DSN}" ]; then
+        ewarn "PYSQF_DB_DSN is unset; apdb will not connect and the game will fall back to extDB3"
+    fi
+    return 0
+}

@@ -1,0 +1,31 @@
+# LIVE radio stack on .96 (2026-09-07, MIGRATION_96.md D11). INSTALL-96.md wanted AUR icecast + a liquidsoap
+# binary; neither exists for Arch (upstream ships .deb only, AUR has nothing usable), so live runs the SAME
+# image pair dev tested, loopback-bound behind the cloudflared tunnel (radio.projectloonybin.com -> :8000
+# until the client addon is rebuilt for radio.armapunk.com -- see the D5 reminder).
+#   cd ~/Armapunk2035/radio && set -a && . ./.env && set +a && docker compose -p armapunk-radio -f docker-compose.live.yml up -d
+# .env (gitignored): ICECAST_SOURCE_PASSWORD, ICECAST_ADMIN_PASSWORD, RADIO_MUSIC_DIR (=/home/timb/radio-music)
+services:
+  icecast:
+    image: libretime/icecast:2.4.4
+    container_name: armapunk-icecast
+    restart: unless-stopped
+    ports: ["127.0.0.1:8000:8000"]
+    environment:
+      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:?set in radio/.env}
+      ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:?set in radio/.env}
+      ICECAST_RELAY_PASSWORD: ${ICECAST_ADMIN_PASSWORD}
+      ICECAST_MAX_CLIENTS: "120"
+      ICECAST_MAX_SOURCES: "8"
+  liquidsoap:
+    image: savonet/liquidsoap:v2.2.5
+    container_name: armapunk-liquidsoap
+    restart: unless-stopped
+    depends_on: [icecast]
+    command: ["liquidsoap", "/radio/radio.liq"]
+    environment:
+      ICECAST_HOST: icecast
+      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD}
+      RADIO_MUSIC_DIR: /music
+    volumes:
+      - ./radio.liq:/radio/radio.liq:ro
+      - ${RADIO_MUSIC_DIR:-/home/timb/radio-music}:/music:ro

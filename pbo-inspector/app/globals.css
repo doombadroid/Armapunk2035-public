@@ -1,0 +1,22 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-mist text-ink antialiased;
+  background-image:
+    radial-gradient(circle at top left, rgba(193, 111, 74, 0.16), transparent 32%),
+    radial-gradient(circle at top right, rgba(31, 111, 80, 0.18), transparent 28%),
+    linear-gradient(180deg, #f7f5ef 0%, #efe7da 100%);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(18, 33, 28, 0.22) transparent;
+}

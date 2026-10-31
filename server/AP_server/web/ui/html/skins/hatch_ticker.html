@@ -1,0 +1,52 @@
+<!doctype html><html><head><meta charset="utf-8"><title>hatch_ticker</title>
+<!-- Hatchback, its own stock sheet drawn 1:1, plus an animated MAXSEC LED ticker along both sides at
+     door height. Sheet (2048): side profile A doors y 730-820, side profile B doors y 1140-1230, x 260-1060.
+     Both profiles face nose-right on the sheet, so ONE of them is mirrored on the car: MIRROR[] flips
+     the text on that band (owner reads which side is backwards, we flip that one).
+     Live skin: [cursorObject, "hatch_ticker", true] call AP_fnc_htmlSkin; -->
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}canvas{display:block;width:100vw;height:100vh}</style>
+</head><body><canvas id="c" width="2048" height="2048"></canvas><script>
+(function(){
+  var cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height,t0=performance.now(),frame=0;
+  var base=new Image(),ready=false,status="loading base sheet...";
+  var BASE="a3\\soft_f_gamma\\Hatchback_01\\data\\Hatchback_01_ext_BASE01_CO.paa";
+  // A (y 705-790) = DRIVER side, nose LEFT on the sheet: headlight ~x 60-150, front arch 250-420, door 420-1100,
+  // rear quarter 1100-1330. B (y 1140-1230) = PASSENGER side, nose RIGHT: tail ~60-120, door 380-1150, fender to ~1280.
+  var BANDS=[[310,705,1330,790,false],[150,1140,1190,1230,false]];   // [x0,y0,x1,y1,mirror] -- neither island is mirrored on the car
+  function say(m){status=m;try{if(window.WEBUI)WEBUI.call("log",["skin "+document.title+": "+m]).catch(function(){});}catch(e){}}
+  function loadBase(){
+    if(typeof A3API==="undefined"||!A3API.RequestTexture){say("no A3API");return;}
+    var tries=[BASE,"\\"+BASE,BASE.toLowerCase()],i=0;
+    (function next(){ if(i>=tries.length){say("base sheet NOT FOUND");return;} var p=tries[i++];
+      A3API.RequestTexture(p,2048).then(function(u){ if(!u||u.length<200){return next();}
+        base.onload=function(){ready=true;say("base sheet OK "+base.width+"x"+base.height);}; base.onerror=function(){next();}; base.src=u;
+      }).catch(function(){next();}); })();
+  }
+  loadBase();
+  var MSG="   ▪   MAXSEC   ";
+  function band(t,R){
+    var x0=R[0],y0=R[1],x1=R[2],y1=R[3],mir=R[4],w=x1-x0,h=y1-y0;
+    ctx.save();ctx.beginPath();ctx.rect(x0,y0,w,h);ctx.clip();
+    ctx.fillStyle="rgba(6,8,14,.94)";ctx.fillRect(x0,y0,w,h);
+    ctx.fillStyle="#4d8cff";ctx.fillRect(x0,y0,w,6);ctx.fillRect(x0,y1-6,w,6);
+    if(mir){ctx.translate(x0+x1,0);ctx.scale(-1,1);}   // mirrored island: draw backwards so the car reads forwards
+    ctx.font="bold "+Math.round(h*.62)+"px monospace";ctx.textBaseline="middle";ctx.textAlign="left";
+    var mw=ctx.measureText(MSG).width, x=x0-((t*160)%mw);
+    ctx.shadowColor="#8fc0ff";ctx.shadowBlur=22;ctx.fillStyle="#ffffff";
+    for(;x<x1;x+=mw)ctx.fillText(MSG,x,y0+h/2);
+    ctx.shadowBlur=0;
+    ctx.restore();
+    ctx.save();ctx.beginPath();ctx.rect(x0,y0,w,h);ctx.clip();
+    ctx.fillStyle="rgba(0,0,0,.35)";for(var y=y0;y<y1;y+=4)ctx.fillRect(x0,y,w,1);
+    var gx=x0+((t*.35)%1)*w;ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(gx-12,y0,24,h);
+    ctx.restore();
+  }
+  function render(t){
+    if(ready){ctx.drawImage(base,0,0,W,H);}else{ctx.fillStyle="#1a1f2b";ctx.fillRect(0,0,W,H);}
+    for(var i=0;i<BANDS.length;i++)band(t,BANDS[i]);
+    frame++;
+  }
+  function tick(){var t=(performance.now()-t0)/1000;render(t);ctx.font="16px monospace";ctx.textAlign="left";ctx.textBaseline="alphabetic";ctx.fillStyle="rgba(255,255,255,.8)";ctx.fillText("f "+frame+"  "+document.title+": "+status,6,H-6);requestAnimationFrame(tick);}
+  requestAnimationFrame(tick);
+})();
+</script></body></html>

@@ -1,0 +1,31 @@
+if (isRemoteExecuted && {remoteExecutedOwner != 2}) exitWith {};   // server-origin only: CfgRE allowedTargets limits the target, never the sender
+params[["_garageArr", [], [[]]]];
+disableSerialization;
+waitUntil {!isNull(findDisplay 10300)};
+if (_garageArr isEqualTo[]) exitWith {ctrlSetText[10302, "No vehicles found in gang garage..."];};
+AP_gang_data params[["_myGangID", -1, [0]], ["_myGangName", "", [""]], ["_myGangRank", -1, [0]]];
+private _display = findDisplay 10300;
+private _vehicleList = _display displayCtrl 10301;
+private _vehicleTitle = _display displayCtrl 10302;
+private _detailsText = _display displayCtrl 10303;
+private _getButton = _display displayCtrl 10304;
+private _repairButton = _display displayCtrl 10305;
+private _displayTitle = _display displayCtrl 10306;
+private _destroyButton = _display displayCtrl 10307;
+lbClear _vehicleList;
+_displayTitle ctrlSetText(format["%1's Gang Garage", _myGangName]);
+_repairButton ctrlEnable false;
+_getButton ctrlEnable false;
+_destroyButton ctrlEnable false;
+private _exit = false;
+private "_temp"; {if !((AP_gang_data param[0, 0]) isEqualTo(_x select 4)) exitWith {_exit = true;};
+    private _vehInfo = [_x select 2] call AP_fnc_fetchVehInfo;
+    private _index = _vehicleList lbAdd(_vehInfo select 3);
+    _temp = [_x select 2, _x select 7, _x select 8, _x select 9, _x select 10, _x select 11, _x select 12];
+    _vehicleList lbSetData[_index, str _temp];
+    _vehicleList lbSetPicture[_index, _vehInfo select 2];
+    _vehicleList lbSetValue[_index, _x select 0];}
+forEach _garageArr;
+if (_exit) exitWith {["Gang garage error... try again", "basic"] spawn AP_fnc_handleMessage;
+    closeDialog 0;};
+AP_garageData = +_garageArr;

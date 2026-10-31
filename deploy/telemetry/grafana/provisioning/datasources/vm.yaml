@@ -1,0 +1,14 @@
+# VictoriaMetrics speaks the Prometheus query API, so Grafana talks to it as a Prometheus source.
+# The uid is what every provisioned dashboard panel references; do not rename it.
+apiVersion: 1
+datasources:
+  - name: VictoriaMetrics
+    uid: armapunk-vm
+    type: prometheus
+    access: proxy
+    url: http://vm:8428
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: "5s"
+      httpMethod: POST

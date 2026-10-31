@@ -1,0 +1,221 @@
+{
+  "label": "hud",
+  "attempts": 1,
+  "raf": {
+    "before": 70,
+    "afterBurst": 126,
+    "idle0": 126,
+    "idle1": 126
+  },
+  "errors": [],
+  "fallbackErrors": [],
+  "reentryErrors": [],
+  "probe": {
+    "ready": true,
+    "on": true,
+    "raf": 0,
+    "lostCount": 1,
+    "hasR": true,
+    "contextLost": false,
+    "hf": {
+      "n": 200,
+      "cell": 64
+    },
+    "terr": {
+      "ni": 237606,
+      "grid": 200,
+      "vbo": true
+    },
+    "water": {
+      "vbo": true
+    },
+    "bldCount": 17287,
+    "sectors": 42,
+    "sectorsM": null,
+    "meshes": null,
+    "lastBld": {
+      "bldDrawn": 4562,
+      "secDraws": 9,
+      "triDrawn": 0
+    },
+    "pix": {
+      "w": 208,
+      "h": 208,
+      "colours": 173,
+      "meanLum": 17.55,
+      "maxLum": 86.3
+    },
+    "frames": 27,
+    "mapClass": "is3d",
+    "mglClass": "on",
+    "blips": 6,
+    "tiles2d": 0,
+    "bootErr": null,
+    "handlerErr": null,
+    "assetHits": [
+      "webui\\ui\\webui.js",
+      "ui\\html\\grid3d.js",
+      "ui\\html\\malden_hf.txt",
+      "ui\\html\\malden_bld.txt",
+      "ui\\html\\grid3d.js",
+      "ui\\html\\malden_hf.txt",
+      "ui\\html\\malden_bld.txt"
+    ]
+  },
+  "projCheck": {
+    "p": [
+      118.28658733557454,
+      76.06325388330332
+    ],
+    "expected": {
+      "x": 108.05453499438048,
+      "y": 101.67113346758686
+    },
+    "actual": {
+      "x": 109.1765251159668,
+      "y": 102.39523315429688
+    },
+    "dx": 1.1219901215863217,
+    "dy": 0.7240996867100193
+  },
+  "rimCheck": {
+    "rem": 11.52,
+    "on": {
+      "dim": false,
+      "drawnRem": 3.879,
+      "projRem": 3.914,
+      "dx": 1,
+      "dy": 0.4
+    },
+    "off": {
+      "dim": true,
+      "drawnRem": 5.899,
+      "projRem": 13.45,
+      "dx": -78.32,
+      "dy": 37.86
+    },
+    "labels": {
+      "FAR350": {
+        "dim": false,
+        "drawnRem": 3.159
+      }
+    }
+  },
+  "fallback": {
+    "ready": false,
+    "bootErr": "minimap assets: Error: no such file: ui\\html\\grid3d.js",
+    "mapClass": "",
+    "mglClass": "",
+    "tiles": 4,
+    "tilesWithSrc": 4,
+    "water": 0,
+    "blips": 6,
+    "raf": 1
+  },
+  "reentry": {
+    "caught": true,
+    "delta": 0,
+    "lost": 1,
+    "ready": true,
+    "booting": false,
+    "mapClass": "is3d",
+    "bootErr": null
+  },
+  "results": [
+    {
+      "name": "0. the GL context survived the run (environment, not the page)",
+      "ok": true,
+      "detail": "attempts=1 lost=false"
+    },
+    {
+      "name": "1. boots with zero page errors and zero console errors",
+      "ok": true,
+      "detail": "none"
+    },
+    {
+      "name": "1b. no boot error and no push-handler error left standing",
+      "ok": true,
+      "detail": "bootErr=null handlerErr=null contextLosses=1"
+    },
+    {
+      "name": "1c. never fetched the mesh library (boxes only, by design)",
+      "ok": true,
+      "detail": "hits=[\"webui\\\\ui\\\\webui.js\",\"ui\\\\html\\\\grid3d.js\",\"ui\\\\html\\\\malden_hf.txt\",\"ui\\\\html\\\\malden_bld.txt\",\"ui\\\\html\\\\grid3d.js\",\"ui\\\\html\\\\malden_hf.txt\",\"ui\\\\html\\\\malden_bld.txt\"] meshes=null"
+    },
+    {
+      "name": "2. the renderer instance is readable through the page",
+      "ok": true,
+      "detail": "hasR=true ready=true hf={\"n\":200,\"cell\":64}"
+    },
+    {
+      "name": "2b. terrain present",
+      "ok": true,
+      "detail": "{\"ni\":237606,\"grid\":200,\"vbo\":true} water={\"vbo\":true}"
+    },
+    {
+      "name": "2c. building count > 0 -- DRAWN, not merely parsed",
+      "ok": true,
+      "detail": "{\"bldDrawn\":4562,\"secDraws\":9,\"triDrawn\":0} of bldCount 17287 in 42 box sectors"
+    },
+    {
+      "name": "2d. the framebuffer holds an image, not a flat clear",
+      "ok": true,
+      "detail": "{\"w\":208,\"h\":208,\"colours\":173,\"meanLum\":17.55,\"maxLum\":86.3} frames=27"
+    },
+    {
+      "name": "2e. panel is in 3D and the blips are still DOM over the canvas",
+      "ok": true,
+      "detail": "map=\"is3d\" mgl=\"on\" blips=6"
+    },
+    {
+      "name": "2f. a known blip lands where its world point actually projects",
+      "ok": true,
+      "detail": "{\"p\":[118.28658733557454,76.06325388330332],\"expected\":{\"x\":108.05453499438048,\"y\":101.67113346758686},\"actual\":{\"x\":109.1765251159668,\"y\":102.39523315429688},\"dx\":1.1219901215863217,\"dy\":0.7240996867100193}"
+    },
+    {
+      "name": "2g. a mark the panel still SHOWS is not rim-clamped, and sits where it projects",
+      "ok": true,
+      "detail": "350 m ahead: {\"dim\":false,\"drawnRem\":3.879,\"projRem\":3.914,\"dx\":1,\"dy\":0.4} label={\"dim\":false,\"drawnRem\":3.159}"
+    },
+    {
+      "name": "2h. a mark genuinely off the panel IS still clamped to the rim and dimmed",
+      "ok": true,
+      "detail": "1.5 km east: {\"dim\":true,\"drawnRem\":5.899,\"projRem\":13.45,\"dx\":-78.32,\"dy\":37.86} rem=11.52"
+    },
+    {
+      "name": "3. rAF CLIMBS while pushes land (proves the instrument is live)",
+      "ok": true,
+      "detail": "70 -> 126 over 24 pushes"
+    },
+    {
+      "name": "3b. IDLE IS STILL: rAF stops climbing once the pushes stop",
+      "ok": true,
+      "detail": "126 -> 126 over 3s idle (M3.raf=0)"
+    },
+    {
+      "name": "4. 3D off -> the 2D tile panel still renders",
+      "ok": true,
+      "detail": "{\"ready\":false,\"bootErr\":\"minimap assets: Error: no such file: ui\\\\html\\\\grid3d.js\",\"mapClass\":\"\",\"mglClass\":\"\",\"tiles\":4,\"tilesWithSrc\":4,\"water\":0,\"blips\":6,\"raf\":1}"
+    },
+    {
+      "name": "4b. the failure said why (the in-game console is unreachable)",
+      "ok": true,
+      "detail": "minimap assets: Error: no such file: ui\\html\\grid3d.js"
+    },
+    {
+      "name": "4c. no page or console errors on the fallback path either",
+      "ok": true,
+      "detail": "none"
+    },
+    {
+      "name": "5. a webglcontextrestored landing MID-BOOT does not start a second boot",
+      "ok": true,
+      "detail": "{\"caught\":true,\"delta\":0,\"lost\":1,\"ready\":true,\"booting\":false,\"mapClass\":\"is3d\",\"bootErr\":null}"
+    },
+    {
+      "name": "5b. no page or console errors on the re-entry path either",
+      "ok": true,
+      "detail": "none"
+    }
+  ]
+}

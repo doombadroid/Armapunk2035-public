@@ -1,0 +1,9 @@
+[Unit]
+Description=D5 daily reminder at 09:00 local (owner 2026-09-07: "literally remind me daily")
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,203 @@
+<!-- SEQUENCE BREACH — the cyberdeck minigame, in HTML.
+     Replaces dialog cyberdeck_seq (940000) and its 2.67 MB of baked backdrop art.
+     SQF still owns the rules: it generates the grid and the buffer exactly as it
+     always did, and reads the result back. This page owns the clock and the
+     clicking, because that is what a page is good at. -->
+<meta charset="utf-8">
+<title>SEQUENCE BREACH</title>
+<script>
+/* the mandatory head block: window.WEBUI does not exist while this runs */
+window.WEBUIReady = new Promise(function (r) { window.__webuiReady = r; });
+if (typeof A3API !== "undefined" && A3API.RequestFile) {
+  window.__webuiBootPath = "stub";
+  A3API.RequestFile("webui\\ui\\webui.js").then(function (s) { (0, eval)(s); })
+    .catch(function (e) { console.error("bridge self-load failed", e); });
+}
+</script>
+<style>
+:root{
+  --scr:#050a10; --panel:#0c1622; --panel2:#0e1a28;
+  --acid:#f5a623; --cyan:#54b0ff; --hot:#ff4d4d; --amber:#54b0ff;
+  --ink:#dbe6f2; --dim:#7d8b9e; --faint:#3c4a5c;
+  --line:rgba(245,166,35,.16);
+  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:transparent;font-family:var(--mono);overflow:hidden;
+  color:var(--ink);user-select:none;cursor:default}
+#wrap{position:fixed;inset:0;display:flex;flex-direction:column;padding:1.1rem 1.4rem;gap:.7rem;
+  background:radial-gradient(ellipse at 50% 0%,#0a1620 0%,var(--scr) 70%);
+  border:1px solid var(--line);border-radius:.6rem}
+/* the chassis the .paa used to draw: a corner-cut frame in pure CSS */
+#wrap:before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(135deg,var(--panel) 0 18px,transparent 18px) top left/40px 40px no-repeat,
+    linear-gradient(-135deg,var(--panel) 0 18px,transparent 18px) top right/40px 40px no-repeat;
+  opacity:.9}
+/* scanlines, the one effect worth keeping from the bake */
+#wrap:after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.16;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.55) 0 1px,transparent 1px 3px)}
+header{flex:none;display:flex;align-items:baseline;gap:.8rem;font-size:.72rem;letter-spacing:.18em;color:var(--faint)}
+header b{color:var(--acid);letter-spacing:.22em}
+header .who{margin-left:auto;color:var(--dim)}
+#clock{font-size:2.1rem;line-height:1;letter-spacing:.06em;color:var(--acid);font-variant-numeric:tabular-nums}
+#clock.low{color:var(--hot);animation:pulse .6s steps(2,end) infinite}
+@keyframes pulse{50%{opacity:.45}}
+#bar{flex:none;height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden}
+#bar i{display:block;height:100%;width:100%;background:var(--acid);
+  transition:width .08s linear,background .2s}
+#bar.low i{background:var(--hot)}
+.row{display:flex;align-items:center;gap:.5rem}
+.lbl{font-size:.6rem;letter-spacing:.16em;color:var(--faint);flex:none;width:5.4rem}
+#buf{display:flex;gap:.3rem;flex-wrap:wrap}
+.b{min-width:2.6rem;text-align:center;padding:.3rem .35rem;border-radius:.3rem;font-size:.82rem;
+  background:rgba(255,255,255,.03);border:1px solid transparent;color:var(--faint)}
+.b.done{color:var(--acid);background:rgba(245,166,35,.12);border-color:rgba(245,166,35,.35)}
+.b.now{color:var(--amber);background:rgba(255,176,32,.14);border-color:var(--amber)}
+#main{flex:1;min-height:0;display:flex;gap:1rem}
+#grid{flex:1;display:grid;gap:.45rem;min-height:0}
+.c{display:flex;align-items:center;justify-content:center;font-size:1.15rem;letter-spacing:.05em;
+  background:var(--panel2);border:1px solid rgba(245,166,35,.12);border-radius:.4rem;
+  color:#8ca07d;cursor:pointer;transition:background .12s,color .12s,transform .06s}
+.c.live{color:#ffc45a;border-color:rgba(245,166,35,.5);background:rgba(245,166,35,.09)}
+.c.live:hover{background:rgba(245,166,35,.2);transform:translateY(-1px)}
+.c.hit{color:#05140a;background:var(--acid);border-color:var(--acid)}
+.c.miss{color:#fff;background:var(--hot);border-color:var(--hot)}
+#side{flex:none;width:34%;display:flex;flex-direction:column;gap:.5rem}
+#daemon{flex:1;min-height:0;border:1px solid var(--line);border-radius:.5rem;background:var(--panel);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+/* the radar flipbook was 16 baked frames; it is one rotating conic here */
+#daemon i{position:absolute;width:150%;aspect-ratio:1;border-radius:50%;
+  background:conic-gradient(from 0deg,rgba(245,166,35,.35),transparent 28%);
+  animation:sweep 2.4s linear infinite}
+#daemon.win i{background:conic-gradient(from 0deg,rgba(84,176,255,.5),transparent 40%);animation-duration:.8s}
+#daemon.fail i{background:conic-gradient(from 0deg,rgba(255,59,30,.5),transparent 40%);animation:none}
+@keyframes sweep{to{transform:rotate(360deg)}}
+#daemon b{position:relative;font-size:1rem;letter-spacing:.2em;color:var(--dim)}
+#daemon.win b{color:var(--cyan)} #daemon.fail b{color:var(--hot)}
+#hint{flex:none;font-size:.58rem;line-height:1.7;letter-spacing:.08em;color:var(--faint)}
+#hint u{color:var(--amber);text-decoration:none}
+#verdict{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+  font-size:3.2rem;letter-spacing:.3em;background:rgba(3,8,6,.82);z-index:5}
+#verdict.on{display:flex}
+#verdict.ok{color:var(--acid)} #verdict.no{color:var(--hot)}
+</style>
+
+<div id="wrap">
+  <header><b>SEQUENCE BREACH</b><span>ICEBREAKER</span><span class="who" id="diff">BUFFER —</span></header>
+  <div class="row"><span class="lbl">TRACE</span><div id="clock">0.00</div></div>
+  <div id="bar"><i></i></div>
+  <div class="row"><span class="lbl">BUFFER</span><div id="buf"></div></div>
+  <div id="main">
+    <div id="grid"></div>
+    <div id="side">
+      <div id="daemon"><i></i><b>TRACING</b></div>
+      <div id="hint">CLICK the code that matches the <u>amber</u> buffer slot.<br>
+        Only the <u>lit row</u> is live. A wrong row costs <u>1.5s</u>.</div>
+    </div>
+  </div>
+  <div id="verdict"></div>
+</div>
+
+<script>
+var S = { grid:[], buffer:[], cols:4, rows:4, idx:0, deadline:0, limit:0, over:false, AP:null };
+var el = function(id){ return document.getElementById(id); };
+
+function paint(){
+  el("buf").innerHTML = S.buffer.map(function(code, i){
+    return '<span class="b ' + (i < S.idx ? "done" : i === S.idx ? "now" : "") + '">' + code + '</span>';
+  }).join("");
+  var live = S.idx % S.rows;
+  var cells = el("grid").children;
+  for (var i = 0; i < cells.length; i++){
+    var r = Math.floor(i / S.cols);
+    cells[i].className = "c" + (r === live && !S.over ? " live" : "");
+  }
+}
+function build(){
+  el("diff").textContent = "BUFFER " + S.buffer.length;
+  var g = el("grid");
+  g.style.gridTemplateColumns = "repeat(" + S.cols + ",1fr)";
+  g.style.gridTemplateRows = "repeat(" + S.rows + ",1fr)";
+  g.innerHTML = S.grid.map(function(code, i){
+    return '<div class="c" data-i="' + i + '">' + code + '</div>';
+  }).join("");
+  paint();
+}
+
+/* The rules are SQF's, mirrored here so the click feels instant: only the active
+   row counts, a wrong row costs 1.5s of trace, and the run ends the moment the
+   buffer is full. SQF is told the outcome, not asked for it -- the native game
+   was client-side too, so this moves no trust boundary. */
+document.addEventListener("click", function(ev){
+  var c = ev.target.closest(".c");
+  if (!c || S.over) return;
+  var i = +c.dataset.i, r = Math.floor(i / S.cols);
+  if (r !== (S.idx % S.rows)) {
+    S.deadline -= 1.5;
+    c.classList.add("miss");
+    setTimeout(function(){ c.classList.remove("miss"); }, 160);
+    return;
+  }
+  if (S.grid[i] !== S.buffer[S.idx]) {
+    S.deadline -= 1.5;
+    c.classList.add("miss");
+    setTimeout(function(){ c.classList.remove("miss"); }, 160);
+    return;
+  }
+  c.classList.add("hit");
+  S.idx++;
+  paint();
+  if (S.idx >= S.buffer.length) finish(1);
+});
+
+function finish(result){
+  if (S.over) return;
+  S.over = true;
+  var won = result === 1;
+  el("daemon").className = won ? "win" : "fail";
+  el("daemon").querySelector("b").textContent = won ? "BREACHED" : "TRACED";
+  var v = el("verdict");
+  v.textContent = won ? "BREACH" : "TRACED";
+  v.className = "on " + (won ? "ok" : "no");
+  paint();
+  if (S.AP) S.AP.call("breachDone", [result]);
+}
+
+function tick(){
+  if (S.over) return;
+  var rem = S.deadline - (Date.now() / 1000);
+  if (rem <= 0) { finish(0); return; }
+  var low = rem < 5;
+  el("clock").textContent = rem.toFixed(2);
+  el("clock").className = low ? "low" : "";
+  el("bar").className = low ? "low" : "";
+  el("bar").firstElementChild.style.width = Math.max(0, Math.min(1, rem / S.limit)) * 100 + "%";
+  requestAnimationFrame(tick);
+}
+
+WEBUIReady.then(function(AP){
+  S.AP = AP;
+  AP.on("breach", function(v){
+    if (!v || S.over) return;
+    S.grid = v.grid; S.buffer = v.buffer;
+    S.cols = v.cols || 4; S.rows = v.rows || 4;
+    S.limit = v.time; S.idx = 0;
+    S.deadline = (Date.now() / 1000) + v.time;
+    build();
+    requestAnimationFrame(tick);
+  });
+});
+
+/* review stub: open in a browser and it plays with mock data */
+if (typeof A3API === "undefined") {
+  var codes = ["1C","55","BD","E9","7A","FF","0A","3D","C4","9B"];
+  setTimeout(function(){
+    var grid = [], buffer = [];
+    for (var i = 0; i < 16; i++) grid.push(codes[Math.floor(Math.random() * codes.length)]);
+    for (var b = 0; b < 6; b++) buffer.push(grid[(b % 4) * 4 + b % 4]);
+    S.grid = grid; S.buffer = buffer; S.limit = 20; S.deadline = Date.now() / 1000 + 20;
+    build(); requestAnimationFrame(tick);
+  }, 50);
+}
+</script>

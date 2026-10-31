@@ -1,0 +1,19 @@
+# Officer Maggot — MaxSec cop-whitelist application bot.
+# systemd translation of the OpenRC supervise-daemon service (respawn-forever).
+[Unit]
+Description=Officer Maggot (MaxSec whitelist bot)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=timb
+Group=timb
+ExecStart=/usr/local/bin/officer-maggot
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

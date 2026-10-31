@@ -1,0 +1,11 @@
+class commands {class e {code = "[player, _this select 0] call AP_fnc_emote";};
+    class f {code = "[player, _this select 0] call AP_fnc_face";};
+    class t {code = "[player, 'text', _this select 0, (_this select [1, count _this])] call AP_fnc_filterChat";};
+    class r {code = "[player, 'reply', '', (_this select [0, count _this])] call AP_fnc_filterChat";};
+    class 911 {code = "[player, '911', '', (_this select [0, count _this])] call AP_fnc_filterChat";};
+    class comp {code = "[] call AP_fnc_checkMailbox";};
+    class stats {code = "[""Titles""] call AP_fnc_deckOpenApp";};
+    class loginbonus {code = "if (missionNamespace getVariable ['AP_deckApps', true]) then {['Bonus'] call AP_fnc_deckOpenApp} else {[] spawn AP_fnc_loginBonusInit};";};
+    class gangboatscore {code = "['drawHud'] spawn AP_fnc_initGangBoatClient";};
+    class spray {code = "if (missionNamespace getVariable ['AP_deckApps', true]) then {['Sprays'] call AP_fnc_deckOpenApp} else {['sprayMenu'] call AP_fnc_createDialog};";};
+    class 311 {code = "[player, '311', '', (_this select [0, count _this])] call AP_fnc_filterChat";};};

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ARMAPUNK 2035</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="brand">ARMAPUNK<span>2035</span></div>
+    <div id="server" class="server">—</div>
+  </header>
+  <main>
+    <section class="card" id="status-card">
+      <h2>STATUS</h2>
+      <div id="arma">Looking for Arma 3…</div>
+      <div id="release">No release synced</div>
+      <div id="lo" class="warn hidden">Steam launch options need updating (close Steam, then press FIX).
+        <button id="fix">FIX</button></div>
+      <progress id="bar" value="0" max="1" class="hidden"></progress>
+      <div id="msg"></div>
+      <div class="row">
+        <button id="sync">SYNC</button>
+        <button id="launch" class="primary">LAUNCH</button>
+        <button id="repair">REPAIR</button>
+      </div>
+    </section>
+    <section class="card">
+      <h2>GRAPHICS</h2>
+      <label><input type="checkbox" data-t="reshade"> ReShade + iMMERSE</label>
+      <label>Preset <select id="preset"></select></label>
+    </section>
+    <section class="card">
+      <h2>PERFORMANCE</h2>
+      <label>Allocator <select data-t="allocator">
+        <option value="ArmapunkMimalloc">mimalloc (Armapunk)</option>
+        <option value="ArmaMimalloc">mimalloc (Arma official)</option>
+        <option value="Tbb">TBB (Arma default)</option>
+        <option value="System">System</option></select></label>
+      <label><input type="checkbox" data-t="huge_pages"> Huge pages</label>
+      <label><input type="checkbox" data-t="enable_ht"> Use all logical cores</label>
+      <label>Extra threads <select data-t="ex_threads" data-num="1">
+        <option>0</option><option>1</option><option>3</option><option>5</option><option>7</option></select></label>
+      <label><input type="checkbox" data-t="no_logs"> No logs</label>
+    </section>
+    <section class="card">
+      <h2>GAME</h2>
+      <label><input type="checkbox" data-t="auto_join"> Auto-join server</label>
+      <label>Password <input type="password" id="password"></label>
+      <label>Window <select data-t="window"><option>Fullscreen</option><option>Windowed</option></select></label>
+      <label><input type="checkbox" data-t="skip_intro"> Skip intro</label>
+      <label><input type="checkbox" data-t="no_splash"> No splash</label>
+      <label><input type="checkbox" data-t="empty_world"> Empty menu world</label>
+      <label><input type="checkbox" data-t="show_script_errors"> Show script errors</label>
+    </section>
+    <section class="card">
+      <h2>LINUX</h2>
+      <label><input type="checkbox" data-t="linux.gamemode"> GameMode</label>
+      <label><input type="checkbox" data-t="linux.wayland"> Wayland</label>
+      <label><input type="checkbox" data-t="linux.dxvk_hud"> DXVK HUD</label>
+      <label>Frame cap (blank = off) <input data-t="linux.frame_cap" data-num="1" data-opt="1" size="5"></label>
+      <label>CDN <input id="cdn"></label>
+      <label>Channel <select id="channel"><option>test</option><option>stable</option></select></label>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

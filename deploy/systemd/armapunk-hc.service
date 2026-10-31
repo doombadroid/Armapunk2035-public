@@ -1,0 +1,19 @@
+[Unit]
+Description=Armapunk 2035 headless client (vehicle autopilot / AI offload)
+After=armapunk-arma.service
+BindsTo=armapunk-arma.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/timb/arma3server_live
+Environment=HOME=/home/timb
+Environment=LD_LIBRARY_PATH=/home/timb/arma3server_live
+# AP_JOIN_PW: the server password (D12) -- the HC must present it like any client.
+EnvironmentFile=/home/timb/Armapunk2035/deploy/secrets.env
+ExecStartPre=/usr/bin/timeout 300 /bin/bash -c 'until ss -lun | grep -q ":2302 "; do sleep 5; done'
+ExecStart=/home/timb/arma3server_live/arma3server_x64 -client -connect=127.0.0.1 -port=2302 -profiles=/home/timb/arma3server_live/profiles_hc -name=loonyhc -password=${AP_JOIN_PW} -mod=@Armapunk2035 -filePatching
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,27 @@
+params[["_setMarker", false, [false]], ["_bountyUnit", objNull, [objNull]], ["_pos", [0, 0, 0], [[]]], ["_radius", 0, [0]]];
+private _uid = getPlayerUID _bountyUnit;
+private _name = name _bountyUnit;
+if (_uid isEqualTo "" || _name isEqualTo "") exitWith {};
+deleteMarkerLocal format["bounty_group_%1", _uid];
+deleteMarkerLocal format["bounty_dot_group_%1", _uid];
+if (!_setMarker || !(3 in AP_side_talents)) exitWith {};
+private _marker = createMarkerLocal[format["bounty_group_%1", _uid], _pos];
+_marker setMarkerShapeLocal "ELLIPSE";
+_marker setMarkerSizeLocal[_radius, _radius];
+_marker setMarkerTypeLocal "mil_dot";
+_marker setMarkerBrushLocal "DiagGrid";
+_marker setMarkerColorLocal "ColorOrange";
+_marker setMarkerTextLocal format["Fugitive %1", _name];
+private _marker2 = createMarkerLocal[format["bounty_dot_group_%1", _uid], _pos];
+_marker2 setMarkerShapeLocal "ICON";
+_marker2 setMarkerTypeLocal "mil_dot";
+_marker2 setMarkerColorLocal "ColorOrange";
+_marker2 setMarkerTextLocal format["Fugitive %1", _name];
+[_uid, _bountyUnit] spawn {params["_uid", "_bounty"];
+    private _group = group player;
+    private _marker = format["bounty_group_%1", _uid];
+    waitUntil {uiSleep 5;
+        ((getMarkerPos _marker) select 0 isEqualTo 0 || _group != group player || isNull _bounty || (!isNull _bounty && {
+            _bounty getVariable["AP_arrested", false]}))};
+    deleteMarkerLocal format["bounty_group_%1", _uid];
+    deleteMarkerLocal format["bounty_dot_group_%1", _uid];};

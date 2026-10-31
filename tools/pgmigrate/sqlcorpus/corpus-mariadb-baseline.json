@@ -1,0 +1,2100 @@
+[
+ {
+  "file": "mission/Armapunk2035.Malden/ArmaQuest/server/fn_storeSql.sqf",
+  "line": 299,
+  "sql": "SELECT QUOTE(data) FROM armaquest_state WHERE skey='%1'"
+ },
+ {
+  "file": "mission/Armapunk2035.Malden/ArmaQuest/server/fn_storeSql.sqf",
+  "line": 326,
+  "sql": "SELECT COUNT(*) FROM armaquest_state"
+ },
+ {
+  "file": "mission/Armapunk2035.Malden/ArmaQuest/server/fn_storeSql.sqf",
+  "line": 386,
+  "sql": "INSERT INTO armaquest_state (skey,data) VALUES ('%1','%2') ON DUPLICATE KEY UPDATE data=VALUES(data), updated_at=NOW()"
+ },
+ {
+  "file": "mission/Armapunk2035.Malden/ArmaQuest/server/fn_storeSql.sqf",
+  "line": 394,
+  "sql": "DELETE FROM armaquest_state WHERE skey='%1'"
+ },
+ {
+  "file": "mission/Armapunk2035.Malden/core/quests/fn_aqProfile.sqf",
+  "line": 165,
+  "sql": "SELECT %1 FROM players WHERE playerid='%2'"
+ },
+ {
+  "file": "mission/Armapunk2035.Malden/core/quests/fn_aqProfile.sqf",
+  "line": 210,
+  "sql": "SELECT %1_licenses FROM players WHERE playerid='%2'"
+ },
+ {
+  "file": "mission/Armapunk2035.Malden/core/quests/fn_aqRep.sqf",
+  "line": 60,
+  "sql": "SELECT faction_rep FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "mission/Armapunk2035.Malden/core/quests/fn_aqRep.sqf",
+  "line": 98,
+  "sql": "SELECT QUOTE(COALESCE(g.faction,'')) FROM players p JOIN gangs g ON g.id = p.gang0 WHERE p.playerid='%1'"
+ },
+ {
+  "file": "mission/Armapunk2035.Malden/core/quests/fn_aqRep.sqf",
+  "line": 115,
+  "sql": "UPDATE players SET faction_rep='%1' WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_deleteGang.sqf",
+  "line": 6,
+  "sql": "DELETE FROM gangs WHERE `id`='%1' LIMIT 1"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_deleteGang.sqf",
+  "line": 9,
+  "sql": "UPDATE %3 SET gang0='0', gangrank0='3' WHERE gang0='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_deleteHouse.sqf",
+  "line": 12,
+  "sql": "DELETE FROM houses WHERE `worldspace`='%1' OR `oid`='%2' LIMIT 1"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_deleteVehicle.sqf",
+  "line": 10,
+  "sql": "DELETE FROM %3 WHERE plate='%1' AND pid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_deleteWanted.sqf",
+  "line": 11,
+  "sql": "DELETE FROM `%2` WHERE `playerid`='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_dutyLoad.sqf",
+  "line": 70,
+  "sql": "SELECT %3,%4,%5,%6,%7,%8 FROM %2 WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_gangMember.sqf",
+  "line": 11,
+  "sql": "UPDATE `%5` SET gang0='%2',gangrank0='%3' WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insert.sqf",
+  "line": 16,
+  "sql": "SELECT name, aliases FROM %2 WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insert.sqf",
+  "line": 27,
+  "sql": "UPDATE %3 SET aliases='%1' WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insert.sqf",
+  "line": 32,
+  "sql": "INSERT IGNORE INTO players_global (playerid) VALUES('%1')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insert.sqf",
+  "line": 36,
+  "sql": "INSERT INTO %8 (playerid, name, cash, bankacc, cop_gear, aliases, instance) VALUES('%1', '%2', '%3', '%4', '%5', '%6','%7')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insert.sqf",
+  "line": 40,
+  "sql": "INSERT INTO %7 (playerid, name, cash, bankacc, aliases, instance) VALUES('%1', '%2', '%3', '%4', '%5','%6')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insert.sqf",
+  "line": 44,
+  "sql": "INSERT INTO %8 (playerid, name, cash, bankacc, arrested, aliases, civ_gear, instance) VALUES('%1', '%2', '%3', '%4', '%5', '%6','\"[]\"','%7')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertGang.sqf",
+  "line": 21,
+  "sql": "SELECT id FROM gangs WHERE name='%1' AND instance='%2'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertGang.sqf",
+  "line": 27,
+  "sql": "SELECT COALESCE(MAX(id),0)+1 FROM gangs"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertGang.sqf",
+  "line": 31,
+  "sql": "INSERT INTO gangs (id, name, inviterank, kickrank, bank, experience, instance) VALUES ('%1','%2','2','2','0','0','%3')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertGang.sqf",
+  "line": 32,
+  "sql": "UPDATE players SET gang0='%1', gangrank0='1', bankacc=GREATEST(CAST(bankacc AS SIGNED)-25000,0) WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertHouse.sqf",
+  "line": 12,
+  "sql": "DELETE FROM `houses` WHERE worldspace='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertHouse.sqf",
+  "line": 14,
+  "sql": "INSERT INTO `houses` (oid, owners, locked, worldspace) VALUES ('%1', '%2', '%3', '%4')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertHouse.sqf",
+  "line": 19,
+  "sql": "SELECT `id` FROM `houses` WHERE worldspace='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertRequest.sqf",
+  "line": 19,
+  "sql": "SELECT id FROM bans WHERE playerid='%1' AND (until IS NULL OR until > NOW()) LIMIT 1"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertRequest.sqf",
+  "line": 31,
+  "sql": "INSERT IGNORE INTO players_global (playerid) VALUES ('%1')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertRequest.sqf",
+  "line": 32,
+  "sql": "INSERT IGNORE INTO players (playerid, name, instance, new_player) VALUES ('%1', '%2', '%3', '1')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertStorage.sqf",
+  "line": 17,
+  "sql": "INSERT INTO `storage` (`houseid`, `worldspace`, `container`, `classname`, `contents`,`virtual`,`houseworldspace`) VALUES ('%1', '%2', '%3', '%4', '\"[]\"', '\"[[],0]\"','%5')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertVehicle.sqf",
+  "line": 25,
+  "sql": "INSERT INTO %10 (side, classname, type, pid, alive, active, inventory, color, plate, fuel, damage, alarm, mods) VALUES ('%1', '%2', '%3', '%4', '1','1','[]', '%5', '%6', '%7', '%8', '%9', '%11')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_insertWanted.sqf",
+  "line": 21,
+  "sql": "INSERT INTO `%6` (`playerid`, `name`, `crimes`, `bounty`, `jail`) VALUES ('%1', '%2', '%3', '%4', '%5') ON DUPLICATE KEY UPDATE `crimes`='%3', `bounty`='%4', `jail`='%5'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_query.sqf",
+  "line": 22,
+  "sql": "SELECT p.playerid, p.name, p.%3, p.%4, g.coplevel, p.cop_licenses, p.cop_gear, g.adminlevel, p.blacklist, p.cop_inventory, '' AS holster, p.damage, p.thirst, p.hunger, p.instance, TIME_TO_SEC(TIMEDIFF(NOW(), p.`lastupdated`)) diff, g.maxtaclevel, g.donatorlvl, p.cop_talents, p.cop_exp, p.drugs, p.precinct, p.prestige, p.pre_talents, g.wealth, g.achievements, p.cop_alive, g.stats, p.title, g.keys, g.lootrewards FROM %2 as p, players_global as g WHERE p.playerid='%1' AND p.playerid=g.playerid"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_query.sqf",
+  "line": 26,
+  "sql": "SELECT p.playerid, p.name, p.%4, p.%5, g.adminlevel, p.blacklist, p.damage, p.thirst, p.hunger, p.instance, TIME_TO_SEC(TIMEDIFF(NOW(), p.`lastupdated`)) diff, g.donatorlvl, p.med_talents, p.med_exp, p.%2, p.alive, g.wealth, g.achievements, g.stats, p.title, g.keys, g.lootrewards FROM %3 as p, players_global as g WHERE p.playerid='%1' AND p.playerid=g.playerid"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_query.sqf",
+  "line": 29,
+  "sql": "SELECT playerid, name, adminlevel FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_query.sqf",
+  "line": 108,
+  "sql": "SELECT * FROM %2 WHERE playerid = '%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_query.sqf",
+  "line": 192,
+  "sql": "SELECT `oid`,`worldspace`,`id` FROM houses WHERE owners = '%2' LIMIT 10"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_query.sqf",
+  "line": 193,
+  "sql": "SELECT `oid`,`worldspace`,`id` FROM houses WHERE owners = '%2' OR oid = '%3' LIMIT 10"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryCaptures.sqf",
+  "line": 34,
+  "sql": "SELECT `id`,`gang`,`percent`,`container`,`level` FROM captures ORDER BY `id`"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryCaptures.sqf",
+  "line": 60,
+  "sql": "SELECT QUOTE(`turf`.`gang`), QUOTE(IFNULL(`gangs`.`name`,'Contested')), `turf`.`id` FROM `turf` LEFT JOIN `gangs` ON `gangs`.`id`=`turf`.`gang` GROUP BY `turf`.`id` ORDER BY `turf`.`id`"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryConfig.sqf",
+  "line": 4,
+  "sql": "SELECT `value` FROM config ORDER BY `index`"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryGangMembers.sqf",
+  "line": 6,
+  "sql": "SELECT QUOTE(`playerid`),QUOTE(`name`),`gangrank0` FROM `%3` WHERE `gang0`=\"%1\" ORDER BY `gangrank0`, `name` DESC"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryGangs.sqf",
+  "line": 6,
+  "sql": "SELECT DISTINCT `id`,QUOTE(`name`),QUOTE(COALESCE(`wars`,'')),`inviterank`,`kickrank`,`bank`, (SELECT COUNT(*) FROM `%3` WHERE `gang0`=`gangs`.`id`) as `members`,`experience`,QUOTE(COALESCE(`talents`,'[]')) FROM `gangs` ORDER BY `id` LIMIT %1,50"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryHouses.sqf",
+  "line": 9,
+  "sql": "SELECT QUOTE(`oid`),QUOTE(`owners`),QUOTE(`worldspace`),`locked`,`id`,`vcap`,`phys_cap`,`keycap`,`barrel`,`greenhouse`,`leadcontainer`,`keyholders`,`vinv`,`pinv`,QUOTE(COALESCE(`custom_name`,'')) FROM `houses` ORDER BY `oid` LIMIT %1,30"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 46,
+  "sql": "SELECT adminlevel,eventcoordinatorlvl,coplevel,copretired,mediclevel,achievements,stats,honor_exp,honor_talents,lootrewards,betatester,QUOTE(COALESCE(lifetime_stats,'[]')) FROM players_global WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 89,
+  "sql": "SELECT cash,bankacc,QUOTE(new_drachma),%2,%3,%4,prestige,infamy_exp,infamy_talents,arrested,crimes,position,gov_data,NULL AS aq_dead1,NULL AS aq_dead2,title,ismaxtac,isfirefighter,gang0,new_player,QUOTE(COALESCE(prefix,'')),gangrank0,%5,medic_prestige,medic_talents,pre_talents,isscd,casino_banned,COALESCE(intake_path,0),COALESCE(intake_step,0),QUOTE(COALESCE(cyberdeck_modules,'[]')),faction_rep,faction_talents FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 100,
+  "sql": "INSERT INTO player_names (playerid,name) VALUES ('%1','%2') ON DUPLICATE KEY UPDATE seen=NOW()"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 110,
+  "sql": "INSERT IGNORE INTO `online` (`playerid`,`name`,`instance`) VALUES ('%1','%2',%3)"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 156,
+  "sql": "SELECT reward_pending FROM discord_links WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 158,
+  "sql": "UPDATE players SET bankacc=bankacc+500000 WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 159,
+  "sql": "UPDATE discord_links SET reward_pending=0 WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 162,
+  "sql": "SELECT beta_pending FROM discord_links WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 164,
+  "sql": "UPDATE players SET bankacc=bankacc+1000000 WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 165,
+  "sql": "UPDATE discord_links SET beta_pending=0 WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 186,
+  "sql": "UPDATE players SET civ_gear='%1', new_drachma = new_drachma + %2 WHERE playerid='%3'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 187,
+  "sql": "SELECT QUOTE(new_drachma) FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 241,
+  "sql": "UPDATE players_global SET adminlevel=GREATEST(CAST(adminlevel AS SIGNED),4), coplevel=GREATEST(CAST(coplevel AS SIGNED),7), mediclevel=GREATEST(CAST(mediclevel AS SIGNED),7) WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 246,
+  "sql": "UPDATE players SET new_player='0' WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 253,
+  "sql": "SELECT QUOTE(worldspace),id FROM houses WHERE owners='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 260,
+  "sql": "SELECT id,QUOTE(name),experience,QUOTE(COALESCE(talents,'[]')),QUOTE(COALESCE(house_pos,'[]')) FROM gangs WHERE id='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 388,
+  "sql": "SELECT id, QUOTE(COALESCE(msg,'')) FROM mentor_notify WHERE uid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 392,
+  "sql": "DELETE FROM mentor_notify WHERE id=%1"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 399,
+  "sql": "SELECT gang1,gang2 FROM wars WHERE gang1 = '%1' OR gang2 = '%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 410,
+  "sql": "SELECT COUNT(*), QUOTE(DATE_FORMAT((SELECT watch_start FROM server_control WHERE id=1),'%b %e %H:%i')), QUOTE(DATE_FORMAT((SELECT watch_until FROM server_control WHERE id=1),'%b %e %H:%i')) FROM restart_log WHERE ts >= (SELECT watch_start FROM server_control WHERE id=1) AND ts <= (SELECT watch_until FROM server_control WHERE id=1)"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 421,
+  "sql": "SELECT lb_days, lb_claimed, COALESCE(DATEDIFF(CURDATE(), lb_last), -1) FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 428,
+  "sql": "UPDATE players SET lb_days='%2', lb_claimed='0', lb_last=CURDATE() WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 430,
+  "sql": "UPDATE players SET lb_days='1', lb_claimed='0', lb_last=CURDATE() WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryRequest.sqf",
+  "line": 441,
+  "sql": "SELECT drone_revives, drone_support, GREATEST(drone_recharge_until - UNIX_TIMESTAMP(), 0) FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryStock.sqf",
+  "line": 7,
+  "sql": "SELECT `className`,`quantity`,`sales` FROM `itemstock`"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryStorage.sqf",
+  "line": 11,
+  "sql": "SELECT `houseid`,`houseworldspace`,`worldspace`,`container`,`classname`,`contents`,`id`,`virtual` FROM storage WHERE FIND_IN_SET(`houseid`,\"%2\") > 0 ORDER BY `id` LIMIT %1,2"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_queryVehicle.sqf",
+  "line": 9,
+  "sql": "SELECT * FROM %3 WHERE id='%1' AND pid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_restoreVehicles.sqf",
+  "line": 13,
+  "sql": "UPDATE vehicles SET active='0' WHERE active='1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_restoreVehicles.sqf",
+  "line": 24,
+  "sql": "SELECT plate, worldspace, dir, inventory, info_owners, dbInfo, fuel, damage, QUOTE(class), insured FROM vehicle_mem ORDER BY plate LIMIT %1,20"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_restoreVehicles.sqf",
+  "line": 54,
+  "sql": "SELECT id, QUOTE(side), QUOTE(classname), 0, 0, 0, 0, plate, color, 0, 0, 0, alarm, QUOTE(COALESCE(mods,'[]')) FROM %2 WHERE plate='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_saveVehicles.sqf",
+  "line": 8,
+  "sql": "DELETE FROM vehicle_mem"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_saveVehicles.sqf",
+  "line": 40,
+  "sql": "INSERT INTO vehicle_mem (`plate`,`worldspace`,`dir`,`inventory`,`info_owners`,`dbInfo`,`fuel`,`damage`,`class`,`insured`) VALUES ('%1','%2','%3','%4','%5','%6','%7','%8','%9','%10')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_saveVehicles.sqf",
+  "line": 60,
+  "sql": "REPLACE INTO `itemstock` (`className`,`quantity`,`sales`) VALUES ('%1',%2,%3)"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_saveVehicles.sqf",
+  "line": 63,
+  "sql": "UPDATE `gangs` SET `experience`='%2' WHERE `id`='%3'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_updateCaptures.sqf",
+  "line": 12,
+  "sql": "REPLACE INTO `captures` (`id`,`gang`,`percent`,`container`,`level`) VALUES ('%3','%1','%2','%4','%5')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_updateConfig.sqf",
+  "line": 10,
+  "sql": "UPDATE `config` SET `value`='%1' WHERE `index`='%2'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_updateGang.sqf",
+  "line": 9,
+  "sql": "UPDATE `gangs` SET inviterank='%2',kickrank='%3' WHERE id='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_updateGang.sqf",
+  "line": 10,
+  "sql": "UPDATE `gangs` SET bank='%2' WHERE id='%1'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_updateHouse.sqf",
+  "line": 9,
+  "sql": "UPDATE `houses` SET locked='%1',worldspace='%3' WHERE oid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_updatePartial.sqf",
+  "line": 159,
+  "sql": "UPDATE players SET %1 WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_updatePartial.sqf",
+  "line": 160,
+  "sql": "UPDATE players_global SET %1 WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_updateStorage.sqf",
+  "line": 23,
+  "sql": "UPDATE `storage` SET `contents`='%1', `virtual`='%2' WHERE `id`='%3'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_updateStorage.sqf",
+  "line": 25,
+  "sql": "UPDATE `storage` SET `contents`='%1', `virtual`='%4' WHERE `houseid`='%2' AND `container`='%3'"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_updateTurf.sqf",
+  "line": 8,
+  "sql": "REPLACE INTO `turf` (`id`,`gang`) VALUES ('%2','%1')"
+ },
+ {
+  "file": "server/AP_server/core/DB/fn_updateVehicle.sqf",
+  "line": 65,
+  "sql": "UPDATE %7 SET active='%5', fuel='%3', damage='%4', alarm='%6', ammo='%8'%9 WHERE pid='%1' AND plate='%2'"
+ },
+ {
+  "file": "server/AP_server/core/GE/fn_fixBadOffers.sqf",
+  "line": 9,
+  "sql": "SELECT ID, COALESCE(VehicleID,-1) FROM exchange WHERE active='1' AND isVehicle='1' AND timer>=168"
+ },
+ {
+  "file": "server/AP_server/core/GE/fn_fixBadOffers.sqf",
+  "line": 11,
+  "sql": "UPDATE vehicles SET listed='0' WHERE id='%1'"
+ },
+ {
+  "file": "server/AP_server/core/GE/fn_fixBadOffers.sqf",
+  "line": 12,
+  "sql": "DELETE FROM exchange WHERE ID='%1'"
+ },
+ {
+  "file": "server/AP_server/core/GE/fn_fixBadOffers.sqf",
+  "line": 15,
+  "sql": "UPDATE exchange SET active='2', BuyorSell='2', bought_at=UNIX_TIMESTAMP() WHERE active='1' AND isVehicle='0' AND timer>=168"
+ },
+ {
+  "file": "server/AP_server/core/GE/fn_fixBadOffers.sqf",
+  "line": 17,
+  "sql": "DELETE FROM exchange WHERE active='2' AND bought_at < (UNIX_TIMESTAMP() - 1209600)"
+ },
+ {
+  "file": "server/AP_server/core/GE/fn_fixBadOffers.sqf",
+  "line": 19,
+  "sql": "UPDATE vehicles v LEFT JOIN exchange e ON e.VehicleID=v.id AND e.active='1' AND e.isVehicle='1' SET v.listed='0' WHERE v.listed='1' AND e.ID IS NULL"
+ },
+ {
+  "file": "server/AP_server/core/GE/fn_updateMailbox.sqf",
+  "line": 4,
+  "sql": "UPDATE players_global SET mailbox='%1' WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_addGangHouse.sqf",
+  "line": 20,
+  "sql": "SELECT `gangrank0` FROM `%2` WHERE `playerid`='%1' AND `gang0`='%3'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_addGangHouse.sqf",
+  "line": 28,
+  "sql": "UPDATE gangs SET house_pos='[%2,%3,%4]' WHERE id='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_addHouse.sqf",
+  "line": 33,
+  "sql": "SELECT QUOTE(COALESCE(owners,'')) FROM houses WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_addHouse.sqf",
+  "line": 59,
+  "sql": "INSERT INTO houses (oid, owners, locked, worldspace, instance, vcap, phys_cap, keycap, barrel, greenhouse, leadcontainer, classname) VALUES ('%1','%2','1','%3','%4','%5','%6','0','0','0','0','%7') ON DUPLICATE KEY UPDATE owners=IF(owners='' OR owners IS NULL OR owners=VALUES(owners), VALUES(owners), owners), worldspace=VALUES(worldspace), instance=VALUES(instance), classname=VALUES(classname)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_adminDelVeh.sqf",
+  "line": 20,
+  "sql": "SELECT CAST(adminlevel AS SIGNED) FROM players_global WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_adminDelVeh.sqf",
+  "line": 31,
+  "sql": "UPDATE vehicles SET active='0' WHERE pid='%1' AND plate='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_adminKickBan.sqf",
+  "line": 31,
+  "sql": "INSERT INTO bans (playerid, reason, banned_by, until) VALUES ('%1', 'Banned in-game by admin', '%2', NULL)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_adminPlayerQuerySRV.sqf",
+  "line": 24,
+  "sql": "SELECT QUOTE(name), cash, bankacc, new_drachma FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_adminPlayerQuerySRV.sqf",
+  "line": 25,
+  "sql": "SELECT adminlevel, coplevel, mediclevel FROM players_global WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_atmSkimSRV.sqf",
+  "line": 29,
+  "sql": "UPDATE players SET bankacc = bankacc + %1 WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_atmSkimSRV.sqf",
+  "line": 49,
+  "sql": "REPLACE INTO atm_skimmers (atm_key, owner_uid) VALUES ('%1','%2')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_atmSkimSRV.sqf",
+  "line": 65,
+  "sql": "DELETE FROM atm_skimmers WHERE atm_key='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_atmSkimSRV.sqf",
+  "line": 113,
+  "sql": "SELECT QUOTE(atm_key), QUOTE(owner_uid) FROM atm_skimmers"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_barrelSRV.sqf",
+  "line": 32,
+  "sql": "UPDATE houses SET barrel_crop=NULL WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_barrelSRV.sqf",
+  "line": 33,
+  "sql": "UPDATE houses SET barrel_crop='%1' WHERE oid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_barrelSRV.sqf",
+  "line": 43,
+  "sql": "SELECT oid, QUOTE(worldspace), QUOTE(COALESCE(barrel_crop,'')) FROM houses WHERE barrel_crop IS NOT NULL AND barrel_crop <> ''"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bjChips.sqf",
+  "line": 53,
+  "sql": "SELECT QUOTE(chip), qty FROM casino_chips WHERE pid='%1' AND qty > 0"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bjChips.sqf",
+  "line": 63,
+  "sql": "INSERT INTO casino_chips (pid, chip, qty) VALUES ('%1','%2',%3) ON DUPLICATE KEY UPDATE qty = qty + %3"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bjChips.sqf",
+  "line": 65,
+  "sql": "INSERT INTO casino_chip_pity (pid, dry_wins) VALUES ('%1',0) ON DUPLICATE KEY UPDATE dry_wins = 0"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bjChips.sqf",
+  "line": 86,
+  "sql": "SELECT qty FROM casino_chips WHERE pid='%1' AND chip='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bjChips.sqf",
+  "line": 93,
+  "sql": "UPDATE casino_chips SET qty = qty - %3 WHERE pid='%1' AND chip='%2' AND qty >= %3"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bjChips.sqf",
+  "line": 105,
+  "sql": "UPDATE casino_chips SET pid='__swap__' WHERE pid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bjChips.sqf",
+  "line": 106,
+  "sql": "UPDATE casino_chips SET pid='%1' WHERE pid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bjChips.sqf",
+  "line": 107,
+  "sql": "UPDATE casino_chips SET pid='%1' WHERE pid='__swap__'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bjChips.sqf",
+  "line": 112,
+  "sql": "SELECT dry_wins FROM casino_chip_pity WHERE pid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bjChips.sqf",
+  "line": 117,
+  "sql": "INSERT INTO casino_chip_pity (pid, dry_wins) VALUES ('%1',1) ON DUPLICATE KEY UPDATE dry_wins = dry_wins + 1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_blackJackSRV.sqf",
+  "line": 199,
+  "sql": "UPDATE players SET casino_banned='1' WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bldgUpdateKeys.sqf",
+  "line": 32,
+  "sql": "UPDATE houses SET keyholders='%1' WHERE oid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bonesDM.sqf",
+  "line": 23,
+  "sql": "INSERT INTO bones_dm (uid, name, message) VALUES ('%1','%2','%3')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bonesDeliver.sqf",
+  "line": 8,
+  "sql": "SELECT id, QUOTE(uid), QUOTE(reply) FROM bones_dm WHERE reply IS NOT NULL AND delivered = 0 AND ts > (NOW() - INTERVAL 1 HOUR) ORDER BY id ASC LIMIT 10"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bonesDeliver.sqf",
+  "line": 16,
+  "sql": "UPDATE bones_dm SET delivered = 1 WHERE id = %1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_bonesDeliver.sqf",
+  "line": 18,
+  "sql": "UPDATE bones_dm SET delivered = 1 WHERE reply IS NOT NULL AND delivered = 0 AND ts <= (NOW() - INTERVAL 1 HOUR)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_buyFactionPerkSRV.sqf",
+  "line": 71,
+  "sql": "SELECT faction_talents FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_buyFactionPerkSRV.sqf",
+  "line": 94,
+  "sql": "UPDATE players SET faction_talents='%1' WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_casinoSRV.sqf",
+  "line": 120,
+  "sql": "SELECT (wheel_last_free IS NULL OR wheel_last_free < (NOW() - INTERVAL 24 HOUR)) FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_casinoSRV.sqf",
+  "line": 139,
+  "sql": "UPDATE players SET wheel_last_free = NOW() WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_casinoSRV.sqf",
+  "line": 198,
+  "sql": "INSERT INTO %1 (side, classname, type, pid, alive, active, inventory, color, plate, fuel, damage, alarm) VALUES ('civ', '%2', '%3', '%4', '1', '0', '[]', '0', '%5', '100', '0', '0')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_changeGangHouseSRV.sqf",
+  "line": 23,
+  "sql": "UPDATE gangs SET house_pos=NULL WHERE id='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_changeServCycle.sqf",
+  "line": 53,
+  "sql": "SELECT adminlevel FROM players_global WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_changeServCycle.sqf",
+  "line": 103,
+  "sql": "INSERT INTO restart_log (mode) VALUES ('hard')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_changeServCycle.sqf",
+  "line": 106,
+  "sql": "UPDATE server_control SET hard_pending=%1, restart_now=1 WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_cyberdeckSRV.sqf",
+  "line": 90,
+  "sql": "UPDATE house_rigs SET owner='%1' WHERE id=%2"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_cyberdeckSRV.sqf",
+  "line": 240,
+  "sql": "UPDATE players SET cyberdeck_modules='%1' WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_droneCharges.sqf",
+  "line": 19,
+  "sql": "UPDATE players SET drone_revives='%2', drone_support='%3', drone_recharge_until=UNIX_TIMESTAMP()+%4 WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_economySRV.sqf",
+  "line": 30,
+  "sql": "SELECT QUOTE(family), QUOTE(item_key), p0, p1, p2 FROM price_overrides"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_economySRV.sqf",
+  "line": 45,
+  "sql": "INSERT INTO price_overrides (family,item_key,p0,p1,p2,display_name,updated_by) VALUES ('%1','%2',%3,%4,%5,'%6','%7') ON DUPLICATE KEY UPDATE p0=%3,p1=%4,p2=%5,display_name='%6',updated_by='%7'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_economySRV.sqf",
+  "line": 60,
+  "sql": "DELETE FROM price_overrides WHERE family='%1' AND item_key='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 35,
+  "sql": "SELECT ID, QUOTE(pid), QUOTE(name), QUOTE(ClassName), COALESCE(VehicleID,0), Price, Amount, isVirtual, isWeapon, isVehicle, timer FROM exchange WHERE %1 ORDER BY ID DESC LIMIT 100"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 53,
+  "sql": "SELECT ID, QUOTE(pid), QUOTE(from_pid), QUOTE(ClassName), Amount, Price, isVirtual, isWeapon, BuyorSell, bought_at, UNIX_TIMESTAMP() FROM exchange WHERE active='2' AND pid='%1' ORDER BY ID DESC LIMIT 60"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 81,
+  "sql": "SELECT COUNT(*) FROM exchange WHERE active='1' AND pid='%1' AND isVirtual='%2' AND isWeapon='%3'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 86,
+  "sql": "INSERT INTO exchange (ClassName, Price, isVirtual, isWeapon, isVehicle, Amount, pid, BuyorSell, name, active, timer) VALUES ('%1','%2','%3','%4','0','%5','%6','0','%7','1','0')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 95,
+  "sql": "SELECT QUOTE(pid), Amount, Price, isVirtual, isWeapon FROM exchange WHERE ID='%1' AND active='1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 112,
+  "sql": "UPDATE exchange SET Amount=Amount-%2 WHERE ID='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 113,
+  "sql": "INSERT INTO exchange (ClassName, Price, isVirtual, isWeapon, isVehicle, Amount, pid, BuyorSell, name, active, timer, from_pid, bought_at) VALUES ('%1','%2','%3','%4','0','%5','%6','1','%7','2','0','%8',UNIX_TIMESTAMP())"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 125,
+  "sql": "SELECT id FROM vehicles WHERE pid='%1' AND plate='%2' AND alive='1' LIMIT 1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 131,
+  "sql": "UPDATE vehicles SET listed='1' WHERE id='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 132,
+  "sql": "INSERT INTO exchange (ClassName, Price, isVirtual, isWeapon, isVehicle, Amount, pid, BuyorSell, name, active, timer, VehicleID) VALUES ('%1','%2','0','0','1','1','%3','0','%4','1','0','%5')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 141,
+  "sql": "SELECT QUOTE(pid), COALESCE(VehicleID,-1), Price FROM exchange WHERE ID='%1' AND active='1' AND isVehicle='1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 148,
+  "sql": "UPDATE vehicles SET pid='%2', listed='0', active='0' WHERE id='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 158,
+  "sql": "SELECT QUOTE(pid), isVehicle, COALESCE(VehicleID,-1) FROM exchange WHERE ID='%1' AND active='1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 166,
+  "sql": "UPDATE exchange SET active='2', BuyorSell='2', bought_at=UNIX_TIMESTAMP() WHERE ID='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 183,
+  "sql": "DELETE FROM exchange WHERE ID='%1' AND active='2' AND pid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_exchangeSystemSRV.sqf",
+  "line": 184,
+  "sql": "UPDATE exchange SET Amount='%3' WHERE ID='%1' AND active='2' AND pid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_fedOverrideSRV.sqf",
+  "line": 35,
+  "sql": "UPDATE server_control SET fedoverride=1 WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_fedOverrideSRV.sqf",
+  "line": 57,
+  "sql": "UPDATE server_control SET fedoverride=0 WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_fetchLoadouts.sqf",
+  "line": 25,
+  "sql": "SELECT slot, gear FROM loadouts WHERE pid='%1' AND side='%2' ORDER BY id ASC"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangAlignSRV.sqf",
+  "line": 31,
+  "sql": "SELECT id,QUOTE(COALESCE(faction,'')) FROM gangs WHERE faction IS NOT NULL AND faction <> ''"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangAlignSRV.sqf",
+  "line": 58,
+  "sql": "SELECT gang0,gangrank0 FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangAlignSRV.sqf",
+  "line": 76,
+  "sql": "SELECT QUOTE(COALESCE(faction,'')) FROM gangs WHERE id='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangAlignSRV.sqf",
+  "line": 83,
+  "sql": "UPDATE gangs SET faction='%1' WHERE id='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangBHistory.sqf",
+  "line": 22,
+  "sql": "SELECT COUNT(*) FROM `%3` WHERE `playerid`='%1' AND `gang0`='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangBank.sqf",
+  "line": 65,
+  "sql": "SELECT `bank`, (SELECT COUNT(*) FROM `%2` WHERE `gang0`='%1') FROM `gangs` WHERE `id`='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangBank.sqf",
+  "line": 94,
+  "sql": "INSERT INTO gang_bank_log (gangid, name, uid, type, amount) VALUES ('%1','%2','%3','2','%4')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangBank.sqf",
+  "line": 101,
+  "sql": "INSERT INTO gang_bank_log (gangid, name, uid, type, amount) VALUES ('%1','%2','%3','1','%4')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangBank.sqf",
+  "line": 143,
+  "sql": "INSERT INTO gang_bank_log (gangid, name, uid, type, amount) VALUES ('%1','%2','%3','3','%4')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangBank.sqf",
+  "line": 159,
+  "sql": "UPDATE gangs SET bank = (bank + (%1)) WHERE id='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangFortressSRV.sqf",
+  "line": 102,
+  "sql": "SELECT UNIX_TIMESTAMP()"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangFortressSRV.sqf",
+  "line": 130,
+  "sql": "UPDATE gangfort SET leaderboard='%1' WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangFortressSRV.sqf",
+  "line": 137,
+  "sql": "UPDATE gangfort SET active=0, winner_id=-1, winner_name='' WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangFortressSRV.sqf",
+  "line": 140,
+  "sql": "UPDATE gangfort SET active=0, winner_id=%1, winner_name='%2' WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangFortressSRV.sqf",
+  "line": 155,
+  "sql": "UPDATE gangfort SET active=1, ends=%1, winner_id=-1, winner_name='', leaderboard='[]' WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangFortressSRV.sqf",
+  "line": 172,
+  "sql": "SELECT active, ends, winner_id, QUOTE(COALESCE(winner_name,'')), COALESCE(leaderboard,'[]') FROM gangfort WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangFortressSRV.sqf",
+  "line": 192,
+  "sql": "UPDATE gangfort SET active=0 WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangGarageAddSRV.sqf",
+  "line": 25,
+  "sql": "SELECT QUOTE(classname),QUOTE(type),QUOTE(inventory),color,fuel,damage FROM vehicles WHERE pid='%1' AND plate='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangGarageAddSRV.sqf",
+  "line": 28,
+  "sql": "INSERT INTO gang_vehicles (pid,classname,type,gang_id,inventory,active,plate,color,fuel,damage) VALUES ('%1','%2','%3','%4','%5','0','%6','%7','%8','%9') ON DUPLICATE KEY UPDATE pid='%1',classname='%2',type='%3',inventory='%5',active='0',color='%7',fuel='%8',damage='%9'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangGarageAddSRV.sqf",
+  "line": 30,
+  "sql": "DELETE FROM vehicles WHERE pid='%1' AND plate='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangGarageCount.sqf",
+  "line": 11,
+  "sql": "SELECT id FROM gang_vehicles WHERE gang_id='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangGarageGetVehicles.sqf",
+  "line": 15,
+  "sql": "SELECT id,QUOTE(classname),gang_id,plate,color,alarm FROM gang_vehicles WHERE gang_id='%1' AND active='0' AND type='%2' ORDER BY classname, color"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangGarageSetActive.sqf",
+  "line": 50,
+  "sql": "SELECT QUOTE(COALESCE(inventory,'[]')) FROM gang_vehicles WHERE gang_id='%1' AND plate='%2' AND active='0'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangGarageSetActive.sqf",
+  "line": 54,
+  "sql": "UPDATE gang_vehicles SET active='1', inventory='[]' WHERE gang_id='%1' AND plate='%2' AND active='0'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangGarageStore.sqf",
+  "line": 81,
+  "sql": "SELECT pid FROM vehicles WHERE plate='%1' AND pid<>'%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangGarageStore.sqf",
+  "line": 82,
+  "sql": "SELECT gang_id FROM gang_vehicles WHERE plate='%1' AND gang_id<>'%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangGarageStore.sqf",
+  "line": 89,
+  "sql": "DELETE FROM vehicles WHERE plate='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangRenameSRV.sqf",
+  "line": 43,
+  "sql": "SELECT `gangrank0` FROM `%3` WHERE `playerid`='%1' AND `gang0`='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangRenameSRV.sqf",
+  "line": 52,
+  "sql": "SELECT `id` FROM `gangs` WHERE `name`='%1' AND `instance`='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangRenameSRV.sqf",
+  "line": 63,
+  "sql": "SELECT `bank` FROM `gangs` WHERE `id`='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_gangRenameSRV.sqf",
+  "line": 76,
+  "sql": "UPDATE `gangs` SET `name`='%1', `bank`=GREATEST(CAST(`bank` AS SIGNED)-%2,0) WHERE `id`='%3'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_garageCount.sqf",
+  "line": 40,
+  "sql": "SELECT id FROM %1 WHERE pid='%2' AND side='%3' AND alive='1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_getStatsArr.sqf",
+  "line": 12,
+  "sql": "SELECT QUOTE(COALESCE(lifetime_stats, '[]')) FROM players_global WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 69,
+  "sql": "REPLACE INTO gov_state (id, playerid, name, tax, weedlegal, sparlegal, deathpen, elected_at) VALUES (1,'%1','%2',%3,%4,%5,%6,%7)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 88,
+  "sql": "DELETE FROM votes"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 89,
+  "sql": "DELETE FROM candidates"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 136,
+  "sql": "DELETE FROM candidates WHERE started_at < ",
+  "partial": true
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 137,
+  "sql": "SELECT QUOTE(playerid), QUOTE(name), QUOTE(COALESCE(policy,'')), investment FROM candidates"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 142,
+  "sql": "SELECT COUNT(*) FROM votes WHERE candidate='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 152,
+  "sql": "SELECT MIN(started_at) FROM candidates"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 169,
+  "sql": "INSERT IGNORE INTO gangs (id, name, bank) VALUES (50000, 'Government', 0)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 170,
+  "sql": "SELECT QUOTE(playerid), QUOTE(name), tax, weedlegal, sparlegal, deathpen, elected_at FROM gov_state WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 221,
+  "sql": "REPLACE INTO candidates (playerid, name, policy, investment, started_at) VALUES ('%1','%2','%3',%4,UNIX_TIMESTAMP())"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 242,
+  "sql": "SELECT 1 FROM votes WHERE playerid='%1' LIMIT 1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 245,
+  "sql": "INSERT INTO votes (playerid, candidate) VALUES ('%1', '%2')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_govSystemSRV.sqf",
+  "line": 260,
+  "sql": "UPDATE gangs SET bank = (bank + %1) WHERE id='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_greenhouseSRV.sqf",
+  "line": 21,
+  "sql": "UPDATE houses SET greenhouse_crop=NULL WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_greenhouseSRV.sqf",
+  "line": 22,
+  "sql": "UPDATE houses SET greenhouse_crop='%1' WHERE oid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_greenhouseSRV.sqf",
+  "line": 47,
+  "sql": "SELECT QUOTE(COALESCE(greenhouse_crop,'')) FROM houses WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_greenhouseSRV.sqf",
+  "line": 55,
+  "sql": "SELECT oid, QUOTE(worldspace), QUOTE(COALESCE(greenhouse_crop,'')) FROM houses WHERE greenhouse_crop IS NOT NULL AND greenhouse_crop <> ''"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_handleLoadouts.sqf",
+  "line": 29,
+  "sql": "DELETE FROM loadouts WHERE pid='%1' AND side='%2' AND slot=%3"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_handleLoadouts.sqf",
+  "line": 32,
+  "sql": "INSERT INTO loadouts (pid, side, slot, name, gear, currency) VALUES ('%1','%2',%3,'%4','%5','cash')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_handleLoadouts.sqf",
+  "line": 36,
+  "sql": "UPDATE loadouts SET name='%1', gear='%2' WHERE pid='%3' AND side='%4' AND slot=%5"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_handlePhoneMsg.sqf",
+  "line": 83,
+  "sql": "SELECT QUOTE(playerid) FROM players_global WHERE CAST(adminlevel AS SIGNED) >= 2"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_houseFurnitureSRV.sqf",
+  "line": 100,
+  "sql": "SELECT furniture FROM houses WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_houseFurnitureSRV.sqf",
+  "line": 116,
+  "sql": "UPDATE houses SET furniture='%1' WHERE oid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_houseFurnitureSRV.sqf",
+  "line": 130,
+  "sql": "SELECT QUOTE(oid), furniture FROM houses WHERE furniture IS NOT NULL AND furniture != ''"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_houseFurnitureSRV.sqf",
+  "line": 147,
+  "sql": "SELECT QUOTE(oid), QUOTE(owners), furniture FROM houses WHERE furniture IS NOT NULL AND furniture != ''"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_houseFurnitureSRV.sqf",
+  "line": 176,
+  "sql": "SELECT QUOTE(owners), furniture FROM houses WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_houseTaxSRV.sqf",
+  "line": 29,
+  "sql": "SELECT COUNT(*) FROM houses WHERE owners='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_houseTaxSRV.sqf",
+  "line": 52,
+  "sql": "UPDATE houses SET tax_paid=NOW(), tax_playtime='0' WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_initHouseInventory.sqf",
+  "line": 37,
+  "sql": "SELECT vinv,pinv FROM houses WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_intakeSRV.sqf",
+  "line": 32,
+  "sql": "ALTER TABLE players ADD COLUMN IF NOT EXISTS intake_path TINYINT(1) NOT NULL DEFAULT 0"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_intakeSRV.sqf",
+  "line": 33,
+  "sql": "ALTER TABLE players ADD COLUMN IF NOT EXISTS intake_step TINYINT UNSIGNED NOT NULL DEFAULT 0"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_intakeSRV.sqf",
+  "line": 34,
+  "sql": "CREATE TABLE IF NOT EXISTS mentor_notify (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, uid VARCHAR(17) NOT NULL, msg TEXT, INDEX idx_uid (uid))"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_intakeSRV.sqf",
+  "line": 46,
+  "sql": "SELECT COALESCE(intake_path,0) FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_intakeSRV.sqf",
+  "line": 49,
+  "sql": "UPDATE players SET intake_path=%1 WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_intakeSRV.sqf",
+  "line": 55,
+  "sql": "UPDATE players SET intake_path=9 WHERE playerid='%1' AND COALESCE(intake_path,0)=0"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_intakeSRV.sqf",
+  "line": 60,
+  "sql": "SELECT COALESCE(intake_step,0) FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_intakeSRV.sqf",
+  "line": 64,
+  "sql": "UPDATE players SET intake_step=%1 WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_intakeSRV.sqf",
+  "line": 70,
+  "sql": "SELECT COALESCE(intake_path,1) FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_intakeSRV.sqf",
+  "line": 88,
+  "sql": "INSERT INTO mentor_notify (uid, msg) VALUES ('%1', '%2')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_intakeSRV.sqf",
+  "line": 113,
+  "sql": "UPDATE players SET intake_path=0, intake_step=0 WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_loginBonusSRV.sqf",
+  "line": 36,
+  "sql": "UPDATE players SET lb_claimed='1', lb_days='%2' WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_loonazonSRV.sqf",
+  "line": 277,
+  "sql": "INSERT INTO %1 (side, classname, type, pid, alive, active, inventory, color, plate, fuel, damage, alarm) VALUES ('civ', 'B_Quadbike_01_F', 'Car', '%2', '1', '0', '[]', '0', '%3', '100', '0', '0')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_loonerSRV.sqf",
+  "line": 33,
+  "sql": "SELECT id, QUOTE(name), QUOTE(message), TIMESTAMPDIFF(MINUTE, ts, NOW()), likes, verified, reply_to FROM looner_posts ORDER BY ",
+  "partial": true
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_loonerSRV.sqf",
+  "line": 49,
+  "sql": "INSERT INTO looner_posts (uid, name, message, likes, verified, reply_to) VALUES ('BENBONES', 'Ben Bones', '%1', %2, 1, 0)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_loonerSRV.sqf",
+  "line": 70,
+  "sql": "SELECT COUNT(*) FROM looner_likes WHERE uid='%1' AND post_id=%2"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_loonerSRV.sqf",
+  "line": 73,
+  "sql": "INSERT INTO looner_likes (uid, post_id) VALUES ('%1', %2)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_loonerSRV.sqf",
+  "line": 74,
+  "sql": "UPDATE looner_posts SET likes = likes + 1 WHERE id = %1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_loonerSRV.sqf",
+  "line": 98,
+  "sql": "INSERT INTO looner_posts (uid, name, message, verified) VALUES ('%1', '%2', '%3', %4)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_loonstreetsSRV.sqf",
+  "line": 9,
+  "sql": "SELECT QUOTE(COALESCE(winner_name,'')), active FROM gangfort WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_loonstreetsSRV.sqf",
+  "line": 14,
+  "sql": "SELECT t.id, QUOTE(COALESCE(g.name,'')) FROM turf t LEFT JOIN gangs g ON g.id = t.gang ORDER BY t.id"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_loonstreetsSRV.sqf",
+  "line": 19,
+  "sql": "SELECT QUOTE(name), bank, experience FROM gangs ORDER BY experience DESC LIMIT 8"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_maldenSRV.sqf",
+  "line": 44,
+  "sql": "ALTER TABLE houses ADD COLUMN IF NOT EXISTS malden TINYINT(1) NOT NULL DEFAULT 0"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_maldenSRV.sqf",
+  "line": 45,
+  "sql": "ALTER TABLE houses ADD COLUMN IF NOT EXISTS malden_skin VARCHAR(16) NOT NULL DEFAULT ''"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_maldenSRV.sqf",
+  "line": 135,
+  "sql": "UPDATE houses SET malden=0 WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_maldenSRV.sqf",
+  "line": 157,
+  "sql": "SELECT QUOTE(oid), QUOTE(worldspace), QUOTE(COALESCE(classname,'')), QUOTE(COALESCE(malden_skin,'')) FROM houses WHERE malden=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_maldenSRV.sqf",
+  "line": 242,
+  "sql": "UPDATE houses SET malden=0, malden_skin='' WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_maldenSRV.sqf",
+  "line": 259,
+  "sql": "UPDATE houses SET malden_skin='%1' WHERE oid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_maldenSRV.sqf",
+  "line": 263,
+  "sql": "UPDATE houses SET malden=1, malden_skin='%1' WHERE oid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_miningSRV.sqf",
+  "line": 124,
+  "sql": "INSERT INTO house_rigs (oid, owner, pos, since, last_collect) VALUES ('%1','%2','%3',%4,%4)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_miningSRV.sqf",
+  "line": 127,
+  "sql": "SELECT QUOTE(id) FROM house_rigs WHERE oid='%1' AND pos='%2' ORDER BY id DESC LIMIT 1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_miningSRV.sqf",
+  "line": 155,
+  "sql": "SELECT QUOTE(last_collect) FROM house_rigs WHERE id=%1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_miningSRV.sqf",
+  "line": 162,
+  "sql": "UPDATE house_rigs SET last_collect=%1 WHERE id=%2"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_miningSRV.sqf",
+  "line": 199,
+  "sql": "DELETE FROM house_rigs WHERE id=%1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_miningSRV.sqf",
+  "line": 200,
+  "sql": "SELECT QUOTE(COUNT(*)) FROM house_rigs WHERE id=%1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_miningSRV.sqf",
+  "line": 222,
+  "sql": "SELECT QUOTE(hr.id), QUOTE(hr.oid), QUOTE(hr.owner), QUOTE(hr.pos), QUOTE(COALESCE(h.worldspace,'')), QUOTE(COALESCE(h.owners,'')) FROM house_rigs hr LEFT JOIN houses h ON h.oid = hr.oid"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_ndCreditSrv.sqf",
+  "line": 29,
+  "sql": "UPDATE players SET new_drachma = new_drachma + %1 WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_ndDebitSrv.sqf",
+  "line": 79,
+  "sql": "UPDATE players SET new_drachma = new_drachma - %1 WHERE playerid='%2' AND new_drachma >= %1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_newsPush.sqf",
+  "line": 27,
+  "sql": "SELECT id, QUOTE(name), QUOTE(message), QUOTE(DATE_FORMAT(ts,'%b %e %H:%i')), likes, verified, reply_to FROM looner_posts ORDER BY id DESC LIMIT 50"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_offlineMsg.sqf",
+  "line": 58,
+  "sql": "SELECT COUNT(*) FROM offline_msgs WHERE to_uid='%1' AND delivered=0"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_offlineMsg.sqf",
+  "line": 70,
+  "sql": "INSERT INTO offline_msgs (to_uid, from_uid, from_name, message) VALUES ('%1','%2','%3','%4')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_offlineMsgDeliver.sqf",
+  "line": 18,
+  "sql": "SELECT id, QUOTE(to_uid), QUOTE(from_uid), QUOTE(from_name), QUOTE(message) FROM offline_msgs WHERE delivered = 0 ORDER BY id ASC LIMIT 30"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_offlineMsgDeliver.sqf",
+  "line": 54,
+  "sql": "UPDATE offline_msgs SET delivered = 1 WHERE id IN (%1)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_offlineMsgDeliver.sqf",
+  "line": 60,
+  "sql": "DELETE FROM offline_msgs WHERE delivered = 1 AND ts <= (NOW() - INTERVAL 7 DAY)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_processMailbox.sqf",
+  "line": 24,
+  "sql": "SELECT QUOTE(COALESCE(mailbox, '[]')) FROM players_global WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_processMailbox.sqf",
+  "line": 32,
+  "sql": "UPDATE players_global SET mailbox=NULL WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_processMailbox.sqf",
+  "line": 43,
+  "sql": "UPDATE players SET cash = cash + %1 WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_qhSRV.sqf",
+  "line": 55,
+  "sql": "SELECT GREATEST(0, COALESCE(TIMESTAMPDIFF(SECOND, NOW(), qh_detonate_cd), 0)) FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_qhSRV.sqf",
+  "line": 520,
+  "sql": "UPDATE players SET qh_detonate_cd = DATE_ADD(NOW(), INTERVAL %2 SECOND) WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_radioSRV.sqf",
+  "line": 31,
+  "sql": "SELECT station, QUOTE(song_id), song_len FROM radio_schedule ORDER BY station, idx"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_registerForeskin.sqf",
+  "line": 32,
+  "sql": "SELECT QUOTE(name) FROM players WHERE playerid='%1' ORDER BY id DESC LIMIT 1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_registerForeskin.sqf",
+  "line": 42,
+  "sql": "INSERT IGNORE INTO foreskins (uid,name) VALUES ('%1','%2')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_renameHouseSRV.sqf",
+  "line": 39,
+  "sql": "UPDATE houses SET custom_name=NULL WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_renameHouseSRV.sqf",
+  "line": 40,
+  "sql": "UPDATE houses SET custom_name='%1' WHERE oid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_shedHelipadSRV.sqf",
+  "line": 121,
+  "sql": "UPDATE houses SET helipad=1 WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_shedHelipadSRV.sqf",
+  "line": 129,
+  "sql": "SELECT QUOTE(oid), QUOTE(worldspace), QUOTE(owners) FROM houses WHERE helipad=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_sportsbookResolve.sqf",
+  "line": 16,
+  "sql": "SELECT selection, SUM(stake) FROM sportsbook_bets WHERE market_key='%1' AND status='open' GROUP BY selection"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_sportsbookResolve.sqf",
+  "line": 81,
+  "sql": "SELECT id, uid, selection, stake FROM sportsbook_bets WHERE market_key='%1' AND status='open'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_sportsbookResolve.sqf",
+  "line": 94,
+  "sql": "UPDATE sportsbook_bets SET status='done' WHERE market_key='%1' AND status='open'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_sportsbookSRV.sqf",
+  "line": 27,
+  "sql": "SELECT COUNT(*) FROM sportsbook_bets WHERE uid='%1' AND market_key='%2' AND status='open'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_sportsbookSRV.sqf",
+  "line": 33,
+  "sql": "INSERT INTO sportsbook_bets (uid, name, market_key, selection, stake, status) VALUES ('%1','%2','%3','%4',%5,'open')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_srvPersistentBounties.sqf",
+  "line": 10,
+  "sql": "SELECT target_uid,target_name,amount FROM bounties WHERE target_uid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_srvSellHouse.sqf",
+  "line": 36,
+  "sql": "DELETE FROM houses WHERE `oid`='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_srvSellHouse.sqf",
+  "line": 46,
+  "sql": "DELETE FROM house_rigs WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_srvSellVehicle.sqf",
+  "line": 25,
+  "sql": "SELECT QUOTE(classname), QUOTE(side) FROM vehicles WHERE pid='%1' AND plate='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_statTableUpdate.sqf",
+  "line": 35,
+  "sql": "UPDATE players_global SET lifetime_stats='%2' WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_stimmySRV.sqf",
+  "line": 32,
+  "sql": "UPDATE server_control SET stimmy=%1 WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_storageVaultSRV.sqf",
+  "line": 44,
+  "sql": "CREATE TABLE IF NOT EXISTS storage_vault (slot_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(17) NOT NULL,label VARCHAR(%1) NOT NULL DEFAULT '',src_class VARCHAR(64) NOT NULL DEFAULT '',vinv MEDIUMTEXT,pinv MEDIUMTEXT,weight INT NOT NULL DEFAULT 0,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,INDEX idx_uid (uid))"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_storageVaultSRV.sqf",
+  "line": 104,
+  "sql": "SELECT slot_id, QUOTE(COALESCE(label,'')), QUOTE(COALESCE(src_class,'')), weight FROM storage_vault WHERE uid='%1' ORDER BY slot_id"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_storageVaultSRV.sqf",
+  "line": 109,
+  "sql": "SELECT QUOTE(oid), QUOTE(worldspace), vcap, phys_cap, vinv, pinv, QUOTE(COALESCE(classname,'')), QUOTE(COALESCE(custom_name,'')) FROM houses WHERE owners='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_storageVaultSRV.sqf",
+  "line": 124,
+  "sql": "SELECT QUOTE(oid), QUOTE(worldspace), vcap, phys_cap, vinv, pinv, QUOTE(COALESCE(classname,'')), QUOTE(COALESCE(custom_name,'')) FROM houses WHERE oid='%1' AND owners='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_storageVaultSRV.sqf",
+  "line": 155,
+  "sql": "INSERT INTO storage_vault (uid,label,src_class,vinv,pinv,weight) VALUES ('%1','%2','%3','%4','%5',%6)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_storageVaultSRV.sqf",
+  "line": 158,
+  "sql": "UPDATE houses SET vinv='%1', pinv='%2' WHERE oid='%3'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_storageVaultSRV.sqf",
+  "line": 174,
+  "sql": "SELECT vinv,pinv FROM storage_vault WHERE slot_id=%1 AND uid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_storageVaultSRV.sqf",
+  "line": 234,
+  "sql": "DELETE FROM storage_vault WHERE slot_id=%1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_storageVaultSRV.sqf",
+  "line": 236,
+  "sql": "UPDATE storage_vault SET vinv='%1', pinv='%2', weight=%3 WHERE slot_id=%4"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteFurnitureSRV.sqf",
+  "line": 56,
+  "sql": "SELECT QUOTE(COALESCE(owner,'')), COALESCE(NULLIF(furniture,''),'\"[]\"') FROM suites WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteFurnitureSRV.sqf",
+  "line": 125,
+  "sql": "UPDATE suites SET furniture='%1' WHERE oid='%2' AND owner='%3'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteFurnitureSRV.sqf",
+  "line": 143,
+  "sql": "UPDATE suites SET furniture=NULL WHERE oid='%1' AND owner='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteRelease.sqf",
+  "line": 24,
+  "sql": "SELECT floor, COALESCE(NULLIF(vinv,''),'\"[[],0]\"'), COALESCE(NULLIF(pinv,''),'\"[[],0]\"'), COALESCE(NULLIF(furniture,''),'\"[]\"') FROM suites WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteRelease.sqf",
+  "line": 35,
+  "sql": "UPDATE suites SET owner=NULL, leased_at=0, next_due=0, overdue_since=0, locked=1, vinv=NULL, pinv=NULL, furniture=NULL WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteRelease.sqf",
+  "line": 39,
+  "sql": "SELECT QUOTE(COALESCE(owner,'')) FROM suites WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteRentSweep.sqf",
+  "line": 38,
+  "sql": "SELECT QUOTE(oid), floor, QUOTE(COALESCE(owner,'')), next_due, overdue_since FROM suites WHERE owner IS NOT NULL AND next_due <= UNIX_TIMESTAMP()"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteRentSweep.sqf",
+  "line": 50,
+  "sql": "UPDATE suites SET next_due = next_due + %1, overdue_since = 0 WHERE oid='%2' AND owner='%3'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteRentSweep.sqf",
+  "line": 59,
+  "sql": "UPDATE suites SET overdue_since = UNIX_TIMESTAMP() WHERE oid='%1' AND owner='%2' AND overdue_since = 0"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteRentSweep.sqf",
+  "line": 76,
+  "sql": "SELECT QUOTE(oid), QUOTE(COALESCE(owner,'')) FROM suites WHERE owner IS NOT NULL AND overdue_since > 0 AND (UNIX_TIMESTAMP() - overdue_since) >= %1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteSRV.sqf",
+  "line": 40,
+  "sql": "SELECT QUOTE(oid), floor, QUOTE(COALESCE(owner,'')), next_due, overdue_since, locked FROM suites WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteSRV.sqf",
+  "line": 56,
+  "sql": "SELECT QUOTE(oid), floor, QUOTE(COALESCE(owner,'')), next_due, overdue_since, locked FROM suites WHERE tower='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteSRV.sqf",
+  "line": 73,
+  "sql": "INSERT IGNORE INTO suites (oid, tower, floor) VALUES ('%1','%2',%3)"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteSRV.sqf",
+  "line": 77,
+  "sql": "UPDATE suites SET owner='%1', leased_at=UNIX_TIMESTAMP(), next_due=UNIX_TIMESTAMP()+%2, overdue_since=0, locked=1 WHERE oid='%3' AND owner IS NULL"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteSRV.sqf",
+  "line": 88,
+  "sql": "UPDATE suites SET owner=NULL, leased_at=0, next_due=0 WHERE oid='%1' AND owner='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteSRV.sqf",
+  "line": 133,
+  "sql": "SELECT QUOTE(oid), floor, QUOTE(COALESCE(owner,'')), locked FROM suites WHERE owner IS NOT NULL"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteSRV.sqf",
+  "line": 151,
+  "sql": "UPDATE suites SET locked=%1 WHERE oid='%2' AND owner='%3'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteStorageSRV.sqf",
+  "line": 55,
+  "sql": "SELECT QUOTE(COALESCE(owner,'')), COALESCE(NULLIF(vinv,''),'\"[[],0]\"'), COALESCE(NULLIF(pinv,''),'\"[[],0]\"') FROM suites WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteStorageSRV.sqf",
+  "line": 157,
+  "sql": "UPDATE suites SET vinv='%1', pinv='%2' WHERE oid='%3' AND owner='%4'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_suiteStorageSRV.sqf",
+  "line": 166,
+  "sql": "SELECT COALESCE(NULLIF(vinv,''),'\"[[],0]\"') FROM suites WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_tagHousesSRV.sqf",
+  "line": 44,
+  "sql": "SELECT id, QUOTE(worldspace), tax_playtime, COALESCE(DATEDIFF(NOW(), tax_paid), 0), QUOTE(owners), QUOTE(oid), keyholders, QUOTE(COALESCE(classname,'')), vcap, phys_cap, keycap, barrel, greenhouse, leadcontainer, locked, QUOTE(COALESCE(custom_name,'')) FROM houses"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_tagHousesSRV.sqf",
+  "line": 120,
+  "sql": "UPDATE houses SET classname='%1' WHERE oid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_talSRV.sqf",
+  "line": 22,
+  "sql": "SELECT arrested, crimes, gang0 FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_talSRV.sqf",
+  "line": 23,
+  "sql": "SELECT stats FROM players_global WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_talentPointsSRV.sqf",
+  "line": 18,
+  "sql": "SELECT points FROM talent_points WHERE pid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_talentPointsSRV.sqf",
+  "line": 23,
+  "sql": "INSERT INTO talent_points (pid, points) VALUES ('%1', 1) ON DUPLICATE KEY UPDATE points = points + 1"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_toggleNewbieRoles.sqf",
+  "line": 26,
+  "sql": "REPLACE INTO config (`index`, value) VALUES (200, '%1')"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_transferGangOwnerSRV.sqf",
+  "line": 28,
+  "sql": "SELECT `gang0`, `gangrank0` FROM `%2` WHERE `playerid`='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_transferGangOwnerSRV.sqf",
+  "line": 41,
+  "sql": "UPDATE players SET gangrank0='1' WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_transferGangOwnerSRV.sqf",
+  "line": 42,
+  "sql": "UPDATE players SET gangrank0='2' WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_transferHouse.sqf",
+  "line": 20,
+  "sql": "SELECT QUOTE(COALESCE(owners,'')), QUOTE(COALESCE(sale,'0')) FROM houses WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_transferHouse.sqf",
+  "line": 37,
+  "sql": "UPDATE houses SET owners='%2', sale='0', keyholders=NULL, custom_name=NULL, malden=0 WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_updateGangMem.sqf",
+  "line": 73,
+  "sql": "UPDATE %2 SET gang0='0', gangrank0='3' WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_updateGangMem.sqf",
+  "line": 74,
+  "sql": "UPDATE %3 SET gang0='%2', gangrank0='%4' WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_updateGangTalents.sqf",
+  "line": 25,
+  "sql": "UPDATE gangs SET experience='%2', talents='%3' WHERE id='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_updateHousePrice.sqf",
+  "line": 38,
+  "sql": "UPDATE houses SET sale='%2' WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_updateProperty.sqf",
+  "line": 54,
+  "sql": "UPDATE houses SET %1 WHERE oid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_updateVehicleMods.sqf",
+  "line": 39,
+  "sql": "UPDATE %1 SET mods='%2', alarm='%3', customplate='%7'%4 WHERE pid='%5' AND plate='%6'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_vehAddAlarm.sqf",
+  "line": 15,
+  "sql": "UPDATE vehicles SET alarm='1' WHERE pid='%1' AND plate='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_vehOwnerSwap.sqf",
+  "line": 41,
+  "sql": "UPDATE vehicles SET pid='%1' WHERE pid='%2' AND plate='%3'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_vehicleRepairSRV.sqf",
+  "line": 29,
+  "sql": "UPDATE gang_vehicles SET damage='0', fuel='100' WHERE gang_id='%1' AND plate='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_vehicleRepairSRV.sqf",
+  "line": 30,
+  "sql": "UPDATE vehicles SET damage='0', fuel='100' WHERE pid='%1' AND plate='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_vehicleSetActive.sqf",
+  "line": 62,
+  "sql": "SELECT QUOTE(COALESCE(inventory,'[]')) FROM %1 WHERE pid='%2' AND plate='%3'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_vehicleSetActive.sqf",
+  "line": 70,
+  "sql": "UPDATE %1 SET active='1', inventory='[]' WHERE pid='%2' AND plate='%3'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_wantedRemove.sqf",
+  "line": 26,
+  "sql": "DELETE FROM `%1` WHERE `playerid`='%2'"
+ },
+ {
+  "file": "server/AP_server/core/TON/fn_xmasTreeAndPresentsSRV.sqf",
+  "line": 19,
+  "sql": "UPDATE players SET xmas_last=CURDATE() WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_bankMove.sqf",
+  "line": 86,
+  "sql": "SELECT bankacc FROM players WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_bankMove.sqf",
+  "line": 99,
+  "sql": "UPDATE players SET bankacc = bankacc - %1 WHERE playerid='%2' AND bankacc >= %1"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_chopShopSell.sqf",
+  "line": 79,
+  "sql": "DELETE FROM gang_vehicles WHERE gang_id='%1' AND plate='%2'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_cleanup.sqf",
+  "line": 99,
+  "sql": "UPDATE gang_vehicles SET active='0', inventory='%1', fuel='%2', damage='%3' WHERE gang_id='%4' AND plate='%5'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_dutySRV.sqf",
+  "line": 373,
+  "sql": "SELECT CAST(coplevel AS SIGNED),CAST(adminlevel AS SIGNED),CAST(mediclevel AS SIGNED) FROM players_global WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_dutySRV.sqf",
+  "line": 409,
+  "sql": "SELECT isscd, arrested FROM %2 WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_dutySRV.sqf",
+  "line": 568,
+  "sql": "SELECT CAST(coplevel AS SIGNED),CAST(adminlevel AS SIGNED) FROM players_global WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_dutySRV.sqf",
+  "line": 583,
+  "sql": "SELECT arrested FROM %2 WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_getAdmin.sqf",
+  "line": 3,
+  "sql": "SELECT adminlevel FROM %2 WHERE playerid='%1'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_getVehicles.sqf",
+  "line": 51,
+  "sql": "SELECT id,QUOTE(classname),QUOTE(pid),plate,color,QUOTE(COALESCE(mods,'[]')),alarm,QUOTE(COALESCE(customplate,'')),fuel,damage FROM %1 WHERE pid='%2' AND side='%3' AND type='%4' AND alive='1' AND active='0' AND listed='0' ORDER BY classname, color"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_govMaint.sqf",
+  "line": 12,
+  "sql": "SELECT COUNT(*) as `count`, `votes`.`candidate`, `%2`.`name` FROM `votes`,`%2` WHERE `%2`.`playerid` != '%1' AND `votes`.`candidate`=`%2`.`playerid` GROUP BY `votes`.`candidate` ORDER BY `count` DESC LIMIT 1"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_govMaint.sqf",
+  "line": 24,
+  "sql": "DELETE FROM `candidates`"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_govMaint.sqf",
+  "line": 25,
+  "sql": "DELETE FROM `votes`"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_logIt.sqf",
+  "line": 66,
+  "sql": "INSERT INTO log (tag, playerid, name, message, instance) VALUES ('%1','%2','%3','%4','%5')"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_playerDisconnected.sqf",
+  "line": 220,
+  "sql": "DELETE FROM `online` WHERE playerid='%1' AND `instance`=%2"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_queryHouses.sqf",
+  "line": 4,
+  "sql": "ALTER TABLE `houses` DROP INDEX `oid_UNIQUE`"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_queryHouses.sqf",
+  "line": 16,
+  "sql": "DELETE n1 FROM `houses` n1, `houses` n2 WHERE n1.id > n2.id AND n1.oid = n2.oid AND n1.id <> n2.id"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_queryHouses.sqf",
+  "line": 18,
+  "sql": "ALTER TABLE `houses` ADD UNIQUE INDEX `oid_UNIQUE` (`oid` ASC)"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_queryHouses.sqf",
+  "line": 33,
+  "sql": "SELECT `id`,`houseid`,`houseworldspace` FROM `storage` ORDER BY `id` LIMIT %1,30"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_queryHouses.sqf",
+  "line": 40,
+  "sql": "UPDATE `storage` SET `houseid`='%2' WHERE `id`=%3"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_queryHouses.sqf",
+  "line": 45,
+  "sql": "UPDATE `config` SET `value`=0 WHERE `index`=10"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_receiveHouses.sqf",
+  "line": 81,
+  "sql": "UPDATE houses SET `oid`='%1' WHERE `oid`='%2'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_receiveHouses.sqf",
+  "line": 84,
+  "sql": "UPDATE gangs SET `id`='%1' WHERE `id`='%2'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_receiveHouses.sqf",
+  "line": 87,
+  "sql": "UPDATE %4 SET `gang%3`='%1' WHERE `gang%3`='%2'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_receiveHouses.sqf",
+  "line": 90,
+  "sql": "UPDATE captures SET `gang`='%1' WHERE `gang`='%2'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_receiveHouses.sqf",
+  "line": 92,
+  "sql": "UPDATE turf SET `gang`='%1' WHERE `gang`='%2'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_recoverWreck.sqf",
+  "line": 53,
+  "sql": "SELECT pid FROM %1 WHERE plate='%2'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_recoverWreck.sqf",
+  "line": 80,
+  "sql": "INSERT INTO gang_vehicles (pid, classname, type, gang_id, inventory, active, plate, color, fuel, damage) VALUES ('%1','%2','%3','%1','[]','0','%4','0','100','0')"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_recoverWreck.sqf",
+  "line": 87,
+  "sql": "DELETE FROM %1 WHERE pid='%2' AND plate='%3'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_recoverWreck.sqf",
+  "line": 88,
+  "sql": "INSERT INTO %1 (side, classname, type, pid, alive, active, inventory, color, plate, fuel, damage, alarm) VALUES ('%2', '%3', '%4', '%5', '1', '0', '[]', '0', '%6', '100', '0', '0')"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_removeStorage.sqf",
+  "line": 19,
+  "sql": "DELETE FROM `storage` WHERE `houseworldspace`='\"%1\"' AND `container`='%2'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_updateWar.sqf",
+  "line": 15,
+  "sql": "INSERT INTO `wars` (`gang1`,`gang2`) VALUES ('%1','%2')"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_updateWar.sqf",
+  "line": 18,
+  "sql": "DELETE FROM `wars` WHERE (`gang1` = '%1' AND `gang2` = '%2') OR (`gang1` = '%2' AND `gang2` = '%1')"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_vehicleDead.sqf",
+  "line": 26,
+  "sql": "UPDATE vehicles SET active='0', damage='0' WHERE pid='%1' AND plate='%2'"
+ },
+ {
+  "file": "server/AP_server/core/system/fn_vehicleDelete.sqf",
+  "line": 30,
+  "sql": "DELETE FROM %3 WHERE id='%1' AND pid='%2'"
+ },
+ {
+  "file": "server/AP_server/core/wantedsys/fn_claimBodybagSRV.sqf",
+  "line": 43,
+  "sql": "UPDATE players SET arrested='%1' WHERE playerid='%2'"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 163,
+  "sql": "CALL resetAusVehicles();"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 164,
+  "sql": "CALL resetLifeVehicles();"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 165,
+  "sql": "CALL updateLifeHouses();"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 182,
+  "sql": "SELECT QUOTE(uid),QUOTE(name) FROM foreskins"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 191,
+  "sql": "SELECT stimmy FROM server_control WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 229,
+  "sql": "INSERT IGNORE INTO gangfort (id) VALUES (1)"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 249,
+  "sql": "SELECT HOUR(CONVERT_TZ(UTC_TIMESTAMP(),'+00:00','America/Chicago')), DAYOFWEEK(CONVERT_TZ(UTC_TIMESTAMP(),'+00:00','America/Chicago')), UNIX_TIMESTAMP(), last_auto, ends FROM gangfort WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 256,
+  "sql": "UPDATE gangfort SET last_auto=%1 WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 273,
+  "sql": "DELETE gv FROM gang_vehicles gv JOIN (SELECT gang_id, plate, MAX(id) AS keep_id FROM gang_vehicles GROUP BY gang_id, plate) m ON gv.gang_id=m.gang_id AND gv.plate=m.plate AND gv.id < m.keep_id"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 274,
+  "sql": "ALTER TABLE gang_vehicles ADD UNIQUE KEY IF NOT EXISTS uq_gang_plate (gang_id, plate)"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 275,
+  "sql": "UPDATE gang_vehicles SET active='0' WHERE active='1'"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 476,
+  "sql": "UPDATE server_control SET restart_now=1, hard_pending=0 WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 483,
+  "sql": "UPDATE server_control SET restart_now=1 WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 541,
+  "sql": "SELECT id, QUOTE(house_pos) FROM gangs WHERE house_pos IS NOT NULL"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 585,
+  "sql": "SELECT id, QUOTE(worldspace), tax_playtime, COALESCE(DATEDIFF(NOW(), tax_paid), 0), QUOTE(owners), QUOTE(oid), keyholders, QUOTE(COALESCE(classname,'')), vcap, phys_cap, keycap, barrel, greenhouse, leadcontainer, locked FROM houses"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 664,
+  "sql": "ALTER TABLE houses ADD COLUMN IF NOT EXISTS classname VARCHAR(64) DEFAULT NULL"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 670,
+  "sql": "UPDATE houses SET tax_playtime = tax_playtime + 5 WHERE owners IN (",
+  "partial": true
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 753,
+  "sql": "SELECT fedoverride FROM server_control WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 844,
+  "sql": "SELECT value FROM config WHERE `index`=200"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 868,
+  "sql": "INSERT IGNORE INTO turf_state (id, active_idx, ends) VALUES (1, -1, 0)"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 873,
+  "sql": "SELECT active_idx, ends FROM turf_state WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 896,
+  "sql": "UPDATE turf_state SET active_idx=%1, ends=%2 WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 910,
+  "sql": "UPDATE turf_state SET active_idx=-1, ends=0 WHERE id=1"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 936,
+  "sql": "SELECT QUOTE(p.`name`) FROM `%1` as p LEFT JOIN `players_global` as g ON p.playerid=g.playerid AND g.`wealth` > 0 AND g.`adminlevel` = '0' AND p.`lastupdated` > DATE_SUB(NOW(), INTERVAL 2 WEEK) ORDER BY g.`wealth` DESC LIMIT 10"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 1022,
+  "sql": "CREATE TABLE IF NOT EXISTS cartel_state (cartel VARCHAR(16) PRIMARY KEY, gang_id VARCHAR(32), progress DOUBLE, updated DATETIME) CHARSET=utf8mb4"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 1033,
+  "sql": "SELECT QUOTE(cartel), QUOTE(COALESCE(gang_id,'0')), COALESCE(progress,0) FROM cartel_state"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 1054,
+  "sql": "REPLACE INTO cartel_state (cartel, gang_id, progress, updated) VALUES ('%1','%2',%3,NOW())"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 1209,
+  "sql": "DELETE FROM `online` WHERE `instance`='%1'"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 1229,
+  "sql": "SELECT worldspace,sale FROM houses WHERE sale>0"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 1249,
+  "sql": "UPDATE exchange SET timer=timer+1 WHERE active='1'"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 1274,
+  "sql": "SELECT id, QUOTE(command), QUOTE(COALESCE(target,'')), QUOTE(COALESCE(arg1,'')), QUOTE(COALESCE(arg2,'')) FROM bot_commands WHERE status='pending' ORDER BY id ASC LIMIT 10"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 1326,
+  "sql": "UPDATE bot_commands SET status='saved' WHERE id=%1"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 1345,
+  "sql": "SELECT vinv, QUOTE(COALESCE(greenhouse_crop,'')) FROM houses WHERE oid='%1'"
+ },
+ {
+  "file": "server/AP_server/init.sqf",
+  "line": 1359,
+  "sql": "UPDATE bot_commands SET status='%1' WHERE id=%2"
+ }
+]
